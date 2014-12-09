@@ -18,6 +18,8 @@ finvenkisto_SOURCES = \
 	fv-logic.c \
 	fv-logic.h \
 	fv-main.c \
+	fv-map.c \
+	fv-map.h \
 	fv-matrix.c \
 	fv-matrix.h \
 	fv-shader-data.c \
@@ -29,7 +31,19 @@ finvenkisto_SOURCES = \
 	stb_image.h \
 	$(NULL)
 
+BUILT_SOURCES = \
+	fv-map.c \
+	$(NULL)
+
+fv-map.c : fv-map.txt make-map.py
+	$(AM_V_GEN)python3 $(srcdir)/make-map.py < $(srcdir)/fv-map.txt > $@
+
 finvenkisto_LDADD = \
 	$(EPOXY_LIBS) \
 	$(SDL_LIBS) \
+	$(NULL)
+
+EXTRA_DIST = \
+	fv-map.txt \
+	make-map.py \
 	$(NULL)

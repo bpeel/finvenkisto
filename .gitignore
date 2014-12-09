@@ -21,6 +21,7 @@
 /src/Makefile.in
 /src/Makefile
 /src/finvenkisto
+/src/fv-map.c
 
 *.o
 .deps
