@@ -268,7 +268,7 @@ main(int argc, char **argv)
         /* All of the painting functions expect to have the default
          * OpenGL state plus the following modifications */
 
-        /* ... */
+        glEnable(GL_CULL_FACE);
 
         /* The current program, vertex array and bound textures are
          * not expected to be reset back to zero */
