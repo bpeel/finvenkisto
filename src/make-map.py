@@ -22,7 +22,8 @@ MAP_HEIGHT = 64
 
 tiles = {
     '#': 'FV_MAP_TILE_WALL',
-    ' ': 'FV_MAP_TILE_FLOOR'
+    ' ': 'FV_MAP_TILE_FLOOR',
+    'T': 'FV_MAP_TILE_TABLE'
 }
 
 line_num = 1
