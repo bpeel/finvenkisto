@@ -20,7 +20,6 @@
 #ifndef FV_LOGIC_H
 #define FV_LOGIC_H
 
-#include <math.h>
 #include <float.h>
 
 struct fv_logic *
