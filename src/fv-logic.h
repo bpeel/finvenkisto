@@ -21,6 +21,7 @@
 #define FV_LOGIC_H
 
 #include <float.h>
+#include <stdbool.h>
 
 struct fv_logic *
 fv_logic_new(void);
@@ -32,6 +33,14 @@ fv_logic_update(struct fv_logic *logic,
 void
 fv_logic_get_center(struct fv_logic *logic,
                     float *x, float *y);
+
+/* The direction is given in radians where 0 is the positive x-axis
+ * and the angle is measured counter-clockwise from that.
+ */
+void
+fv_logic_set_direction(struct fv_logic *logic,
+                       bool moving,
+                       float direction);
 
 void
 fv_logic_free(struct fv_logic *logic);
