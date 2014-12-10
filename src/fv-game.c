@@ -20,7 +20,6 @@
 #include "config.h"
 
 #include <epoxy/gl.h>
-#include <SDL.h>
 #include <math.h>
 #include <float.h>
 #include <stdbool.h>

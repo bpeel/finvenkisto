@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include <SDL.h>
 #include <math.h>
 #include <limits.h>
 
