@@ -322,8 +322,8 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 {
         float center_x, center_y;
         int x_min, x_max, y_min, y_max;
-        int idx_min = INT_MAX;
-        int idx_max = INT_MIN;
+        int idx_min;
+        int idx_max;
         bool need_clear = false;
         const struct fv_map_painter_tile *tile;
         int count;
@@ -372,6 +372,8 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 
         for (y = y_min; y < y_max; y++) {
                 count = 0;
+                idx_min = INT_MAX;
+                idx_max = INT_MIN;
 
                 for (x = x_max - 1; x >= x_min; x--) {
                         tile = painter->tiles +
