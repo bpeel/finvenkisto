@@ -108,11 +108,11 @@ update_projection(struct fv_game *game,
                 game->visible_w = (FV_GAME_ORIGIN_DISTANCE /
                                    FV_GAME_NEAR_PLANE *
                                    right * 2.0f /
-                                   FV_GAME_SCALE);
+                                   FV_GAME_SCALE) + 1.0f;
                 game->visible_h = (FV_GAME_ORIGIN_DISTANCE /
                                    FV_GAME_NEAR_PLANE *
                                    top * 2.0f /
-                                   FV_GAME_SCALE);
+                                   FV_GAME_SCALE) + 1.0f;
 
                 game->last_fb_width = w;
                 game->last_fb_height = h;
