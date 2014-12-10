@@ -64,33 +64,129 @@ struct tile_data {
         struct fv_buffer vertices;
 };
 
+static float
+get_tile_height(uint8_t tile)
+{
+        if (FV_MAP_IS_FULL_WALL(tile))
+                return 2.0f;
+
+        if (FV_MAP_IS_HALF_WALL(tile))
+                return 1.0f;
+
+        return 0.0f;
+}
+
+static float
+get_position_height(int x, int y)
+{
+        if (x < 0 || x >= FV_MAP_WIDTH ||
+            y < 0 || y >= FV_MAP_HEIGHT)
+                return 0.0f;
+
+        return get_tile_height(fv_map[y * FV_MAP_WIDTH + x]);
+}
+
+static struct vertex *
+reserve_quad(struct tile_data *data)
+{
+        struct vertex *v;
+        uint16_t *idx;
+        size_t v1, i1;
+
+        v1 = data->vertices.length / sizeof (struct vertex);
+        fv_buffer_set_length(&data->vertices,
+                             sizeof (struct vertex) * (v1 + 4));
+        v = (struct vertex *) data->vertices.data + v1;
+
+        i1 = data->indices.length / sizeof (uint16_t);
+        fv_buffer_set_length(&data->indices,
+                             sizeof (uint16_t) * (i1 + 6));
+        idx = (uint16_t *) data->indices.data + i1;
+
+        *(idx++) = v1 + 0;
+        *(idx++) = v1 + 1;
+        *(idx++) = v1 + 2;
+        *(idx++) = v1 + 2;
+        *(idx++) = v1 + 1;
+        *(idx++) = v1 + 3;
+
+        return v;
+}
+
+static void
+add_horizontal_side(struct tile_data *data,
+                    float y,
+                    float x1, float z1,
+                    float x2, float z2)
+{
+        struct vertex *v = reserve_quad(data);
+        int i;
+
+        for (i = 0; i < 4; i++) {
+                v[i].color = FV_UINT32_TO_BE(0xff00ffff);
+                v[i].y = y;
+        }
+
+        v->x = x1;
+        v->z = z1;
+        v++;
+        v->x = x2;
+        v->z = z1;
+        v++;
+        v->x = x1;
+        v->z = z2;
+        v++;
+        v->x = x2;
+        v->z = z2;
+}
+
+static void
+add_vertical_side(struct tile_data *data,
+                  float x,
+                  float y1, float z1,
+                  float y2, float z2)
+{
+        struct vertex *v = reserve_quad(data);
+        int i;
+
+        for (i = 0; i < 4; i++) {
+                v[i].color = FV_UINT32_TO_BE(0xff00ffff);
+                v[i].x = x;
+        }
+
+        v->y = y1;
+        v->z = z1;
+        v++;
+        v->y = y2;
+        v->z = z1;
+        v++;
+        v->y = y1;
+        v->z = z2;
+        v++;
+        v->y = y2;
+        v->z = z2;
+}
+
 static void
 generate_square(struct tile_data *data,
                 int x, int y)
 {
         uint8_t tile = fv_map[y * FV_MAP_WIDTH + x];
         struct vertex *v;
-        uint16_t *idx;
-        size_t v1, i1;
         uint32_t color;
         int i;
-        float z;
+        float z, oz;
 
-        if (FV_MAP_IS_FULL_WALL(tile)) {
-                z = 1.0f;
+        v = reserve_quad(data);
+
+        z = get_tile_height(tile);
+
+        if (z >= 2.0f)
                 color = FV_UINT32_TO_BE(0xff0000ff);
-        } else if (FV_MAP_IS_HALF_WALL(tile)) {
-                z = 2.0f;
+        else if (z >= 1.0f)
                 color = FV_UINT32_TO_BE(0x00ff00ff);
-        } else {
-                z = 0.0f;
+        else
                 color = FV_UINT32_TO_BE(0x0000ffff);
-        }
-
-        v1 = data->vertices.length / sizeof (struct vertex);
-        fv_buffer_set_length(&data->vertices,
-                             sizeof (struct vertex) * (v1 + 4));
-        v = (struct vertex *) data->vertices.data + v1;
 
         for (i = 0; i < 4; i++) {
                 v[i].z = z;
@@ -109,17 +205,15 @@ generate_square(struct tile_data *data,
         v->x = x + 1;
         v->y = y + 1;
 
-        i1 = data->indices.length / sizeof (uint16_t);
-        fv_buffer_set_length(&data->indices,
-                             sizeof (uint16_t) * (i1 + 6));
-        idx = (uint16_t *) data->indices.data + i1;
-
-        *(idx++) = v1 + 0;
-        *(idx++) = v1 + 1;
-        *(idx++) = v1 + 2;
-        *(idx++) = v1 + 2;
-        *(idx++) = v1 + 1;
-        *(idx++) = v1 + 3;
+        /* Add the side walls */
+        if (z > (oz = get_position_height(x, y + 1)))
+                add_horizontal_side(data, y + 1, x, z, x + 1, oz);
+        if (z > (oz = get_position_height(x, y - 1)))
+                add_horizontal_side(data, y, x, oz, x + 1, z);
+        if (z > (oz = get_position_height(x - 1, y)))
+                add_vertical_side(data, x, y, z, y + 1, oz);
+        if (z > (oz = get_position_height(x + 1, y)))
+                add_vertical_side(data, x + 1, y, oz, y + 1, z);
 }
 
 static void
