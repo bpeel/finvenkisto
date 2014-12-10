@@ -30,6 +30,10 @@ fv_logic_update(struct fv_logic *logic,
                 unsigned int ticks);
 
 void
+fv_logic_get_center(struct fv_logic *logic,
+                    float *x, float *y);
+
+void
 fv_logic_free(struct fv_logic *logic);
 
 #endif /* FV_LOGIC_H */

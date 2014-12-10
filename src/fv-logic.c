@@ -52,3 +52,11 @@ fv_logic_free(struct fv_logic *logic)
 {
         fv_free(logic);
 }
+
+void
+fv_logic_get_center(struct fv_logic *logic,
+                    float *x, float *y)
+{
+        *x = 0.0f;
+        *y = 0.0f;
+}
