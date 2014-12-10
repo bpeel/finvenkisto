@@ -325,15 +325,9 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         int idx_min;
         int idx_max;
         bool need_clear = false;
-        const struct fv_map_painter_tile *tile;
+        const struct fv_map_painter_tile *tile = NULL;
         int count;
         int y, x;
-
-        glUseProgram(painter->program);
-        glUniformMatrix4fv(painter->transform_uniform,
-                           1, /* count */
-                           GL_FALSE, /* transpose */
-                           &transform->mvp.xx);
 
         fv_logic_get_center(logic, &center_x, &center_y);
 
@@ -365,6 +359,15 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 
         if (need_clear)
                 glClear(GL_COLOR_BUFFER_BIT);
+
+        if (y_min >= y_max || x_min >= x_max)
+                return;
+
+        glUseProgram(painter->program);
+        glUniformMatrix4fv(painter->transform_uniform,
+                           1, /* count */
+                           GL_FALSE, /* transpose */
+                           &transform->mvp.xx);
 
         glEnable(GL_DEPTH_TEST);
 
