@@ -20,19 +20,14 @@ import sys
 MAP_WIDTH = 64
 MAP_HEIGHT = 64
 
-print('''
-/* Automatically generated from make-map.py, do not edit */
-#include "fv-map.h"
-const uint8_t
-fv_map[FV_MAP_WIDTH * FV_MAP_HEIGHT] = {
-''')
-
-line_num = 1
-
 tiles = {
     '#': 'FV_MAP_TILE_WALL',
     ' ': 'FV_MAP_TILE_FLOOR'
 }
+
+line_num = 1
+
+lines = []
 
 for line in sys.stdin:
     line = line.rstrip()
@@ -46,12 +41,24 @@ for line in sys.stdin:
             sys.stderr.write("Unknown character '" + ch + "' on line " +
                              str(line_num) + "\n")
             sys.exit(1)
-        print("        " + tiles[ch] + ",")
+
+    lines.append(line)
 
     line_num += 1
 
 if line_num != MAP_HEIGHT + 1:
     sys.stderr.write("Map file is " + str(line_num - 1) + " lines long\n")
     sys.exit(1)
+
+print('''
+/* Automatically generated from make-map.py, do not edit */
+#include "fv-map.h"
+const uint8_t
+fv_map[FV_MAP_WIDTH * FV_MAP_HEIGHT] = {
+''')
+
+for line in reversed(lines):
+    for ch in line:
+        print("        " + tiles[ch] + ",")
 
 print("};")
