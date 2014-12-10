@@ -256,17 +256,17 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                 need_clear = true;
                 x_min = 0;
         }
-        if (x_max > FV_MAP_WIDTH) {
+        if (x_max > FV_MAP_PAINTER_TILES_X) {
                 need_clear = true;
-                x_max = FV_MAP_WIDTH;
+                x_max = FV_MAP_PAINTER_TILES_X;
         }
         if (y_min < 0) {
                 need_clear = true;
                 y_min = 0;
         }
-        if (y_max > FV_MAP_HEIGHT) {
+        if (y_max > FV_MAP_PAINTER_TILES_Y) {
                 need_clear = true;
-                y_max = FV_MAP_HEIGHT;
+                y_max = FV_MAP_PAINTER_TILES_Y;
         }
 
         if (need_clear)
