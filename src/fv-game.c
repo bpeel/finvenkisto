@@ -31,6 +31,7 @@
 #include "fv-util.h"
 #include "fv-matrix.h"
 #include "fv-transform.h"
+#include "fv-map-painter.h"
 
 #define FV_GAME_NEAR_PLANE 1.0f
 #define FV_GAME_FAR_PLANE 10.0f
@@ -42,6 +43,8 @@ struct fv_game {
         /* Size of the framebuffer the last time we painted */
         int last_fb_width, last_fb_height;
         int visible_w, visible_h;
+
+        struct fv_map_painter *map_painter;
 
         struct fv_transform transform;
 
@@ -60,6 +63,11 @@ fv_game_new(struct fv_shader_data *shader_data)
 
         fv_matrix_scale(&game->base_transform,
                         FV_GAME_SCALE, FV_GAME_SCALE, FV_GAME_SCALE);
+
+        game->map_painter = fv_map_painter_new(shader_data);
+
+        if (game->map_painter == NULL)
+                goto error;
 
         return game;
 
@@ -134,10 +142,16 @@ fv_game_paint(struct fv_game *game,
         update_modelview(game, logic);
 
         fv_transform_update_derived_values(&game->transform);
+
+        fv_map_painter_paint(game->map_painter,
+                             logic,
+                             game->visible_w, game->visible_h,
+                             &game->transform);
 }
 
 void
 fv_game_free(struct fv_game *game)
 {
+        fv_map_painter_free(game->map_painter);
         fv_free(game);
 }

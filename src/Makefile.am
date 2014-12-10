@@ -20,6 +20,8 @@ finvenkisto_SOURCES = \
 	fv-main.c \
 	fv-map.c \
 	fv-map.h \
+	fv-map-painter.c \
+	fv-map-painter.h \
 	fv-matrix.c \
 	fv-matrix.h \
 	fv-shader-data.c \
