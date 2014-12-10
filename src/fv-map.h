@@ -28,9 +28,9 @@
 #define FV_MAP_FULL_WALL 0x80
 #define FV_MAP_HALF_WALL 0x40
 
-#define FV_MAP_IS_FULL_WALL (!!((x) & FV_MAP_FULL_WALL))
-#define FV_MAP_IS_HALF_WALL (!!((x) & FV_MAP_HALF_WALL))
-#define FV_MAP_IS_WALL (!!((x) & (FV_MAP_FULL_WALL | FV_MAP_HALF_WALL)))
+#define FV_MAP_IS_FULL_WALL(x) (!!((x) & FV_MAP_FULL_WALL))
+#define FV_MAP_IS_HALF_WALL(x) (!!((x) & FV_MAP_HALF_WALL))
+#define FV_MAP_IS_WALL(x) (!!((x) & (FV_MAP_FULL_WALL | FV_MAP_HALF_WALL)))
 
 enum fv_map_tile {
         /* Floor pieces */
