@@ -31,6 +31,13 @@
 #include "fv-logic.h"
 #include "fv-shader-data.h"
 
+enum direction_key {
+        DIRECTION_KEY_UP = (1 << 0),
+        DIRECTION_KEY_DOWN = (1 << 1),
+        DIRECTION_KEY_LEFT = (1 << 2),
+        DIRECTION_KEY_RIGHT = (1 << 3)
+};
+
 struct data {
         struct fv_shader_data shader_data;
         struct fv_game *game;
@@ -42,6 +49,8 @@ struct data {
 
         bool quit;
         bool is_fullscreen;
+
+        enum direction_key direction_keys;
 };
 
 static void
@@ -66,6 +75,53 @@ toggle_fullscreen(struct data *data)
 }
 
 static void
+update_direction(struct data *data)
+{
+        float direction;
+        bool moving = true;
+        enum direction_key key, key_mask;
+
+        key_mask = data->direction_keys;
+        /* Cancel out directions where opposing keys are pressed */
+        key_mask = ((key_mask & 10) >> 1) ^ (key_mask & 5);
+        key_mask |= key_mask << 1;
+        key = data->direction_keys & key_mask;
+
+        switch ((int) key) {
+        case DIRECTION_KEY_UP:
+                direction = M_PI / 2.0f;
+                break;
+        case DIRECTION_KEY_UP | DIRECTION_KEY_LEFT:
+                direction = M_PI * 3.0f / 4.0f;
+                break;
+        case DIRECTION_KEY_UP | DIRECTION_KEY_RIGHT:
+                direction = M_PI / 4.0f;
+                break;
+        case DIRECTION_KEY_DOWN:
+                direction = -M_PI / 2.0f;
+                break;
+        case DIRECTION_KEY_DOWN | DIRECTION_KEY_LEFT:
+                direction = -M_PI * 3.0f / 4.0f;
+                break;
+        case DIRECTION_KEY_DOWN | DIRECTION_KEY_RIGHT:
+                direction = -M_PI / 4.0f;
+                break;
+        case DIRECTION_KEY_LEFT:
+                direction = M_PI;
+                break;
+        case DIRECTION_KEY_RIGHT:
+                direction = 0.0f;
+                break;
+        default:
+                moving = false;
+                direction = 0.0f;
+                break;
+        }
+
+        fv_logic_set_direction(data->logic, moving, direction);
+}
+
+static void
 handle_key_event(struct data *data,
                  const SDL_KeyboardEvent *event)
 {
@@ -73,6 +129,38 @@ handle_key_event(struct data *data,
         case SDLK_ESCAPE:
                 if (event->state == SDL_PRESSED)
                         data->quit = true;
+                break;
+
+        case SDLK_UP:
+                if (event->state == SDL_PRESSED)
+                        data->direction_keys |= DIRECTION_KEY_UP;
+                else
+                        data->direction_keys &= ~DIRECTION_KEY_UP;
+                update_direction(data);
+                break;
+
+        case SDLK_DOWN:
+                if (event->state == SDL_PRESSED)
+                        data->direction_keys |= DIRECTION_KEY_DOWN;
+                else
+                        data->direction_keys &= ~DIRECTION_KEY_DOWN;
+                update_direction(data);
+                break;
+
+        case SDLK_LEFT:
+                if (event->state == SDL_PRESSED)
+                        data->direction_keys |= DIRECTION_KEY_LEFT;
+                else
+                        data->direction_keys &= ~DIRECTION_KEY_LEFT;
+                update_direction(data);
+                break;
+
+        case SDLK_RIGHT:
+                if (event->state == SDL_PRESSED)
+                        data->direction_keys |= DIRECTION_KEY_RIGHT;
+                else
+                        data->direction_keys &= ~DIRECTION_KEY_RIGHT;
+                update_direction(data);
                 break;
 
         case SDLK_F11:
@@ -190,6 +278,8 @@ main(int argc, char **argv)
         data.is_fullscreen = false;
 
         data.last_fb_width = data.last_fb_height = 0;
+
+        data.direction_keys = 0;
 
         if (!fv_shader_data_init(&data.shader_data)) {
                 ret = EXIT_FAILURE;
