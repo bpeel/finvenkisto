@@ -30,10 +30,15 @@
 /* Movement speed measured in blocks per second */
 #define FV_LOGIC_MOVEMENT_SPEED 10.0f
 
+/* Turn speed in radians per second */
+#define FV_LOGIC_TURN_SPEED (2.5f * M_PI)
+
 struct fv_logic {
         unsigned int last_ticks;
 
-        float direction;
+        float player_x, player_y;
+        float current_direction;
+        float target_direction;
         bool moving;
 
         float center_x, center_y;
@@ -45,8 +50,13 @@ fv_logic_new(void)
         struct fv_logic *logic = fv_alloc(sizeof *logic);
 
         logic->last_ticks = 0;
+
+        logic->player_x = 2.0f;
+        logic->player_y = 2.0f;
+        logic->current_direction = 0.0f;
+        logic->target_direction = 0.0f;
         logic->moving = false;
-        logic->direction = 0.0f;
+
         logic->center_x = 0.0f;
         logic->center_y = 0.0f;
 
@@ -57,14 +67,34 @@ static void
 update_movement(struct fv_logic *logic, float progress_secs)
 {
         float distance;
+        float diff;
+        float turned;
 
         if (!logic->moving)
                 return;
 
         distance = FV_LOGIC_MOVEMENT_SPEED * progress_secs;
 
-        logic->center_x += distance * cosf(logic->direction);
-        logic->center_y += distance * sinf(logic->direction);
+        logic->player_x += distance * cosf(logic->target_direction);
+        logic->player_y += distance * sinf(logic->target_direction);
+
+        if (logic->target_direction != logic->current_direction) {
+                diff = logic->target_direction - logic->current_direction;
+
+                if (diff > M_PI)
+                        diff = diff - 2.0f * M_PI;
+                else if (diff < -M_PI)
+                        diff = 2.0f * M_PI + diff;
+
+                turned = progress_secs * FV_LOGIC_TURN_SPEED;
+
+                if (turned >= fabsf(diff))
+                        logic->current_direction = logic->target_direction;
+                else if (diff < 0.0f)
+                        logic->current_direction -= turned;
+                else
+                        logic->current_direction += turned;
+        }
 }
 
 void
@@ -91,7 +121,8 @@ fv_logic_set_direction(struct fv_logic *logic,
                        float direction)
 {
         logic->moving = moving;
-        logic->direction = direction;
+        if (moving)
+                logic->target_direction = direction;
 }
 
 void
@@ -106,4 +137,19 @@ fv_logic_get_center(struct fv_logic *logic,
 {
         *x = logic->center_x;
         *y = logic->center_y;
+}
+
+void
+fv_logic_for_each_person(struct fv_logic *logic,
+                         fv_logic_person_cb person_cb,
+                         void *user_data)
+{
+        struct fv_logic_person person;
+
+        /* Currently the only person is the player */
+        person.x = logic->player_x;
+        person.y = logic->player_y;
+        person.direction = logic->current_direction;
+
+        person_cb(&person, user_data);
 }

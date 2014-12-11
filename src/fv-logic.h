@@ -23,6 +23,15 @@
 #include <float.h>
 #include <stdbool.h>
 
+struct fv_logic_person {
+        float direction;
+        float x, y;
+};
+
+typedef void
+(* fv_logic_person_cb)(const struct fv_logic_person *person,
+                       void *user_data);
+
 struct fv_logic *
 fv_logic_new(void);
 
@@ -33,6 +42,11 @@ fv_logic_update(struct fv_logic *logic,
 void
 fv_logic_get_center(struct fv_logic *logic,
                     float *x, float *y);
+
+void
+fv_logic_for_each_person(struct fv_logic *logic,
+                         fv_logic_person_cb person_cb,
+                         void *user_data);
 
 /* The direction is given in radians where 0 is the positive x-axis
  * and the angle is measured counter-clockwise from that.
