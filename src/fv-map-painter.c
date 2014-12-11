@@ -185,7 +185,7 @@ generate_square(struct tile_data *data,
         else if (z >= 1.0f)
                 color = FV_UINT32_TO_BE(0x00ff00ff);
         else
-                color = FV_UINT32_TO_BE(0x0000ffff);
+                color = FV_UINT32_TO_BE(0x8080ffff);
 
         for (i = 0; i < 4; i++) {
                 v[i].z = z;
