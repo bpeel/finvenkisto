@@ -31,6 +31,7 @@
 #include "fv-matrix.h"
 #include "fv-transform.h"
 #include "fv-map-painter.h"
+#include "fv-person-painter.h"
 
 #define FV_GAME_NEAR_PLANE 1.0f
 #define FV_GAME_FAR_PLANE 10.0f
@@ -44,6 +45,7 @@ struct fv_game {
         int visible_w, visible_h;
 
         struct fv_map_painter *map_painter;
+        struct fv_person_painter *person_painter;
 
         struct fv_transform transform;
 
@@ -64,12 +66,17 @@ fv_game_new(struct fv_shader_data *shader_data)
                         FV_GAME_SCALE, FV_GAME_SCALE, FV_GAME_SCALE);
 
         game->map_painter = fv_map_painter_new(shader_data);
-
         if (game->map_painter == NULL)
                 goto error;
 
+        game->person_painter = fv_person_painter_new(shader_data);
+        if (game->person_painter == NULL)
+                goto error_map;
+
         return game;
 
+error_map:
+        fv_map_painter_free(game->map_painter);
 error:
         fv_free(game);
 
@@ -146,11 +153,16 @@ fv_game_paint(struct fv_game *game,
                              logic,
                              game->visible_w, game->visible_h,
                              &game->transform);
+
+        fv_person_painter_paint(game->person_painter,
+                                logic,
+                                &game->transform);
 }
 
 void
 fv_game_free(struct fv_game *game)
 {
+        fv_person_painter_free(game->person_painter);
         fv_map_painter_free(game->map_painter);
         fv_free(game);
 }

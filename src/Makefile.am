@@ -28,6 +28,8 @@ finvenkisto_SOURCES = \
 	fv-matrix.h \
 	fv-model.c \
 	fv-model.h \
+	fv-person-painter.c \
+	fv-person-painter.h \
 	fv-shader-data.c \
 	fv-shader-data.h \
 	fv-transform.c \
