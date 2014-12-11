@@ -23,7 +23,6 @@
 /src/finvenkisto
 /src/fv-map.c
 /src/rply/Makefile
-/src/rply/Makefile.am
 /src/rply/Makefile.in
 /src/rply/convert
 /src/rply/librply.a
