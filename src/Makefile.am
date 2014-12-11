@@ -1,3 +1,5 @@
+SUBDIRS = rply
+
 bin_PROGRAMS = finvenkisto
 
 AM_CFLAGS = \
@@ -43,6 +45,7 @@ fv-map.c : fv-map.txt make-map.py
 finvenkisto_LDADD = \
 	$(EPOXY_LIBS) \
 	$(SDL_LIBS) \
+	rply/librply.a \
 	$(NULL)
 
 EXTRA_DIST = \

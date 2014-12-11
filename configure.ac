@@ -13,6 +13,7 @@ AM_SILENT_RULES([yes])
 
 AC_PROG_CC
 AC_PROG_CPP
+AC_PROG_RANLIB
 AM_PROG_CC_C_O
 AC_ISC_POSIX
 AC_C_CONST
@@ -41,5 +42,6 @@ PKG_CHECK_MODULES([SDL], [sdl2])
 AC_OUTPUT(
 Makefile
 data/Makefile
+src/rply/Makefile
 src/Makefile
 )
