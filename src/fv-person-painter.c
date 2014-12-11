@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <epoxy/gl.h>
+#include <math.h>
 
 #include "fv-person-painter.h"
 #include "fv-logic.h"
@@ -55,31 +56,50 @@ error:
         return NULL;
 }
 
+struct paint_closure {
+        struct fv_person_painter *painter;
+        const struct fv_transform *transform_in;
+        struct fv_transform transform;
+};
+
+static void
+paint_person_cb(const struct fv_logic_person *person,
+                void *user_data)
+{
+        struct paint_closure *data = user_data;
+
+        data->transform.modelview = data->transform_in->modelview;
+        fv_matrix_translate(&data->transform.modelview,
+                            person->x, person->y, 0.0f);
+        fv_matrix_rotate(&data->transform.modelview,
+                         person->direction * 180.f / M_PI,
+                         0.0f, 0.0f, 1.0f);
+        fv_transform_update_derived_values(&data->transform);
+
+        glUniformMatrix4fv(data->painter->transform_uniform,
+                           1, /* count */
+                           GL_FALSE, /* transpose */
+                           &data->transform.mvp.xx);
+
+        fv_model_paint(&data->painter->model);
+}
+
 void
 fv_person_painter_paint(struct fv_person_painter *painter,
                         struct fv_logic *logic,
-                        const struct fv_transform *transform_in)
+                        const struct fv_transform *transform)
 {
-        struct fv_transform transform;
-        float center_x, center_y;
+        struct paint_closure data;
 
-        fv_logic_get_center(logic, &center_x, &center_y);
-
-        transform.projection = transform_in->projection;
-        transform.modelview = transform_in->modelview;
-        fv_matrix_translate(&transform.modelview,
-                            center_x, center_y, 0.0f);
-        fv_transform_update_derived_values(&transform);
+        data.painter = painter;
+        data.transform_in = transform;
+        data.transform.projection = transform->projection;
 
         glUseProgram(painter->program);
-        glUniformMatrix4fv(painter->transform_uniform,
-                           1, /* count */
-                           GL_FALSE, /* transpose */
-                           &transform.mvp.xx);
 
         glEnable(GL_DEPTH_TEST);
 
-        fv_model_paint(&painter->model);
+        fv_logic_for_each_person(logic, paint_person_cb, &data);
 
         glDisable(GL_DEPTH_TEST);
 }
