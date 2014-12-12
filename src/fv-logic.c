@@ -26,6 +26,7 @@
 
 #include "fv-logic.h"
 #include "fv-util.h"
+#include "fv-map.h"
 
 /* Movement speed measured in blocks per second */
 #define FV_LOGIC_MOVEMENT_SPEED 10.0f
@@ -36,6 +37,9 @@
 /* Maximum distance to the player from the center point before it will
  * start scrolling */
 #define FV_LOGIC_CAMERA_DISTANCE 5.0f
+
+/* For collision detection the player is treated as a square of this size */
+#define FV_LOGIC_PLAYER_SIZE 0.8f
 
 struct fv_logic {
         unsigned int last_ticks;
@@ -67,6 +71,56 @@ fv_logic_new(void)
         return logic;
 }
 
+static bool
+is_wall(int x, int y)
+{
+        if (x < 0 || x >= FV_MAP_WIDTH ||
+            y < 0 || y >= FV_MAP_HEIGHT)
+                return true;
+
+        return FV_MAP_IS_WALL(fv_map[y * FV_MAP_WIDTH + x]);
+}
+
+static void
+update_position(struct fv_logic *logic,
+                float progress_secs)
+{
+        float distance;
+        float diff;
+        float pos;
+
+        distance = FV_LOGIC_MOVEMENT_SPEED * progress_secs;
+
+        diff = distance * cosf(logic->target_direction);
+
+        /* Don't let the player move more than one tile per frame
+         * because otherwise it might be possible to skip over
+         * walls */
+        if (fabsf(diff) > 1.0f)
+                diff = copysign(1.0f, diff);
+
+        pos = (logic->player_x + diff +
+               copysignf(FV_LOGIC_PLAYER_SIZE / 2.0f, diff));
+        if (!is_wall(floorf(pos),
+                     floorf(logic->player_y + FV_LOGIC_PLAYER_SIZE / 2.0f)) &&
+            !is_wall(floorf(pos),
+                     floorf(logic->player_y - FV_LOGIC_PLAYER_SIZE / 2.0f)))
+                logic->player_x += diff;
+
+        diff = distance * sinf(logic->target_direction);
+
+        if (fabsf(diff) > 1.0f)
+                diff = copysign(1.0f, diff);
+
+        pos = (logic->player_y + diff +
+               copysignf(FV_LOGIC_PLAYER_SIZE / 2.0f, diff));
+        if (!is_wall(floorf(logic->player_x + FV_LOGIC_PLAYER_SIZE / 2.0f),
+                     floorf(pos)) &&
+            !is_wall(floorf(logic->player_x - FV_LOGIC_PLAYER_SIZE / 2.0f),
+                     floorf(pos)))
+                logic->player_y += diff;
+}
+
 static void
 update_center(struct fv_logic *logic)
 {
@@ -84,21 +138,10 @@ update_center(struct fv_logic *logic)
 }
 
 static void
-update_movement(struct fv_logic *logic, float progress_secs)
+update_current_direction(struct fv_logic *logic,
+                         float progress_secs)
 {
-        float distance;
-        float diff;
-        float turned;
-
-        if (!logic->moving)
-                return;
-
-        distance = FV_LOGIC_MOVEMENT_SPEED * progress_secs;
-
-        logic->player_x += distance * cosf(logic->target_direction);
-        logic->player_y += distance * sinf(logic->target_direction);
-
-        update_center(logic);
+        float diff, turned;
 
         if (logic->target_direction != logic->current_direction) {
                 diff = logic->target_direction - logic->current_direction;
@@ -117,6 +160,17 @@ update_movement(struct fv_logic *logic, float progress_secs)
                 else
                         logic->current_direction += turned;
         }
+}
+
+static void
+update_movement(struct fv_logic *logic, float progress_secs)
+{
+        if (!logic->moving)
+                return;
+
+        update_position(logic, progress_secs);
+        update_center(logic);
+        update_current_direction(logic, progress_secs);
 }
 
 void
