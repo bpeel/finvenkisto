@@ -84,6 +84,75 @@ error:
 }
 
 static void
+update_visible_area(struct fv_game *game)
+{
+        struct fv_matrix m, inverse;
+        float min_x = FLT_MAX, max_x = -FLT_MAX;
+        float min_y = FLT_MAX, max_y = -FLT_MAX;
+        float points_in[4 * 2 * 3], points_out[4 * 2 * 4];
+        float *p = points_in;
+        int x, y, i;
+        float px, py, frac;
+
+        fv_matrix_multiply(&m,
+                           &game->transform.projection,
+                           &game->base_transform);
+        fv_matrix_get_inverse(&m, &inverse);
+
+        for (y = -1; y <= 1; y += 2) {
+                for (x = -1; x <= 1; x += 2) {
+                        *(p++) = x;
+                        *(p++) = y;
+                        *(p++) = -1.0f;
+                        *(p++) = x;
+                        *(p++) = y;
+                        *(p++) = 1.0f;
+                }
+        }
+
+        fv_matrix_project_points(&inverse,
+                                 3, /* n_components */
+                                 sizeof (float) * 3,
+                                 points_in,
+                                 sizeof (float) * 4,
+                                 points_out,
+                                 4 * 2 /* n_points */);
+
+        for (i = 0; i < 4 * 2; i++) {
+                points_out[i * 4 + 0] /= points_out[i * 4 + 3];
+                points_out[i * 4 + 1] /= points_out[i * 4 + 3];
+                points_out[i * 4 + 2] /= points_out[i * 4 + 3];
+        }
+
+        for (i = 0; i < 4; i++) {
+                p = points_out + i * 4 * 2;
+                /* The two unprojected points represent a line going
+                 * from the near plane to the far plane which gets
+                 * projected to a single point touching one of the
+                 * corners of the viewport. Here we work out the x/y
+                 * position of the point along the line where it
+                 * touches the plane representing the floor of the
+                 * world. This point will be the furthest visible x/y
+                 * extents for that corner */
+                frac = (0.0f - p[6]) / (p[2] - p[6]);
+                px = frac * (p[0] - p[4]) + p[4];
+                py = frac * (p[1] - p[5]) + p[5];
+
+                if (px < min_x)
+                        min_x = px;
+                if (px > max_x)
+                        max_x = px;
+                if (py < min_y)
+                        min_y = py;
+                if (py > max_y)
+                        max_y = py;
+        }
+
+        game->visible_w = fmaxf(fabsf(min_x), fabsf(max_x)) * 2.0f + 1.0f;
+        game->visible_h = fmaxf(fabsf(min_y), fabsf(max_y)) * 2.0f + 1.0f;
+}
+
+static void
 update_projection(struct fv_game *game,
                   int w, int h)
 {
@@ -111,14 +180,7 @@ update_projection(struct fv_game *game,
                                   FV_GAME_NEAR_PLANE,
                                   FV_GAME_FAR_PLANE);
 
-                game->visible_w = (FV_GAME_ORIGIN_DISTANCE /
-                                   FV_GAME_NEAR_PLANE *
-                                   right * 2.0f /
-                                   FV_GAME_SCALE) + 1.0f;
-                game->visible_h = (FV_GAME_ORIGIN_DISTANCE /
-                                   FV_GAME_NEAR_PLANE *
-                                   top * 2.0f /
-                                   FV_GAME_SCALE) + 1.0f;
+                update_visible_area(game);
 
                 game->last_fb_width = w;
                 game->last_fb_height = h;
