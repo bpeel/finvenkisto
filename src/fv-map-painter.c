@@ -323,7 +323,6 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         int x_min, x_max, y_min, y_max;
         int idx_min;
         int idx_max;
-        bool need_clear = false;
         const struct fv_map_painter_tile *tile = NULL;
         int count;
         int y, x;
@@ -339,25 +338,14 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         y_max = ceilf((center_y + visible_h / 2.0f) /
                       FV_MAP_PAINTER_TILE_HEIGHT);
 
-        if (x_min < 0) {
-                need_clear = true;
+        if (x_min < 0)
                 x_min = 0;
-        }
-        if (x_max > FV_MAP_PAINTER_TILES_X) {
-                need_clear = true;
+        if (x_max > FV_MAP_PAINTER_TILES_X)
                 x_max = FV_MAP_PAINTER_TILES_X;
-        }
-        if (y_min < 0) {
-                need_clear = true;
+        if (y_min < 0)
                 y_min = 0;
-        }
-        if (y_max > FV_MAP_PAINTER_TILES_Y) {
-                need_clear = true;
+        if (y_max > FV_MAP_PAINTER_TILES_Y)
                 y_max = FV_MAP_PAINTER_TILES_Y;
-        }
-
-        if (need_clear)
-                glClear(GL_COLOR_BUFFER_BIT);
 
         if (y_min >= y_max || x_min >= x_max)
                 return;

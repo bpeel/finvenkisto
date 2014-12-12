@@ -32,6 +32,7 @@
 #include "fv-transform.h"
 #include "fv-map-painter.h"
 #include "fv-person-painter.h"
+#include "fv-map.h"
 
 #define FV_GAME_NEAR_PLANE 1.0f
 #define FV_GAME_FAR_PLANE 10.0f
@@ -204,6 +205,22 @@ update_modelview(struct fv_game *game,
                             -center_x, -center_y, 0.0f);
 }
 
+static bool
+need_clear(struct fv_game *game,
+           struct fv_logic *logic)
+{
+        float center_x, center_y;
+
+        fv_logic_get_center(logic, &center_x, &center_y);
+
+        /* We only need to clear if the map doesn't cover the entire
+         * viewport */
+        return (center_x - game->visible_w / 2.0f < 0.0f ||
+                center_y - game->visible_h / 2.0f < 0.0f ||
+                center_x + game->visible_w / 2.0f > FV_MAP_WIDTH ||
+                center_y + game->visible_h / 2.0f > FV_MAP_HEIGHT);
+}
+
 void
 fv_game_paint(struct fv_game *game,
               int width, int height,
@@ -214,6 +231,9 @@ fv_game_paint(struct fv_game *game,
         update_modelview(game, logic);
 
         fv_transform_update_derived_values(&game->transform);
+
+        if (need_clear(game, logic))
+                glClear(GL_COLOR_BUFFER_BIT);
 
         fv_map_painter_paint(game->map_painter,
                              logic,
