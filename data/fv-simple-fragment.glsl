@@ -1,5 +1,5 @@
 /*
- * Finkvenkisto
+ * Finvenkisto
  *
  * Copyright (C) 2014 Neil Roberts
  *
