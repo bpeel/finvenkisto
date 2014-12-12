@@ -53,6 +53,16 @@ fv_shader_data_shaders[] = {
                 GL_VERTEX_SHADER,
                 "fv-simple-vertex.glsl",
                 { FV_SHADER_DATA_PROGRAM_SIMPLE, -1 }
+        },
+        {
+                GL_FRAGMENT_SHADER,
+                "fv-map-fragment.glsl",
+                { FV_SHADER_DATA_PROGRAM_MAP, -1 }
+        },
+        {
+                GL_VERTEX_SHADER,
+                "fv-map-vertex.glsl",
+                { FV_SHADER_DATA_PROGRAM_MAP, -1 }
         }
 };
 

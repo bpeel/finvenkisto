@@ -17,26 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_SHADER_DATA_H
-#define FV_SHADER_DATA_H
+layout(location = 0) out vec4 frag_color;
 
-#include <epoxy/gl.h>
-#include <stdbool.h>
+in vec2 tex_coord;
 
-enum fv_shader_data_program {
-        FV_SHADER_DATA_PROGRAM_SIMPLE,
-        FV_SHADER_DATA_PROGRAM_MAP,
-        FV_SHADER_DATA_N_PROGRAMS
-};
-
-struct fv_shader_data {
-        GLuint programs[FV_SHADER_DATA_N_PROGRAMS];
-};
-
-bool
-fv_shader_data_init(struct fv_shader_data *data);
+uniform sampler2D tex;
 
 void
-fv_shader_data_destroy(struct fv_shader_data *data);
-
-#endif /* FV_SHADER_DATA_H */
+main()
+{
+        frag_color = texture(tex, tex_coord);
+}

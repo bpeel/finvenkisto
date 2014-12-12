@@ -26,6 +26,7 @@
 #include "fv-map.h"
 #include "fv-util.h"
 #include "fv-buffer.h"
+#include "fv-image.h"
 
 #define FV_MAP_PAINTER_TILE_WIDTH 8
 #define FV_MAP_PAINTER_TILE_HEIGHT 8
@@ -37,6 +38,8 @@ _Static_assert(FV_MAP_WIDTH % FV_MAP_PAINTER_TILE_WIDTH == 0,
                "The map size must be a multiple of the tile size");
 _Static_assert(FV_MAP_HEIGHT % FV_MAP_PAINTER_TILE_HEIGHT == 0,
                "The map size must be a multiple of the tile size");
+
+#define FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE 64
 
 struct fv_map_painter_tile {
         size_t offset;
@@ -51,11 +54,14 @@ struct fv_map_painter {
                                          FV_MAP_PAINTER_TILES_Y];
         GLuint program;
         GLuint transform_uniform;
+
+        GLuint texture;
+        int texture_width, texture_height;
 };
 
 struct vertex {
         float x, y, z;
-        uint32_t color;
+        float s, t;
 };
 
 struct tile_data {
@@ -112,7 +118,7 @@ reserve_quad(struct tile_data *data)
         return v;
 }
 
-static void
+static struct vertex *
 add_horizontal_side(struct tile_data *data,
                     float y,
                     float x1, float z1,
@@ -121,25 +127,22 @@ add_horizontal_side(struct tile_data *data,
         struct vertex *v = reserve_quad(data);
         int i;
 
-        for (i = 0; i < 4; i++) {
-                v[i].color = FV_UINT32_TO_BE(0xff00ffff);
+        for (i = 0; i < 4; i++)
                 v[i].y = y;
-        }
 
-        v->x = x1;
-        v->z = z1;
-        v++;
-        v->x = x2;
-        v->z = z1;
-        v++;
-        v->x = x1;
-        v->z = z2;
-        v++;
-        v->x = x2;
-        v->z = z2;
+        v[0].x = x1;
+        v[0].z = z1;
+        v[1].x = x2;
+        v[1].z = z1;
+        v[2].x = x1;
+        v[2].z = z2;
+        v[3].x = x2;
+        v[3].z = z2;
+
+        return v;
 }
 
-static void
+static struct vertex *
 add_vertical_side(struct tile_data *data,
                   float x,
                   float y1, float z1,
@@ -148,31 +151,55 @@ add_vertical_side(struct tile_data *data,
         struct vertex *v = reserve_quad(data);
         int i;
 
-        for (i = 0; i < 4; i++) {
-                v[i].color = FV_UINT32_TO_BE(0xff00ffff);
+        for (i = 0; i < 4; i++)
                 v[i].x = x;
-        }
 
-        v->y = y1;
-        v->z = z1;
-        v++;
-        v->y = y2;
-        v->z = z1;
-        v++;
-        v->y = y1;
-        v->z = z2;
-        v++;
-        v->y = y2;
-        v->z = z2;
+        v[0].y = y1;
+        v[0].z = z1;
+        v[1].y = y2;
+        v[1].z = z1;
+        v[2].y = y1;
+        v[2].z = z2;
+        v[3].y = y2;
+        v[3].z = z2;
+
+        return v;
 }
 
 static void
-generate_square(struct tile_data *data,
+set_tex_coords_for_image(struct fv_map_painter *painter,
+                         struct vertex v[4],
+                         int image,
+                         float height)
+{
+        float s1 = (image * FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE /
+                    (float) painter->texture_width);
+        float t1 = (image * FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE /
+                    painter->texture_width /
+                    (float) (painter->texture_height /
+                             FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE));
+        float s2 = s1 + (FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE /
+                        (float) painter->texture_width);
+        float t2 = t1 + (FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE /
+                        (float) painter->texture_height) * height;
+
+        v[0].s = s1;
+        v[0].t = t2;
+        v[1].s = s2;
+        v[1].t = t2;
+        v[2].s = s1;
+        v[2].t = t1;
+        v[3].s = s2;
+        v[3].t = t1;
+}
+
+static void
+generate_square(struct fv_map_painter *painter,
+                struct tile_data *data,
                 int x, int y)
 {
         fv_map_block_t block = fv_map[y * FV_MAP_WIDTH + x];
         struct vertex *v;
-        uint32_t color;
         int i;
         float z, oz;
 
@@ -180,17 +207,12 @@ generate_square(struct tile_data *data,
 
         z = get_block_height(block);
 
-        if (z >= 2.0f)
-                color = FV_UINT32_TO_BE(0xff0000ff);
-        else if (z >= 1.0f)
-                color = FV_UINT32_TO_BE(0x00ff00ff);
-        else
-                color = FV_UINT32_TO_BE(0x8080ffff);
+        set_tex_coords_for_image(painter, v,
+                                 FV_MAP_GET_BLOCK_TOP_IMAGE(block),
+                                 1.0f);
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < 4; i++)
                 v[i].z = z;
-                v[i].color = color;
-        }
 
         v->x = x;
         v->y = y;
@@ -205,25 +227,43 @@ generate_square(struct tile_data *data,
         v->y = y + 1;
 
         /* Add the side walls */
-        if (z > (oz = get_position_height(x, y + 1)))
-                add_horizontal_side(data, y + 1, x, z, x + 1, oz);
-        if (z > (oz = get_position_height(x, y - 1)))
-                add_horizontal_side(data, y, x, oz, x + 1, z);
-        if (z > (oz = get_position_height(x - 1, y)))
-                add_vertical_side(data, x, y, z, y + 1, oz);
-        if (z > (oz = get_position_height(x + 1, y)))
-                add_vertical_side(data, x + 1, y, oz, y + 1, z);
+        if (z > (oz = get_position_height(x, y + 1))) {
+                v = add_horizontal_side(data, y + 1, x + 1, oz, x, z);
+                set_tex_coords_for_image(painter, v,
+                                         FV_MAP_GET_BLOCK_SIDE_IMAGE(block),
+                                         z - oz);
+        }
+        if (z > (oz = get_position_height(x, y - 1))) {
+                v = add_horizontal_side(data, y, x, oz, x + 1, z);
+                set_tex_coords_for_image(painter, v,
+                                         FV_MAP_GET_BLOCK_SIDE_IMAGE(block),
+                                         z - oz);
+        }
+        if (z > (oz = get_position_height(x - 1, y))) {
+                v = add_vertical_side(data, x, y + 1, oz, y, z);
+                set_tex_coords_for_image(painter, v,
+                                         FV_MAP_GET_BLOCK_SIDE_IMAGE(block),
+                                         z - oz);
+        }
+        if (z > (oz = get_position_height(x + 1, y))) {
+                v = add_vertical_side(data, x + 1, y, oz, y + 1, z);
+                set_tex_coords_for_image(painter, v,
+                                         FV_MAP_GET_BLOCK_SIDE_IMAGE(block),
+                                         z - oz);
+        }
 }
 
 static void
-generate_tile(struct tile_data *data,
+generate_tile(struct fv_map_painter *painter,
+              struct tile_data *data,
               int tx, int ty)
 {
         int x, y;
 
         for (y = 0; y < FV_MAP_PAINTER_TILE_HEIGHT; y++) {
                 for (x = 0; x < FV_MAP_PAINTER_TILE_WIDTH; x++) {
-                        generate_square(data,
+                        generate_square(painter,
+                                        data,
                                         tx * FV_MAP_PAINTER_TILES_X + x,
                                         ty * FV_MAP_PAINTER_TILES_Y + y);
                 }
@@ -234,17 +274,51 @@ generate_tile(struct tile_data *data,
 struct fv_map_painter *
 fv_map_painter_new(struct fv_shader_data *shader_data)
 {
-        struct fv_map_painter *painter = fv_alloc(sizeof *painter);
+        struct fv_map_painter *painter;
         struct tile_data data;
-        struct fv_map_painter_tile *tile = painter->tiles;
+        struct fv_map_painter_tile *tile;
         int first, tx, ty, i;
+        uint8_t *tex_data;
+        int tex_width, tex_height;
+        GLuint tex_uniform;
 
-        painter->program = shader_data->programs[FV_SHADER_DATA_PROGRAM_SIMPLE];
+        tex_data = fv_image_load("map-texture.png",
+                                 &tex_width, &tex_height,
+                                 3 /* components */);
+        if (tex_data == NULL)
+                return NULL;
+
+        painter = fv_alloc(sizeof *painter);
+        painter->program = shader_data->programs[FV_SHADER_DATA_PROGRAM_MAP];
         painter->transform_uniform =
                 glGetUniformLocation(painter->program, "transform");
 
+        painter->texture_width = tex_width;
+        painter->texture_height = tex_height;
+
+        glGenTextures(1, &painter->texture);
+        glBindTexture(GL_TEXTURE_2D, painter->texture);
+        glTexImage2D(GL_TEXTURE_2D,
+                     0, /* level */
+                     GL_RGB,
+                     tex_width, tex_height,
+                     0, /* border */
+                     GL_RGB,
+                     GL_UNSIGNED_BYTE,
+                     tex_data);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+        fv_free(tex_data);
+
+        tex_uniform = glGetUniformLocation(painter->program, "tex");
+        glUseProgram(painter->program);
+        glUniform1i(tex_uniform, 0);
+
         fv_buffer_init(&data.vertices);
         fv_buffer_init(&data.indices);
+
+        tile = painter->tiles;
 
         for (ty = 0; ty < FV_MAP_PAINTER_TILES_Y; ty++) {
                 for (tx = 0; tx < FV_MAP_PAINTER_TILES_X; tx++) {
@@ -252,7 +326,7 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                         tile->min = (data.vertices.length /
                                      sizeof (struct vertex));
                         tile->offset = data.indices.length;
-                        generate_tile(&data, tx, ty);
+                        generate_tile(painter, &data, tx, ty);
                         tile->max = (data.vertices.length /
                                      sizeof (struct vertex)) - 1;
                         tile->count = (data.indices.length /
@@ -295,12 +369,12 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
 
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, /* index */
-                              3, /* size */
-                              GL_UNSIGNED_BYTE,
-                              GL_TRUE, /* normalized */
+                              2, /* size */
+                              GL_FLOAT,
+                              GL_FALSE, /* normalized */
                               sizeof (struct vertex),
                               (void *) (intptr_t)
-                              offsetof(struct vertex, color));
+                              offsetof(struct vertex, s));
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, painter->buffer);
 
@@ -356,6 +430,8 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                            GL_FALSE, /* transpose */
                            &transform->mvp.xx);
 
+        glBindTexture(GL_TEXTURE_2D, painter->texture);
+
         glEnable(GL_DEPTH_TEST);
 
         glBindVertexArray(painter->array);
@@ -389,6 +465,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 void
 fv_map_painter_free(struct fv_map_painter *painter)
 {
+        glDeleteTextures(1, &painter->texture);
         glDeleteVertexArrays(1, &painter->array);
         glDeleteBuffers(1, &painter->buffer);
         fv_free(painter);
