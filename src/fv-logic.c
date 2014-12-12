@@ -33,6 +33,10 @@
 /* Turn speed in radians per second */
 #define FV_LOGIC_TURN_SPEED (2.5f * M_PI)
 
+/* Maximum distance to the player from the center point before it will
+ * start scrolling */
+#define FV_LOGIC_CAMERA_DISTANCE 5.0f
+
 struct fv_logic {
         unsigned int last_ticks;
 
@@ -64,6 +68,22 @@ fv_logic_new(void)
 }
 
 static void
+update_center(struct fv_logic *logic)
+{
+        float dx = logic->player_x - logic->center_x;
+        float dy = logic->player_y - logic->center_y;
+        float d2, d;
+
+        d2 = dx * dx + dy * dy;
+
+        if (d2 > FV_LOGIC_CAMERA_DISTANCE * FV_LOGIC_CAMERA_DISTANCE) {
+                d = sqrtf(d2);
+                logic->center_x += dx * (1 - FV_LOGIC_CAMERA_DISTANCE / d);
+                logic->center_y += dy * (1 - FV_LOGIC_CAMERA_DISTANCE / d);
+        }
+}
+
+static void
 update_movement(struct fv_logic *logic, float progress_secs)
 {
         float distance;
@@ -77,6 +97,8 @@ update_movement(struct fv_logic *logic, float progress_secs)
 
         logic->player_x += distance * cosf(logic->target_direction);
         logic->player_y += distance * sinf(logic->target_direction);
+
+        update_center(logic);
 
         if (logic->target_direction != logic->current_direction) {
                 diff = logic->target_direction - logic->current_direction;
