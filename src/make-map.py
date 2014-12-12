@@ -23,6 +23,7 @@ MAP_HEIGHT = 64
 tiles = {
     '#': 'FV_MAP_FULL_WALL | B(0, 2)',
     ' ': 'B(11, 0)',
+    'g': 'B(1, 0)',
     'T': 'FV_MAP_HALF_WALL | B(3, 10)'
 }
 
