@@ -235,14 +235,14 @@ fv_game_paint(struct fv_game *game,
         if (need_clear(game, logic))
                 glClear(GL_COLOR_BUFFER_BIT);
 
+        fv_person_painter_paint(game->person_painter,
+                                logic,
+                                &game->transform);
+
         fv_map_painter_paint(game->map_painter,
                              logic,
                              game->visible_w, game->visible_h,
                              &game->transform);
-
-        fv_person_painter_paint(game->person_painter,
-                                logic,
-                                &game->transform);
 }
 
 void
