@@ -25,25 +25,18 @@
 #define FV_MAP_WIDTH 64
 #define FV_MAP_HEIGHT 64
 
-#define FV_MAP_FULL_WALL 0x80
-#define FV_MAP_HALF_WALL 0x40
+#define FV_MAP_FULL_WALL 0x8000
+#define FV_MAP_HALF_WALL 0x4000
 
 #define FV_MAP_IS_FULL_WALL(x) (!!((x) & FV_MAP_FULL_WALL))
 #define FV_MAP_IS_HALF_WALL(x) (!!((x) & FV_MAP_HALF_WALL))
 #define FV_MAP_IS_WALL(x) (!!((x) & (FV_MAP_FULL_WALL | FV_MAP_HALF_WALL)))
+#define FV_MAP_GET_BLOCK_TOP_IMAGE(x) ((x) & ((1 << 7) - 1))
+#define FV_MAP_GET_BLOCK_SIDE_IMAGE(x) (((x) >> 7) & ((1 << 7) - 1))
 
-enum fv_map_tile {
-        /* Floor pieces */
-        FV_MAP_TILE_FLOOR = 0,
+typedef uint16_t fv_map_block_t;
 
-        /* Half wall pieces */
-        FV_MAP_TILE_TABLE = FV_MAP_HALF_WALL,
-
-        /* Full wall pieces */
-        FV_MAP_TILE_WALL = FV_MAP_FULL_WALL
-};
-
-extern const uint8_t
+extern const fv_map_block_t
 fv_map[FV_MAP_WIDTH * FV_MAP_HEIGHT];
 
 #endif /* FV_MAP_H */

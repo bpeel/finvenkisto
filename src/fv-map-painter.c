@@ -64,12 +64,12 @@ struct tile_data {
 };
 
 static float
-get_tile_height(uint8_t tile)
+get_block_height(fv_map_block_t block)
 {
-        if (FV_MAP_IS_FULL_WALL(tile))
+        if (FV_MAP_IS_FULL_WALL(block))
                 return 2.0f;
 
-        if (FV_MAP_IS_HALF_WALL(tile))
+        if (FV_MAP_IS_HALF_WALL(block))
                 return 1.0f;
 
         return 0.0f;
@@ -82,7 +82,7 @@ get_position_height(int x, int y)
             y < 0 || y >= FV_MAP_HEIGHT)
                 return 0.0f;
 
-        return get_tile_height(fv_map[y * FV_MAP_WIDTH + x]);
+        return get_block_height(fv_map[y * FV_MAP_WIDTH + x]);
 }
 
 static struct vertex *
@@ -170,7 +170,7 @@ static void
 generate_square(struct tile_data *data,
                 int x, int y)
 {
-        uint8_t tile = fv_map[y * FV_MAP_WIDTH + x];
+        fv_map_block_t block = fv_map[y * FV_MAP_WIDTH + x];
         struct vertex *v;
         uint32_t color;
         int i;
@@ -178,7 +178,7 @@ generate_square(struct tile_data *data,
 
         v = reserve_quad(data);
 
-        z = get_tile_height(tile);
+        z = get_block_height(block);
 
         if (z >= 2.0f)
                 color = FV_UINT32_TO_BE(0xff0000ff);

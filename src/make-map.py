@@ -21,9 +21,9 @@ MAP_WIDTH = 64
 MAP_HEIGHT = 64
 
 tiles = {
-    '#': 'FV_MAP_TILE_WALL',
-    ' ': 'FV_MAP_TILE_FLOOR',
-    'T': 'FV_MAP_TILE_TABLE'
+    '#': 'FV_MAP_FULL_WALL | B(0, 2)',
+    ' ': 'B(11, 0)',
+    'T': 'FV_MAP_HALF_WALL | B(3, 10)'
 }
 
 line_num = 1
@@ -54,7 +54,10 @@ if line_num != MAP_HEIGHT + 1:
 print('''
 /* Automatically generated from make-map.py, do not edit */
 #include "fv-map.h"
-const uint8_t
+#define F FV_MAP_FULL_WALL
+#define H FV_MAP_HALF_WALL
+#define B(top, sides) (((sides) << 7) | (top))
+const fv_map_block_t
 fv_map[FV_MAP_WIDTH * FV_MAP_HEIGHT] = {
 ''')
 
