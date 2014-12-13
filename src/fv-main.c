@@ -215,13 +215,82 @@ paint(struct data *data)
         SDL_GL_SwapWindow(data->window);
 }
 
+static void
+show_help(void)
+{
+        printf("Finvenkisto - Instruludo por venigi la finan venkon\n"
+               "uzo: finvenkisto [opcioj]\n"
+               "Opcioj:\n"
+               " -h       Montru ĉi tiun helpmesaĝon\n"
+               " -f       Rulu la ludon en fenestro\n"
+               " -p       Rulu la ludon plenekrane (defaŭlto)\n");
+}
+
+static bool
+process_argument_flags(struct data *data,
+                       const char *flags)
+{
+        while (*flags) {
+                switch (*flags) {
+                case 'h':
+                        show_help();
+                        return false;
+
+                case 'f':
+                        data->is_fullscreen = false;
+                        break;
+
+                case 'p':
+                        data->is_fullscreen = true;
+                        break;
+
+                default:
+                        fprintf(stderr, "Neatendita opcio ‘%c’\n", *flags);
+                        show_help();
+                        return false;
+                }
+
+                flags++;
+        }
+
+        return true;
+}
+
+static bool
+process_arguments(struct data *data,
+                  int argc, char **argv)
+{
+        int i;
+
+        for (i = 1; i < argc; i++) {
+                if (argv[i][0] == '-') {
+                        if (!process_argument_flags(data, argv[i] + 1))
+                                return false;
+                } else {
+                        fprintf(stderr, "Neatendita argumento ‘%s’\n", argv[i]);
+                        show_help();
+                        return false;
+                }
+        }
+
+        return true;
+}
+
 int
 main(int argc, char **argv)
 {
         struct data data;
         SDL_Event event;
+        Uint32 flags;
         int res;
         int ret;
+
+        data.is_fullscreen = true;
+
+        if (!process_arguments(&data, argc, argv)) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
 
         res = SDL_Init(SDL_INIT_VIDEO);
         if (res < 0) {
@@ -240,10 +309,15 @@ main(int argc, char **argv)
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
                             SDL_GL_CONTEXT_PROFILE_CORE);
 
+        flags = SDL_WINDOW_OPENGL;
+        if (data.is_fullscreen)
+                flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+
         data.window = SDL_CreateWindow("Finvenkisto",
                                        SDL_WINDOWPOS_UNDEFINED,
                                        SDL_WINDOWPOS_UNDEFINED,
-                                       640, 480, SDL_WINDOW_OPENGL);
+                                       640, 480,
+                                       flags);
 
         if (data.window == NULL) {
                 fprintf(stderr,
@@ -274,8 +348,6 @@ main(int argc, char **argv)
          * not expected to be reset back to zero */
 
         data.quit = false;
-
-        data.is_fullscreen = false;
 
         data.last_fb_width = data.last_fb_height = 0;
 
