@@ -1,55 +1,55 @@
 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-g##############################################################g
-g#                                                            #g
-g#                                                            #g
-g#                                                            #g
-g#                                                            #g
-g#                                                            #g
-g#                                                            #g
-g#                                                            #g
-g#                                                            #g
-g###############################  #############################g
-g#                                                            #g
-g#                                                            #g
-g#                                                            #g
-g#   TT      TT      TT      TT       TT      TT     TT       #g
-g#                                                            #g
-g#                                                            #g
-g#   TT      TT      TT      TT       TT      TT     TT       #g
-g#                                                            #g
-g#                                                            #g
-g#   TT      TT      TT      TT       TT      TT     TT       #g
-g#                                                            #g
-g########  ######################  ##################  ########g
-g#                                                            #g
-g#                                                            #g
-g#                                                            #g
-g####################    ########  ##################  ########g
-g#                  #    #               #                    #g
-g#                  #    #               #                    #g
-g#                  #    #               #                    #g
-g#                  #    #               #                    #g
-g#                  #    #               #                    #g
-g#                  #    #               #                    #g
-g#                  #    #               #                    #g
-g#                  #    #               #                    #g
-g#                  #    #               #                    #g
-g#                  #    #               #                    #g
-g#######  ###########    ########  ##################  ########g
-g#                                                            #g
-g#                                                            #g
-g#                                                            #g
-g#################    #  ###################################  #g
-g#               #    #                          #            #g
-g#               #    #                          #            #g
-g#               #    #              TT          #            #g
-g#               #    #                          #            #g
-g#    T          #    #        ###################            #g
-g#    T          #    #        #                              #g
-g#               #    #        #         TT                   #g
-g#                    #        #                              #g
-g#                    #        #                              #g
-g#################    #########################################g
+gawwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwg
+ga                                                            dg
+ga                                                            dg
+ga                                                            dg
+ga                                                            dg
+ga                                                            dg
+ga                                                            dg
+ga                                                            dg
+ga                                                            dg
+ga##############################  ############################dg
+ga                                                            dg
+ga                                                            dg
+ga                                                            dg
+ga   TT      TT      TT      TT       TT      TT     TT       dg
+ga                                                            dg
+ga                                                            dg
+ga   TT      TT      TT      TT       TT      TT     TT       dg
+ga                                                            dg
+ga                                                            dg
+ga   TT      TT      TT      TT       TT      TT     TT       dg
+ga                                                            dg
+ga#######  ######################  ##################  #######dg
+ga                                                            dg
+ga                                                            dg
+ga                                                            dg
+ga###################    ########  ##################  #######dg
+ga                  #    #               #                    dg
+ga                  #    #               #                    dg
+ga                  #    #               #                    dg
+ga                  #    #               #                    dg
+ga                  #    #               #                    dg
+ga                  #    #               #                    dg
+ga                  #    #               #                    dg
+ga                  #    #               #                    dg
+ga                  #    #               #                    dg
+ga                  #    #               #                    dg
+ga######  ###########    ########  ##################  #######dg
+ga                                                            dg
+ga                                                            dg
+ga                                                            dg
+ga################    #  ###################################  dg
+ga               #    #                          #            dg
+ga               #    #                          #            dg
+ga               #    #              TT          #            dg
+ga               #    #                          #            dg
+ga    T          #    #        ###################            dg
+ga    T          #    #        #                              dg
+ga               #    #        #         TT                   dg
+ga                    #        #                              dg
+ga                    #        #                              dg
+gssssssssssssssssd    ssssssssssssssssssssssssssssssssssssssssdg
 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
