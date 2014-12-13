@@ -11,4 +11,5 @@ dist_images_DATA = \
 
 EXTRA_DIST = \
 	person.blend \
+	map-texture.xcf \
 	$(NULL)
