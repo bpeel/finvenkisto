@@ -21,6 +21,7 @@
 
 #include <math.h>
 #include <limits.h>
+#include <assert.h>
 
 #include "fv-map-painter.h"
 #include "fv-map.h"
@@ -338,6 +339,8 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
 
         for (i = 0; i < FV_MAP_PAINTER_TILES_X * FV_MAP_PAINTER_TILES_Y; i++)
                 painter->tiles[i].offset += data.vertices.length;
+
+        assert(data.vertices.length / sizeof (struct vertex) < 65536);
 
         glGenVertexArrays(1, &painter->array);
         glBindVertexArray(painter->array);
