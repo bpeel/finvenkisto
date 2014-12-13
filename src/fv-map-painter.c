@@ -230,25 +230,25 @@ generate_square(struct fv_map_painter *painter,
         if (z > (oz = get_position_height(x, y + 1))) {
                 v = add_horizontal_side(data, y + 1, x + 1, oz, x, z);
                 set_tex_coords_for_image(painter, v,
-                                         FV_MAP_GET_BLOCK_SIDE_IMAGE(block),
+                                         FV_MAP_GET_BLOCK_NORTH_IMAGE(block),
                                          z - oz);
         }
         if (z > (oz = get_position_height(x, y - 1))) {
                 v = add_horizontal_side(data, y, x, oz, x + 1, z);
                 set_tex_coords_for_image(painter, v,
-                                         FV_MAP_GET_BLOCK_SIDE_IMAGE(block),
+                                         FV_MAP_GET_BLOCK_SOUTH_IMAGE(block),
                                          z - oz);
         }
         if (z > (oz = get_position_height(x - 1, y))) {
                 v = add_vertical_side(data, x, y + 1, oz, y, z);
                 set_tex_coords_for_image(painter, v,
-                                         FV_MAP_GET_BLOCK_SIDE_IMAGE(block),
+                                         FV_MAP_GET_BLOCK_WEST_IMAGE(block),
                                          z - oz);
         }
         if (z > (oz = get_position_height(x + 1, y))) {
                 v = add_vertical_side(data, x + 1, y, oz, y + 1, z);
                 set_tex_coords_for_image(painter, v,
-                                         FV_MAP_GET_BLOCK_SIDE_IMAGE(block),
+                                         FV_MAP_GET_BLOCK_EAST_IMAGE(block),
                                          z - oz);
         }
 }

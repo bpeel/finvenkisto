@@ -25,16 +25,19 @@
 #define FV_MAP_WIDTH 64
 #define FV_MAP_HEIGHT 64
 
-#define FV_MAP_FULL_WALL 0x8000
-#define FV_MAP_HALF_WALL 0x4000
+#define FV_MAP_FULL_WALL 0x80000000
+#define FV_MAP_HALF_WALL 0x40000000
 
 #define FV_MAP_IS_FULL_WALL(x) (!!((x) & FV_MAP_FULL_WALL))
 #define FV_MAP_IS_HALF_WALL(x) (!!((x) & FV_MAP_HALF_WALL))
 #define FV_MAP_IS_WALL(x) (!!((x) & (FV_MAP_FULL_WALL | FV_MAP_HALF_WALL)))
-#define FV_MAP_GET_BLOCK_TOP_IMAGE(x) ((x) & ((1 << 7) - 1))
-#define FV_MAP_GET_BLOCK_SIDE_IMAGE(x) (((x) >> 7) & ((1 << 7) - 1))
+#define FV_MAP_GET_BLOCK_TOP_IMAGE(x) ((x) & ((1 << 6) - 1))
+#define FV_MAP_GET_BLOCK_NORTH_IMAGE(x) (((x) >> 6) & ((1 << 6) - 1))
+#define FV_MAP_GET_BLOCK_EAST_IMAGE(x) (((x) >> 12) & ((1 << 6) - 1))
+#define FV_MAP_GET_BLOCK_SOUTH_IMAGE(x) (((x) >> 18) & ((1 << 6) - 1))
+#define FV_MAP_GET_BLOCK_WEST_IMAGE(x) (((x) >> 24) & ((1 << 6) - 1))
 
-typedef uint16_t fv_map_block_t;
+typedef uint32_t fv_map_block_t;
 
 extern const fv_map_block_t
 fv_map[FV_MAP_WIDTH * FV_MAP_HEIGHT];
