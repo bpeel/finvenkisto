@@ -264,8 +264,8 @@ generate_tile(struct fv_map_painter *painter,
                 for (x = 0; x < FV_MAP_PAINTER_TILE_WIDTH; x++) {
                         generate_square(painter,
                                         data,
-                                        tx * FV_MAP_PAINTER_TILES_X + x,
-                                        ty * FV_MAP_PAINTER_TILES_Y + y);
+                                        tx * FV_MAP_PAINTER_TILE_WIDTH + x,
+                                        ty * FV_MAP_PAINTER_TILE_HEIGHT + y);
                 }
         }
 
