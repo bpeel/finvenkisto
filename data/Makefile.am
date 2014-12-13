@@ -29,6 +29,7 @@ dist_images_DATA = \
 	$(NULL)
 
 EXTRA_DIST = \
+	ARTCREDITS \
 	make-map-texture.py \
 	person.blend \
 	$(BLOCK_IMAGES) \
