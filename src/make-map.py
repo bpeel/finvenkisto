@@ -21,14 +21,14 @@ MAP_WIDTH = 64
 MAP_HEIGHT = 64
 
 tiles = {
-    '#': 'FV_MAP_FULL_WALL | B(0, 2, 2, 2, 2)',
-    ' ': 'B(11, 0, 0, 0, 0)',
-    'g': 'B(1, 0, 0, 0, 0)',
-    'w': 'FV_MAP_FULL_WALL | B(0, 4, 4, 2, 2)',
-    'd': 'FV_MAP_FULL_WALL | B(0, 2, 4, 4, 2)',
-    's': 'FV_MAP_FULL_WALL | B(0, 2, 2, 4, 4)',
-    'a': 'FV_MAP_FULL_WALL | B(0, 4, 2, 2, 4)',
-    'T': 'FV_MAP_HALF_WALL | B(3, 10, 10, 10, 10)'
+    '#': 'FV_MAP_FULL_WALL | B(0, 15, 15, 15, 15)',
+    ' ': 'B(8, 0, 0, 0, 0)',
+    'g': 'B(10, 0, 0, 0, 0)',
+    'w': 'FV_MAP_FULL_WALL | B(0, 12, 12, 15, 15)',
+    'd': 'FV_MAP_FULL_WALL | B(0, 15, 12, 12, 15)',
+    's': 'FV_MAP_FULL_WALL | B(0, 15, 15, 12, 12)',
+    'a': 'FV_MAP_FULL_WALL | B(0, 12, 15, 15, 12)',
+    'T': 'FV_MAP_HALF_WALL | B(4, 16, 16, 16, 16)'
 }
 
 line_num = 1
