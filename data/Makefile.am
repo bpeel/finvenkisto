@@ -1,6 +1,8 @@
 SHADERS = \
 	fv-simple-fragment.glsl \
 	fv-simple-vertex.glsl \
+	fv-map-fragment.glsl \
+	fv-map-vertex.glsl \
 	$(NULL)
 
 # The order here must match the order for the image numbers used in
