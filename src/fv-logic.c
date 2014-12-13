@@ -36,7 +36,7 @@
 
 /* Maximum distance to the player from the center point before it will
  * start scrolling */
-#define FV_LOGIC_CAMERA_DISTANCE 5.0f
+#define FV_LOGIC_CAMERA_DISTANCE 3.0f
 
 /* For collision detection the player is treated as a square of this size */
 #define FV_LOGIC_PLAYER_SIZE 0.8f

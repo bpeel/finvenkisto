@@ -38,7 +38,7 @@
 #define FV_GAME_FAR_PLANE 10.0f
 
 #define FV_GAME_ORIGIN_DISTANCE 5.0f
-#define FV_GAME_SCALE 0.5f
+#define FV_GAME_SCALE 0.7f
 
 struct fv_game {
         /* Size of the framebuffer the last time we painted */
