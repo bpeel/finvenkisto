@@ -32,7 +32,7 @@
 
 struct vertex {
         float x, y, z;
-        float nx, ny, nz;
+        float s, t;
 };
 
 struct property {
@@ -65,9 +65,8 @@ properties[] = {
         { "x", offsetof(struct vertex, x), PROPERTY_FLOAT },
         { "y", offsetof(struct vertex, y), PROPERTY_FLOAT },
         { "z", offsetof(struct vertex, z), PROPERTY_FLOAT },
-        { "nx", offsetof(struct vertex, nx), PROPERTY_FLOAT },
-        { "ny", offsetof(struct vertex, ny), PROPERTY_FLOAT },
-        { "nz", offsetof(struct vertex, nz), PROPERTY_FLOAT },
+        { "s", offsetof(struct vertex, s), PROPERTY_FLOAT },
+        { "t", offsetof(struct vertex, t), PROPERTY_FLOAT },
 };
 
 static void
@@ -252,12 +251,12 @@ create_buffer(struct data *data)
 
         fv_gl.glEnableVertexAttribArray(1);
         fv_gl.glVertexAttribPointer(1, /* index */
-                                    3, /* size */
+                                    2, /* size */
                                     GL_FLOAT,
                                     GL_FALSE, /* normalized */
                                     sizeof (struct vertex),
                                     (void *) (intptr_t)
-                                    offsetof(struct vertex, nx));
+                                    offsetof(struct vertex, s));
 
         fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->buffer);
 
