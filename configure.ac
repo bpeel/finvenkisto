@@ -40,7 +40,7 @@ PKG_CHECK_MODULES([SDL], [sdl2])
 
 AC_OUTPUT(
 Makefile
-data/Makefile
+src/data/Makefile
 src/rply/Makefile
 src/Makefile
 )

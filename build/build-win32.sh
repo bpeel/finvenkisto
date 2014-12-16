@@ -67,6 +67,7 @@ rm -rf "$INSTALL_DIR"
 rm -rf "$RESULT_DIR" "$RESULT_FILE"
 mkdir -p "$DEPS_DIR"
 mkdir -p "$INSTALL_DIR"
+mkdir -p "$RESULT_DIR"
 
 function do_download ()
 {
@@ -135,11 +136,8 @@ cd "$SRC_DIR"
 make -j4
 make install
 
-mkdir -p "$RESULT_DIR/bin"
-cp "$INSTALL_DIR/bin/"{finvenkisto.exe,libepoxy-0.dll,SDL2.dll} \
-    "$RESULT_DIR/bin"
+cp "$INSTALL_DIR/bin/"{finvenkisto.exe,libepoxy-0.dll,SDL2.dll} "$RESULT_DIR"
 cp -R "$INSTALL_DIR/share/finvenkisto" "$RESULT_DIR/data"
 
 cd "$RESULT_DIR"
 zip -r "$RESULT_FILE" *
-

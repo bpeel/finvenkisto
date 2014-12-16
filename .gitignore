@@ -16,9 +16,6 @@
 /install-sh
 /missing
 /stamp-h1
-/data/Makefile.in
-/data/Makefile
-/data/map-texture.png
 /src/Makefile.in
 /src/Makefile
 /src/finvenkisto
@@ -27,5 +24,8 @@
 /src/rply/Makefile.in
 /src/rply/convert
 /src/rply/librply.a
+/src/data/Makefile.in
+/src/data/Makefile
+/src/data/map-texture.png
 *.o
 .deps

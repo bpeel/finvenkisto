@@ -1,4 +1,4 @@
-SUBDIRS = rply
+SUBDIRS = data rply
 
 bin_PROGRAMS = finvenkisto
 
