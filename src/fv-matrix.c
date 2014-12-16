@@ -75,6 +75,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "fv-matrix.h"
 #include "fv-util.h"
