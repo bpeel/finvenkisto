@@ -1,8 +1,6 @@
 SHADERS = \
-	fv-simple-fragment.glsl \
-	fv-simple-vertex.glsl \
-	fv-map-fragment.glsl \
-	fv-map-vertex.glsl \
+	fv-texture-fragment.glsl \
+	fv-texture-vertex.glsl \
 	$(NULL)
 
 # The order here must match the order for the image numbers used in
@@ -25,6 +23,7 @@ imagesdir = $(datadir)/finvenkisto
 dist_images_DATA = \
 	$(SHADERS) \
 	person.ply \
+	person.png \
 	map-texture.png \
 	$(NULL)
 

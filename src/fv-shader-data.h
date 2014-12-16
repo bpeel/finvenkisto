@@ -24,8 +24,7 @@
 #include <stdbool.h>
 
 enum fv_shader_data_program {
-        FV_SHADER_DATA_PROGRAM_SIMPLE,
-        FV_SHADER_DATA_PROGRAM_MAP,
+        FV_SHADER_DATA_PROGRAM_TEXTURE,
         FV_SHADER_DATA_N_PROGRAMS
 };
 

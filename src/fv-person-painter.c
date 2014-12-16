@@ -28,28 +28,71 @@
 #include "fv-transform.h"
 #include "fv-model.h"
 #include "fv-gl.h"
+#include "fv-image.h"
 
 struct fv_person_painter {
         struct fv_model model;
 
         GLuint program;
         GLuint transform_uniform;
+
+        GLuint texture;
 };
 
 struct fv_person_painter *
 fv_person_painter_new(struct fv_shader_data *shader_data)
 {
         struct fv_person_painter *painter = fv_calloc(sizeof *painter);
+        GLuint tex_uniform;
+        uint8_t *tex_data;
+        int tex_width, tex_height;
 
-        painter->program = shader_data->programs[FV_SHADER_DATA_PROGRAM_SIMPLE];
+        painter->program =
+                shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
         painter->transform_uniform =
                 fv_gl.glGetUniformLocation(painter->program, "transform");
 
         if (!fv_model_load(&painter->model, "person.ply"))
                 goto error;
 
+        tex_data = fv_image_load("person.png", &tex_width, &tex_height, 3);
+        if (tex_data == NULL)
+                goto error_model;
+
+        fv_gl.glGenTextures(1, &painter->texture);
+        fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
+        fv_gl.glTexImage2D(GL_TEXTURE_2D,
+                           0, /* level */
+                           GL_RGB,
+                           tex_width, tex_height,
+                           0, /* border */
+                           GL_RGB,
+                           GL_UNSIGNED_BYTE,
+                           tex_data);
+        fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_MIN_FILTER,
+                              GL_LINEAR_MIPMAP_NEAREST);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_MAG_FILTER,
+                              GL_LINEAR);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_WRAP_S,
+                              GL_CLAMP_TO_EDGE);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_WRAP_T,
+                              GL_CLAMP_TO_EDGE);
+
+        fv_free(tex_data);
+
+        tex_uniform = fv_gl.glGetUniformLocation(painter->program, "tex");
+        fv_gl.glUseProgram(painter->program);
+        fv_gl.glUniform1i(tex_uniform, 0);
+
         return painter;
 
+error_model:
+        fv_model_destroy(&painter->model);
 error:
         fv_free(painter);
 
@@ -97,6 +140,8 @@ fv_person_painter_paint(struct fv_person_painter *painter,
 
         fv_gl.glUseProgram(painter->program);
 
+        fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
+
         fv_gl.glEnable(GL_DEPTH_TEST);
 
         fv_logic_for_each_person(logic, paint_person_cb, &data);
@@ -107,6 +152,7 @@ fv_person_painter_paint(struct fv_person_painter *painter,
 void
 fv_person_painter_free(struct fv_person_painter *painter)
 {
+        fv_gl.glDeleteTextures(1, &painter->texture);
         fv_model_destroy(&painter->model);
         fv_free(painter);
 }

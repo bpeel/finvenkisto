@@ -291,7 +291,8 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                 return NULL;
 
         painter = fv_alloc(sizeof *painter);
-        painter->program = shader_data->programs[FV_SHADER_DATA_PROGRAM_MAP];
+        painter->program =
+                shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
         painter->transform_uniform =
                 fv_gl.glGetUniformLocation(painter->program, "transform");
 
