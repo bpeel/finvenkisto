@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include <strings.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -152,20 +151,3 @@ fv_free(void *ptr)
         if (ptr)
                 free(ptr);
 }
-
-#ifndef HAVE_FFSL
-
-int
-fv_util_ffsl(unsigned long val)
-{
-        unsigned int *p = (unsigned int *) &val;
-        int i, pos;
-
-        for (i = 0; i < sizeof (val) / sizeof (int); i++)
-                if ((pos = ffs(p[i])))
-                        return pos + i * sizeof (int) * 8;
-
-        return 0;
-}
-
-#endif /* HAVE_FFSL */

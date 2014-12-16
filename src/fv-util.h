@@ -150,16 +150,4 @@ fv_strconcat(const char *string1, ...);
 void
 fv_free(void *ptr);
 
-#ifdef HAVE_FFSL
-
-#include <string.h>
-#define fv_util_ffsl ffsl
-
-#else /* HAVE_FFSL */
-
-int
-fv_util_ffsl(unsigned long val);
-
-#endif /* HAVE_FFSL */
-
 #endif /* FV_UTIL_H */
