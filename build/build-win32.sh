@@ -126,7 +126,7 @@ sed -i "s|^prefix=.*|prefix=${INSTALL_DIR}|" \
     --host="$TARGET" \
     --target="$TARGET" \
     --build="$BUILD" \
-    CFLAGS="-mms-bitfields -I$INSTALL_DIR/include" \
+    CFLAGS="-mms-bitfields -I$INSTALL_DIR/include -O3" \
     PKG_CONFIG="$RUN_PKG_CONFIG"
 
 make -j4
