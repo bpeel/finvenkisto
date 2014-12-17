@@ -19,9 +19,8 @@
 
 #include "config.h"
 
-#include <epoxy/gl.h>
-
 #include "fv-transform.h"
+#include "fv-gl.h"
 
 void
 fv_transform_update_derived_values(struct fv_transform *transform)

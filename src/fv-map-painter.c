@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include <epoxy/gl.h>
 #include <math.h>
 #include <limits.h>
 #include <assert.h>
@@ -29,6 +28,7 @@
 #include "fv-util.h"
 #include "fv-buffer.h"
 #include "fv-image.h"
+#include "fv-gl.h"
 
 #define FV_MAP_PAINTER_TILE_WIDTH 8
 #define FV_MAP_PAINTER_TILE_HEIGHT 8
@@ -293,36 +293,40 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
         painter = fv_alloc(sizeof *painter);
         painter->program = shader_data->programs[FV_SHADER_DATA_PROGRAM_MAP];
         painter->transform_uniform =
-                glGetUniformLocation(painter->program, "transform");
+                fv_gl.glGetUniformLocation(painter->program, "transform");
 
         painter->texture_width = tex_width;
         painter->texture_height = tex_height;
 
-        glGenTextures(1, &painter->texture);
-        glBindTexture(GL_TEXTURE_2D, painter->texture);
-        glTexImage2D(GL_TEXTURE_2D,
-                     0, /* level */
-                     GL_RGB,
-                     tex_width, tex_height,
-                     0, /* border */
-                     GL_RGB,
-                     GL_UNSIGNED_BYTE,
-                     tex_data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-        glTexParameteri(GL_TEXTURE_2D,
-                        GL_TEXTURE_MIN_FILTER,
-                        GL_LINEAR_MIPMAP_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D,
-                        GL_TEXTURE_MAG_FILTER,
-                        GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        fv_gl.glGenTextures(1, &painter->texture);
+        fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
+        fv_gl.glTexImage2D(GL_TEXTURE_2D,
+                           0, /* level */
+                           GL_RGB,
+                           tex_width, tex_height,
+                           0, /* border */
+                           GL_RGB,
+                           GL_UNSIGNED_BYTE,
+                           tex_data);
+        fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_MIN_FILTER,
+                              GL_LINEAR_MIPMAP_NEAREST);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_MAG_FILTER,
+                              GL_LINEAR);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_WRAP_S,
+                              GL_CLAMP_TO_EDGE);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_WRAP_T,
+                              GL_CLAMP_TO_EDGE);
 
         fv_free(tex_data);
 
-        tex_uniform = glGetUniformLocation(painter->program, "tex");
-        glUseProgram(painter->program);
-        glUniform1i(tex_uniform, 0);
+        tex_uniform = fv_gl.glGetUniformLocation(painter->program, "tex");
+        fv_gl.glUseProgram(painter->program);
+        fv_gl.glUniform1i(tex_uniform, 0);
 
         fv_buffer_init(&data.vertices);
         fv_buffer_init(&data.indices);
@@ -350,46 +354,46 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
 
         assert(data.vertices.length / sizeof (struct vertex) < 65536);
 
-        glGenVertexArrays(1, &painter->array);
-        glBindVertexArray(painter->array);
+        fv_gl.glGenVertexArrays(1, &painter->array);
+        fv_gl.glBindVertexArray(painter->array);
 
-        glGenBuffers(1, &painter->buffer);
-        glBindBuffer(GL_ARRAY_BUFFER, painter->buffer);
-        glBufferData(GL_ARRAY_BUFFER,
-                     data.vertices.length +
-                     data.indices.length,
-                     NULL, /* data */
-                     GL_STATIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER,
-                        0, /* offset */
-                        data.vertices.length,
-                        data.vertices.data);
-        glBufferSubData(GL_ARRAY_BUFFER,
-                        data.vertices.length, /* offset */
-                        data.indices.length,
-                        data.indices.data);
+        fv_gl.glGenBuffers(1, &painter->buffer);
+        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->buffer);
+        fv_gl.glBufferData(GL_ARRAY_BUFFER,
+                           data.vertices.length +
+                           data.indices.length,
+                           NULL, /* data */
+                           GL_STATIC_DRAW);
+        fv_gl.glBufferSubData(GL_ARRAY_BUFFER,
+                              0, /* offset */
+                              data.vertices.length,
+                              data.vertices.data);
+        fv_gl.glBufferSubData(GL_ARRAY_BUFFER,
+                              data.vertices.length, /* offset */
+                              data.indices.length,
+                              data.indices.data);
 
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, /* index */
-                              3, /* size */
-                              GL_FLOAT,
-                              GL_FALSE, /* normalized */
-                              sizeof (struct vertex),
-                              (void *) (intptr_t)
-                              offsetof(struct vertex, x));
+        fv_gl.glEnableVertexAttribArray(0);
+        fv_gl.glVertexAttribPointer(0, /* index */
+                                    3, /* size */
+                                    GL_FLOAT,
+                                    GL_FALSE, /* normalized */
+                                    sizeof (struct vertex),
+                                    (void *) (intptr_t)
+                                    offsetof(struct vertex, x));
 
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, /* index */
-                              2, /* size */
-                              GL_FLOAT,
-                              GL_FALSE, /* normalized */
-                              sizeof (struct vertex),
-                              (void *) (intptr_t)
-                              offsetof(struct vertex, s));
+        fv_gl.glEnableVertexAttribArray(1);
+        fv_gl.glVertexAttribPointer(1, /* index */
+                                    2, /* size */
+                                    GL_FLOAT,
+                                    GL_FALSE, /* normalized */
+                                    sizeof (struct vertex),
+                                    (void *) (intptr_t)
+                                    offsetof(struct vertex, s));
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, painter->buffer);
+        fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, painter->buffer);
 
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         fv_buffer_destroy(&data.indices);
         fv_buffer_destroy(&data.vertices);
@@ -435,17 +439,17 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         if (y_min >= y_max || x_min >= x_max)
                 return;
 
-        glUseProgram(painter->program);
-        glUniformMatrix4fv(painter->transform_uniform,
-                           1, /* count */
-                           GL_FALSE, /* transpose */
-                           &transform->mvp.xx);
+        fv_gl.glUseProgram(painter->program);
+        fv_gl.glUniformMatrix4fv(painter->transform_uniform,
+                                 1, /* count */
+                                 GL_FALSE, /* transpose */
+                                 &transform->mvp.xx);
 
-        glBindTexture(GL_TEXTURE_2D, painter->texture);
+        fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
 
-        glEnable(GL_DEPTH_TEST);
+        fv_gl.glEnable(GL_DEPTH_TEST);
 
-        glBindVertexArray(painter->array);
+        fv_gl.glBindVertexArray(painter->array);
 
         for (y = y_min; y < y_max; y++) {
                 count = 0;
@@ -462,22 +466,22 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                                 idx_max = tile->max;
                 }
 
-                glDrawRangeElements(GL_TRIANGLES,
-                                    idx_min, idx_max,
-                                    count,
-                                    GL_UNSIGNED_SHORT,
-                                    (void *) (intptr_t)
-                                    tile->offset);
+                fv_gl.glDrawRangeElements(GL_TRIANGLES,
+                                          idx_min, idx_max,
+                                          count,
+                                          GL_UNSIGNED_SHORT,
+                                          (void *) (intptr_t)
+                                          tile->offset);
         }
 
-        glDisable(GL_DEPTH_TEST);
+        fv_gl.glDisable(GL_DEPTH_TEST);
 }
 
 void
 fv_map_painter_free(struct fv_map_painter *painter)
 {
-        glDeleteTextures(1, &painter->texture);
-        glDeleteVertexArrays(1, &painter->array);
-        glDeleteBuffers(1, &painter->buffer);
+        fv_gl.glDeleteTextures(1, &painter->texture);
+        fv_gl.glDeleteVertexArrays(1, &painter->array);
+        fv_gl.glDeleteBuffers(1, &painter->buffer);
         fv_free(painter);
 }

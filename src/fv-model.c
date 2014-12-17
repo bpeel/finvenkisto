@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include <epoxy/gl.h>
 #include <rply/rply.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -29,6 +28,7 @@
 #include "fv-util.h"
 #include "fv-data.h"
 #include "fv-buffer.h"
+#include "fv-gl.h"
 
 struct vertex {
         float x, y, z;
@@ -222,46 +222,46 @@ create_buffer(struct data *data)
         model->n_vertices = data->n_vertices;
         model->n_indices = data->indices.length / sizeof (uint16_t);
 
-        glGenVertexArrays(1, &model->array);
-        glBindVertexArray(model->array);
+        fv_gl.glGenVertexArrays(1, &model->array);
+        fv_gl.glBindVertexArray(model->array);
 
-        glGenBuffers(1, &model->buffer);
-        glBindBuffer(GL_ARRAY_BUFFER, model->buffer);
-        glBufferData(GL_ARRAY_BUFFER,
-                     model->indices_offset +
-                     data->indices.length,
-                     NULL, /* data */
-                     GL_STATIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER,
-                        0, /* offset */
-                        model->indices_offset, /* length */
-                        data->vertices);
-        glBufferSubData(GL_ARRAY_BUFFER,
-                        model->indices_offset,
-                        data->indices.length,
-                        data->indices.data);
+        fv_gl.glGenBuffers(1, &model->buffer);
+        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, model->buffer);
+        fv_gl.glBufferData(GL_ARRAY_BUFFER,
+                           model->indices_offset +
+                           data->indices.length,
+                           NULL, /* data */
+                           GL_STATIC_DRAW);
+        fv_gl.glBufferSubData(GL_ARRAY_BUFFER,
+                              0, /* offset */
+                              model->indices_offset, /* length */
+                              data->vertices);
+        fv_gl.glBufferSubData(GL_ARRAY_BUFFER,
+                              model->indices_offset,
+                              data->indices.length,
+                              data->indices.data);
 
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, /* index */
-                              3, /* size */
-                              GL_FLOAT,
-                              GL_FALSE, /* normalized */
-                              sizeof (struct vertex),
-                              (void *) (intptr_t)
-                              offsetof(struct vertex, x));
+        fv_gl.glEnableVertexAttribArray(0);
+        fv_gl.glVertexAttribPointer(0, /* index */
+                                    3, /* size */
+                                    GL_FLOAT,
+                                    GL_FALSE, /* normalized */
+                                    sizeof (struct vertex),
+                                    (void *) (intptr_t)
+                                    offsetof(struct vertex, x));
 
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, /* index */
-                              3, /* size */
-                              GL_FLOAT,
-                              GL_FALSE, /* normalized */
-                              sizeof (struct vertex),
-                              (void *) (intptr_t)
-                              offsetof(struct vertex, nx));
+        fv_gl.glEnableVertexAttribArray(1);
+        fv_gl.glVertexAttribPointer(1, /* index */
+                                    3, /* size */
+                                    GL_FLOAT,
+                                    GL_FALSE, /* normalized */
+                                    sizeof (struct vertex),
+                                    (void *) (intptr_t)
+                                    offsetof(struct vertex, nx));
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->buffer);
+        fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->buffer);
 
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 bool
@@ -314,19 +314,19 @@ fv_model_load(struct fv_model *model,
 void
 fv_model_paint(const struct fv_model *model)
 {
-        glBindVertexArray(model->array);
+        fv_gl.glBindVertexArray(model->array);
 
-        glDrawRangeElements(GL_TRIANGLES,
-                            0, model->n_vertices - 1,
-                            model->n_indices,
-                            GL_UNSIGNED_SHORT,
-                            (void *) (intptr_t)
-                            model->indices_offset);
+        fv_gl.glDrawRangeElements(GL_TRIANGLES,
+                                  0, model->n_vertices - 1,
+                                  model->n_indices,
+                                  GL_UNSIGNED_SHORT,
+                                  (void *) (intptr_t)
+                                  model->indices_offset);
 }
 
 void
 fv_model_destroy(struct fv_model *model)
 {
-        glDeleteVertexArrays(1, &model->array);
-        glDeleteBuffers(1, &model->buffer);
+        fv_gl.glDeleteVertexArrays(1, &model->array);
+        fv_gl.glDeleteBuffers(1, &model->buffer);
 }

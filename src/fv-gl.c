@@ -17,28 +17,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_MODEL_H
-#define FV_MODEL_H
+#include "config.h"
 
-#include <stdbool.h>
 #include <GL/gl.h>
+#include <SDL.h>
 
-struct fv_model {
-        GLuint buffer;
-        GLuint array;
-        size_t indices_offset;
-        int n_vertices;
-        int n_indices;
+#include "fv-gl.h"
+#include "fv-util.h"
+
+struct fv_gl fv_gl;
+
+static const char *
+gl_funcs[] = {
+#define FV_GL_FUNC(return_type, name, args) #name,
+#include "fv-gl-funcs.h"
+#undef FV_GL_FUNC
 };
 
-bool
-fv_model_load(struct fv_model *model,
-              const char *filename);
-
 void
-fv_model_paint(const struct fv_model *model);
+fv_gl_init(void)
+{
+        void **ptrs = (void **) &fv_gl;
+        int i;
 
-void
-fv_model_destroy(struct fv_model *model);
-
-#endif /* FV_MODEL_H */
+        for (i = 0; i < FV_N_ELEMENTS(gl_funcs); i++)
+                ptrs[i] = SDL_GL_GetProcAddress(gl_funcs[i]);
+}

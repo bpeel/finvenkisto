@@ -20,7 +20,7 @@
 #ifndef FV_SHADER_DATA_H
 #define FV_SHADER_DATA_H
 
-#include <epoxy/gl.h>
+#include <GL/gl.h>
 #include <stdbool.h>
 
 enum fv_shader_data_program {

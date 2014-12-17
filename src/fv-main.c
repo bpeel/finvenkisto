@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include <epoxy/gl.h>
 #include <stdio.h>
 #include <SDL.h>
 #include <stdbool.h>
@@ -30,6 +29,7 @@
 #include "fv-game.h"
 #include "fv-logic.h"
 #include "fv-shader-data.h"
+#include "fv-gl.h"
 
 enum direction_key {
         DIRECTION_KEY_UP = (1 << 0),
@@ -202,12 +202,12 @@ paint(struct data *data)
         SDL_GetWindowSize(data->window, &w, &h);
 
         if (w != data->last_fb_width || h != data->last_fb_height) {
-                glViewport(0, 0, w, h);
+                fv_gl.glViewport(0, 0, w, h);
                 data->last_fb_width = w;
                 data->last_fb_height = h;
         }
 
-        glClear(GL_DEPTH_BUFFER_BIT);
+        fv_gl.glClear(GL_DEPTH_BUFFER_BIT);
 
         fv_logic_update(data->logic, SDL_GetTicks());
         fv_game_paint(data->game, w, h, data->logic);
@@ -339,10 +339,12 @@ main(int argc, char **argv)
 
         SDL_ShowCursor(0);
 
+        fv_gl_init();
+
         /* All of the painting functions expect to have the default
          * OpenGL state plus the following modifications */
 
-        glEnable(GL_CULL_FACE);
+        fv_gl.glEnable(GL_CULL_FACE);
 
         /* The current program, vertex array and bound textures are
          * not expected to be reset back to zero */

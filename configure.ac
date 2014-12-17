@@ -5,6 +5,7 @@ AC_CONFIG_SRCDIR(src/fv-main.c)
 AC_CONFIG_AUX_DIR([build])
 AC_CONFIG_MACRO_DIR([build/autotools])
 AC_CONFIG_HEADERS(config.h)
+AC_CANONICAL_HOST
 AC_GNU_SOURCE
 
 AM_INIT_AUTOMAKE([1.11 foreign -Wno-portability no-define no-dist-gzip
@@ -35,7 +36,10 @@ AS_COMPILER_FLAGS([WARNING_CFLAGS],
                   [$ALL_WARNING_CFLAGS])
 AC_SUBST([WARNING_CFLAGS])
 
-PKG_CHECK_MODULES([EPOXY], [epoxy])
+AS_CASE([$host_os],
+        [mingw*],
+        [GL_CFLAGS=""],
+        [PKG_CHECK_MODULES([GL], [gl])])
 PKG_CHECK_MODULES([SDL], [sdl2])
 
 AC_OUTPUT(

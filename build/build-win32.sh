@@ -3,14 +3,17 @@
 set -e
 
 SDL_VERSION=2.0.3
-EPOXY_VERSION=b2ae054b3aa0d6796b6936c7a89b8cce7cefe7ba
 
 SDL_FILENAME=SDL2-devel-${SDL_VERSION}-mingw.tar.gz
 SDL_URL="http://libsdl.org/release/$SDL_FILENAME"
-EPOXY_FILENAME=${EPOXY_VERSION}.zip
-EPOXY_URL="https://github.com/anholt/libepoxy/archive/$EPOXY_FILENAME"
 
 CONFIG_GUESS_URL="http://git.savannah.gnu.org/gitweb/?p=automake.git;a=blob_plain;f=lib/config.guess"
+
+GL_HEADER_URLS=( \
+    http://cgit.freedesktop.org/mesa/mesa/plain/include/GL/gl.h \
+    http://www.opengl.org/registry/api/glext.h );
+
+GL_HEADERS=( gl.h glext.h );
 
 SRC_BUILD_DIR=`dirname "$0"`
 SRC_DIR=`cd "$SRC_BUILD_DIR"/.. && pwd`
@@ -66,7 +69,7 @@ rm -rf "$DEPS_DIR"
 rm -rf "$INSTALL_DIR"
 rm -rf "$RESULT_DIR" "$RESULT_FILE"
 mkdir -p "$DEPS_DIR"
-mkdir -p "$INSTALL_DIR"
+mkdir -p "$INSTALL_DIR/include/GL"
 mkdir -p "$RESULT_DIR"
 
 function do_download ()
@@ -78,12 +81,16 @@ function do_download ()
 }
 
 do_download "$SDL_URL" "$SDL_FILENAME"
-do_download "$EPOXY_URL" "$EPOXY_FILENAME"
 do_download "$CONFIG_GUESS_URL" "config.guess"
 
-unzip -d "$DEPS_DIR" "$DOWNLOADS_DIR/$EPOXY_FILENAME"
+for dep in "${GL_HEADER_URLS[@]}"; do
+    bn="${dep##*/}";
+    do_download "$dep" "$bn";
+done
 
-cd "$DEPS_DIR/libepoxy-$EPOXY_VERSION"
+for header in "${GL_HEADERS[@]}"; do
+    cp "$DOWNLOADS_DIR/$header" "$INSTALL_DIR/include/GL/"
+done
 
 find_compiler
 BUILD=`bash $DOWNLOADS_DIR/config.guess`
@@ -119,24 +126,13 @@ sed -i "s|^prefix=.*|prefix=${INSTALL_DIR}|" \
     --host="$TARGET" \
     --target="$TARGET" \
     --build="$BUILD" \
-    CFLAGS="-mms-bitfields" \
+    CFLAGS="-mms-bitfields -I$INSTALL_DIR/include" \
     PKG_CONFIG="$RUN_PKG_CONFIG"
 
 make -j4
 make install
 
-cd "$SRC_DIR"
-./autogen.sh --prefix="$INSTALL_DIR" \
-    --host="$TARGET" \
-    --target="$TARGET" \
-    --build="$BUILD" \
-    CFLAGS="-mms-bitfields" \
-    PKG_CONFIG="$RUN_PKG_CONFIG"
-
-make -j4
-make install
-
-cp "$INSTALL_DIR/bin/"{finvenkisto.exe,libepoxy-0.dll,SDL2.dll} "$RESULT_DIR"
+cp "$INSTALL_DIR/bin/"{finvenkisto.exe,SDL2.dll} "$RESULT_DIR"
 cp -R "$INSTALL_DIR/share/finvenkisto" "$RESULT_DIR/data"
 
 cd "$RESULT_DIR"

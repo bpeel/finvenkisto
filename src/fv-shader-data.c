@@ -20,7 +20,6 @@
 #include "config.h"
 
 #include <stdarg.h>
-#include <epoxy/gl.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -30,6 +29,7 @@
 #include "fv-util.h"
 #include "fv-data.h"
 #include "fv-buffer.h"
+#include "fv-gl.h"
 
 static const char
 fv_shader_data_version[] =
@@ -79,24 +79,26 @@ create_shader(const char *name,
         const char *source_strings[2];
         GLint lengths[2];
 
-        shader = glCreateShader(type);
+        shader = fv_gl.glCreateShader(type);
 
         source_strings[0] = fv_shader_data_version;
         lengths[0] = sizeof fv_shader_data_version - 1;
         source_strings[1] = source;
         lengths[1] = source_length;
-        glShaderSource(shader,
-                       FV_N_ELEMENTS(source_strings),
-                       (const GLchar **) source_strings,
-                       lengths);
+        fv_gl.glShaderSource(shader,
+                             FV_N_ELEMENTS(source_strings),
+                             (const GLchar **) source_strings,
+                             lengths);
 
-        glCompileShader(shader);
+        fv_gl.glCompileShader(shader);
 
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
+        fv_gl.glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
 
         if (length > 0) {
                 info_log = malloc(length);
-                glGetShaderInfoLog(shader, length, &actual_length, info_log);
+                fv_gl.glGetShaderInfoLog(shader, length,
+                                         &actual_length,
+                                         info_log);
                 if (*info_log)
                         fprintf(stderr,
                                 "Info log for %s:\n%s\n",
@@ -104,11 +106,11 @@ create_shader(const char *name,
                 free(info_log);
         }
 
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &compile_status);
+        fv_gl.glGetShaderiv(shader, GL_COMPILE_STATUS, &compile_status);
 
         if (!compile_status) {
                 fprintf(stderr, "%s compilation failed\n", name);
-                glDeleteShader(shader);
+                fv_gl.glDeleteShader(shader);
                 return 0;
         }
 
@@ -233,13 +235,15 @@ link_program(struct fv_shader_data *data,
 
         program = data->programs[program_num];
 
-        glLinkProgram(program);
+        fv_gl.glLinkProgram(program);
 
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
+        fv_gl.glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
 
         if (length > 0) {
                 info_log = malloc(length);
-                glGetProgramInfoLog(program, length, &actual_length, info_log);
+                fv_gl.glGetProgramInfoLog(program, length,
+                                          &actual_length,
+                                          info_log);
                 if (*info_log) {
                         program_name = get_program_name(program_num);
                         fprintf(stderr, "Link info log for %s:\n%s\n",
@@ -250,7 +254,7 @@ link_program(struct fv_shader_data *data,
                 free(info_log);
         }
 
-        glGetProgramiv(program, GL_LINK_STATUS, &link_status);
+        fv_gl.glGetProgramiv(program, GL_LINK_STATUS, &link_status);
 
         if (!link_status) {
                 program_name = get_program_name(program_num);
@@ -280,6 +284,7 @@ fv_shader_data_init(struct fv_shader_data *data)
 {
         const struct fv_shader_data_shader *shader;
         GLuint shaders[FV_N_ELEMENTS(fv_shader_data_shaders)];
+        GLuint program;
         bool result = true;
         int n_shaders;
         int i, j;
@@ -296,24 +301,25 @@ fv_shader_data_init(struct fv_shader_data *data)
         }
 
         for (i = 0; i < FV_SHADER_DATA_N_PROGRAMS; i++)
-                data->programs[i] = glCreateProgram();
+                data->programs[i] = fv_gl.glCreateProgram();
 
         for (i = 0; i < FV_N_ELEMENTS(shaders); i++) {
                 shader = fv_shader_data_shaders + i;
-                for (j = 0; shader->programs[j] != -1; j++)
-                        glAttachShader(data->programs[shader->programs[j]],
-                                       shaders[i]);
+                for (j = 0; shader->programs[j] != -1; j++) {
+                        program = data->programs[shader->programs[j]];
+                        fv_gl.glAttachShader(program, shaders[i]);
+                }
         }
 
         if (!link_programs(data)) {
                 for (i = 0; i < FV_SHADER_DATA_N_PROGRAMS; i++)
-                        glDeleteProgram(data->programs[i]);
+                        fv_gl.glDeleteProgram(data->programs[i]);
                 result = false;
         }
 
 out:
         for (i = 0; i < n_shaders; i++)
-                glDeleteShader(shaders[i]);
+                fv_gl.glDeleteShader(shaders[i]);
 
         return result;
 }
@@ -324,5 +330,5 @@ fv_shader_data_destroy(struct fv_shader_data *data)
         int i;
 
         for (i = 0; i < FV_SHADER_DATA_N_PROGRAMS; i++)
-                glDeleteProgram(data->programs[i]);
+                fv_gl.glDeleteProgram(data->programs[i]);
 }

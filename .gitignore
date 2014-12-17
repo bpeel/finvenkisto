@@ -6,6 +6,8 @@
 /build/depcomp
 /build/install-sh
 /build/missing
+/build/config.guess
+/build/config.sub
 /compile
 /config.h
 /config.h.in

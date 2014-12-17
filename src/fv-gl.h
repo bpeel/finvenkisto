@@ -17,28 +17,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_MODEL_H
-#define FV_MODEL_H
+#ifndef FV_GL_H
+#define FV_GL_H
 
-#include <stdbool.h>
 #include <GL/gl.h>
 
-struct fv_model {
-        GLuint buffer;
-        GLuint array;
-        size_t indices_offset;
-        int n_vertices;
-        int n_indices;
+struct fv_gl {
+#define FV_GL_FUNC(return_type, name, args) return_type (APIENTRYP name) args;
+#include "fv-gl-funcs.h"
+#undef FV_GL_FUNC
 };
 
-bool
-fv_model_load(struct fv_model *model,
-              const char *filename);
+extern struct fv_gl fv_gl;
 
 void
-fv_model_paint(const struct fv_model *model);
+fv_gl_init(void);
 
-void
-fv_model_destroy(struct fv_model *model);
-
-#endif /* FV_MODEL_H */
+#endif /* FV_GL_H */

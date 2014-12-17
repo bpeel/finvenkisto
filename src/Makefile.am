@@ -3,7 +3,7 @@ SUBDIRS = data rply
 bin_PROGRAMS = finvenkisto
 
 AM_CFLAGS = \
-	$(EPOXY_CFLAGS) \
+	$(GL_CFLAGS) \
 	$(SDL_CFLAGS) \
 	$(WARNING_CFLAGS) \
 	$(NULL)
@@ -15,6 +15,8 @@ finvenkisto_SOURCES = \
 	fv-data.h \
 	fv-game.c \
 	fv-game.h \
+	fv-gl.c \
+	fv-gl.h \
 	fv-image.c \
 	fv-image.h \
 	fv-logic.c \
@@ -47,7 +49,6 @@ fv-map.c : fv-map.txt make-map.py
 	$(AM_V_GEN)python3 $(srcdir)/make-map.py < $(srcdir)/fv-map.txt > $@
 
 finvenkisto_LDADD = \
-	$(EPOXY_LIBS) \
 	$(SDL_LIBS) \
 	rply/librply.a \
 	$(NULL)

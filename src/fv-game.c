@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include <epoxy/gl.h>
 #include <math.h>
 #include <float.h>
 #include <stdbool.h>
@@ -33,6 +32,7 @@
 #include "fv-map-painter.h"
 #include "fv-person-painter.h"
 #include "fv-map.h"
+#include "fv-gl.h"
 
 #define FV_GAME_NEAR_PLANE 1.0f
 #define FV_GAME_FAR_PLANE 10.0f
@@ -233,7 +233,7 @@ fv_game_paint(struct fv_game *game,
         fv_transform_update_derived_values(&game->transform);
 
         if (need_clear(game, logic))
-                glClear(GL_COLOR_BUFFER_BIT);
+                fv_gl.glClear(GL_COLOR_BUFFER_BIT);
 
         fv_person_painter_paint(game->person_painter,
                                 logic,
