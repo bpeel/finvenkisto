@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include <epoxy/gl.h>
 #include <math.h>
 #include <limits.h>
 #include <assert.h>
