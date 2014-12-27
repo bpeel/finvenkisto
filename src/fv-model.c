@@ -30,16 +30,23 @@
 #include "fv-buffer.h"
 #include "fv-gl.h"
 
-struct vertex {
-        float x, y, z;
-        float s, t;
-};
-
 struct property {
-        const char *name;
-        int offset;
+        int n_components;
+        const char *components[3];
         enum { PROPERTY_FLOAT, PROPERTY_BYTE } type;
 };
+
+static const struct property
+properties[] = {
+        /* These should be sorted in descending order of size so that
+           it never ends doing an unaligned write */
+        { 3, { "x", "y", "z" }, PROPERTY_FLOAT },
+        { 2, { "s", "t" }, PROPERTY_FLOAT },
+        { 3, { "nx", "ny", "nz" }, PROPERTY_FLOAT },
+        { 3, { "red", "green", "blue" }, PROPERTY_BYTE }
+};
+
+#define N_PROPERTIES (FV_N_ELEMENTS(properties))
 
 struct data {
         struct fv_model *model;
@@ -50,23 +57,20 @@ struct data {
 
         bool had_error;
 
-        int got_props;
+        int n_available_components;
+        int n_got_components;
+        int vertex_size;
+        int available_props;
+
+        int property_offsets[N_PROPERTIES];
+
         long n_vertices;
-        struct vertex *current_vertex;
-        struct vertex *vertices;
+        uint8_t *current_vertex;
+        uint8_t *vertices;
         struct fv_buffer indices;
 
         int first_vertex;
         int last_vertex;
-};
-
-static const struct property
-properties[] = {
-        { "x", offsetof(struct vertex, x), PROPERTY_FLOAT },
-        { "y", offsetof(struct vertex, y), PROPERTY_FLOAT },
-        { "z", offsetof(struct vertex, z), PROPERTY_FLOAT },
-        { "s", offsetof(struct vertex, s), PROPERTY_FLOAT },
-        { "t", offsetof(struct vertex, t), PROPERTY_FLOAT },
 };
 
 static void
@@ -83,22 +87,27 @@ error_cb(const char *message,
 static int
 vertex_read_cb(p_ply_argument argument)
 {
-        long prop_num;
+        long prop_comp_num;
+        int prop_num, comp_num;
         struct data *data;
         int32_t length, index;
         double value;
 
-        ply_get_argument_user_data(argument, (void **) &data, &prop_num);
+        ply_get_argument_user_data(argument, (void **) &data, &prop_comp_num);
         ply_get_argument_property(argument, NULL, &length, &index);
 
-        assert(data->current_vertex < data->vertices + data->n_vertices);
+        prop_num = prop_comp_num >> 8;
+        comp_num = prop_comp_num & 0xff;
+
+        assert(data->current_vertex <
+               data->vertices + data->n_vertices * data->vertex_size);
 
         if (length != 1 || index != 0) {
                 fprintf(stderr,
                         "%s: List type property not expected for "
                         "vertex element '%s'",
                         data->filename,
-                        properties[prop_num].name);
+                        properties[prop_num].components[comp_num]);
                 data->had_error = true;
 
                 return 0;
@@ -108,22 +117,24 @@ vertex_read_cb(p_ply_argument argument)
 
         switch (properties[prop_num].type) {
         case PROPERTY_FLOAT:
-                *(float *) ((uint8_t *) data->current_vertex +
-                            properties[prop_num].offset) = value;
+                ((float *) (data->current_vertex +
+                            data->property_offsets[prop_num]))[comp_num] =
+                        value;
                 break;
         case PROPERTY_BYTE:
-                *((uint8_t *) data->current_vertex +
-                  properties[prop_num].offset) = value;
+                ((uint8_t *) (data->current_vertex +
+                              data->property_offsets[prop_num]))[comp_num] =
+                        value;
                 break;
         }
 
-        data->got_props |= 1 << prop_num;
+        data->n_got_components++;
 
         /* If we've got enough properties for a complete vertex then
          * move on to the next one */
-        if (data->got_props == (1 << FV_N_ELEMENTS(properties)) - 1) {
-                data->current_vertex++;
-                data->got_props = 0;
+        if (data->n_got_components == data->n_available_components) {
+                data->current_vertex += data->vertex_size;
+                data->n_got_components = 0;
         }
 
         return 1;
@@ -179,29 +190,55 @@ face_read_cb(p_ply_argument argument)
 static bool
 set_property_callbacks(struct data *data)
 {
-        int i;
+        int prop, comp;
+        const char *component;
         long n_instances;
 
-        for (i = 0; i < FV_N_ELEMENTS(properties); i++) {
-                n_instances = ply_set_read_cb(data->ply,
-                                              "vertex",
-                                              properties[i].name,
-                                              vertex_read_cb,
-                                              data, i);
-                if (n_instances == 0) {
-                        fprintf(stderr,
-                                "%s: Missing property ‘%s’\n",
-                                data->filename,
-                                properties[i].name);
-                        return false;
-                } else if (n_instances > UINT16_MAX) {
-                        fprintf(stderr,
-                                "%s: Too many vertices to fit in a uint16_t\n",
-                                data->filename);
-                        return false;
-                }
+        for (prop = 0; prop < N_PROPERTIES; prop++) {
+                for (comp = 0; comp < properties[prop].n_components; comp++) {
+                        component = properties[prop].components[comp];
+                        n_instances = ply_set_read_cb(data->ply,
+                                                      "vertex",
+                                                      component,
+                                                      vertex_read_cb,
+                                                      data,
+                                                      (prop << 8) | comp);
+                        if (n_instances == 0) {
+                                if (comp > 0) {
+                                        fprintf(stderr,
+                                                "%s: Missing component ‘%s’\n",
+                                                data->filename,
+                                                component);
+                                        return false;
+                                }
+                                break;
+                        } else if (n_instances > UINT16_MAX) {
+                                fprintf(stderr,
+                                        "%s: Too many vertices to fit in a "
+                                        "uint16_t\n",
+                                        data->filename);
+                                return false;
+                        }
 
-                data->n_vertices = n_instances;
+                        data->n_vertices = n_instances;
+
+                        data->n_available_components++;
+
+                        if (comp == 0) {
+                                data->property_offsets[prop] =
+                                        data->vertex_size;
+                                data->available_props |= (1 << prop);
+                        }
+
+                        switch (properties[prop].type) {
+                        case PROPERTY_FLOAT:
+                                data->vertex_size += sizeof (float);
+                                break;
+                        case PROPERTY_BYTE:
+                                data->vertex_size += sizeof (uint8_t);
+                                break;
+                        }
+                }
         }
 
         n_instances = ply_set_read_cb(data->ply,
@@ -216,8 +253,11 @@ static void
 create_buffer(struct data *data)
 {
         struct fv_model *model = data->model;
+        GLenum type;
+        GLboolean normalized;
+        int i;
 
-        model->indices_offset = data->n_vertices * sizeof (struct vertex);
+        model->indices_offset = data->n_vertices * data->vertex_size;
         model->n_vertices = data->n_vertices;
         model->n_indices = data->indices.length / sizeof (uint16_t);
 
@@ -240,23 +280,29 @@ create_buffer(struct data *data)
                               data->indices.length,
                               data->indices.data);
 
-        fv_gl.glEnableVertexAttribArray(0);
-        fv_gl.glVertexAttribPointer(0, /* index */
-                                    3, /* size */
-                                    GL_FLOAT,
-                                    GL_FALSE, /* normalized */
-                                    sizeof (struct vertex),
-                                    (void *) (intptr_t)
-                                    offsetof(struct vertex, x));
+        for (i = 0; i < N_PROPERTIES; i++) {
+                if (data->available_props & (1 << i)) {
+                        switch (properties[i].type) {
+                        case PROPERTY_FLOAT:
+                                type = GL_FLOAT;
+                                normalized = GL_FALSE;
+                                break;
+                        case PROPERTY_BYTE:
+                                type = GL_UNSIGNED_BYTE;
+                                normalized = GL_TRUE;
+                                break;
+                        }
 
-        fv_gl.glEnableVertexAttribArray(1);
-        fv_gl.glVertexAttribPointer(1, /* index */
-                                    2, /* size */
-                                    GL_FLOAT,
-                                    GL_FALSE, /* normalized */
-                                    sizeof (struct vertex),
-                                    (void *) (intptr_t)
-                                    offsetof(struct vertex, s));
+                        fv_gl.glEnableVertexAttribArray(i);
+                        fv_gl.glVertexAttribPointer(i, /* index */
+                                                    properties[i].n_components,
+                                                    type,
+                                                    normalized,
+                                                    data->vertex_size,
+                                                    (void *) (intptr_t)
+                                                    data->property_offsets[i]);
+                }
+        }
 
         fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->buffer);
 
@@ -273,7 +319,11 @@ fv_model_load(struct fv_model *model,
         data.had_error = false;
         data.model = model;
         data.filename = filename;
-        data.got_props = 0;
+
+        data.n_available_components = 0;
+        data.n_got_components = 0;
+        data.vertex_size = 0;
+        data.available_props = 0;
 
         if (full_filename == NULL)
                 return false;
@@ -289,8 +339,7 @@ fv_model_load(struct fv_model *model,
             !set_property_callbacks(&data)) {
                 data.had_error = true;
         } else {
-                data.vertices = fv_alloc(sizeof (struct vertex) *
-                                         data.n_vertices);
+                data.vertices = fv_alloc(data.vertex_size * data.n_vertices);
                 data.current_vertex = data.vertices;
 
                 fv_buffer_init(&data.indices);
