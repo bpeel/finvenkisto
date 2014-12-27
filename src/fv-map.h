@@ -25,21 +25,52 @@
 #define FV_MAP_WIDTH 64
 #define FV_MAP_HEIGHT 64
 
-#define FV_MAP_FULL_WALL 0x80000000
-#define FV_MAP_HALF_WALL 0x40000000
+#define FV_MAP_TILE_WIDTH 8
+#define FV_MAP_TILE_HEIGHT 8
+#define FV_MAP_MAX_SPECIALS 8
 
-#define FV_MAP_IS_FULL_WALL(x) (!!((x) & FV_MAP_FULL_WALL))
-#define FV_MAP_IS_HALF_WALL(x) (!!((x) & FV_MAP_HALF_WALL))
-#define FV_MAP_IS_WALL(x) (!!((x) & (FV_MAP_FULL_WALL | FV_MAP_HALF_WALL)))
+#define FV_MAP_TILES_X (FV_MAP_WIDTH / FV_MAP_TILE_WIDTH)
+#define FV_MAP_TILES_Y (FV_MAP_HEIGHT / FV_MAP_TILE_HEIGHT)
+
+_Static_assert(FV_MAP_WIDTH % FV_MAP_TILE_WIDTH == 0,
+               "The map size must be a multiple of the tile size");
+_Static_assert(FV_MAP_HEIGHT % FV_MAP_TILE_HEIGHT == 0,
+               "The map size must be a multiple of the tile size");
+
+#define FV_MAP_BLOCK_TYPE_SHIFT 30
+#define FV_MAP_BLOCK_TYPE_MASK ((uint32_t) 0x3 << FV_MAP_BLOCK_TYPE_SHIFT)
+
+enum fv_map_block_type {
+        FV_MAP_BLOCK_TYPE_FLOOR = 0 << FV_MAP_BLOCK_TYPE_SHIFT,
+        FV_MAP_BLOCK_TYPE_HALF_WALL = 1 << FV_MAP_BLOCK_TYPE_SHIFT,
+        FV_MAP_BLOCK_TYPE_FULL_WALL = 2 << FV_MAP_BLOCK_TYPE_SHIFT,
+        FV_MAP_BLOCK_TYPE_SPECIAL = 3 << FV_MAP_BLOCK_TYPE_SHIFT,
+};
+
+#define FV_MAP_GET_BLOCK_TYPE(x) ((x) & FV_MAP_BLOCK_TYPE_MASK)
 #define FV_MAP_GET_BLOCK_TOP_IMAGE(x) ((x) & ((1 << 6) - 1))
 #define FV_MAP_GET_BLOCK_NORTH_IMAGE(x) (((x) >> 6) & ((1 << 6) - 1))
 #define FV_MAP_GET_BLOCK_EAST_IMAGE(x) (((x) >> 12) & ((1 << 6) - 1))
 #define FV_MAP_GET_BLOCK_SOUTH_IMAGE(x) (((x) >> 18) & ((1 << 6) - 1))
 #define FV_MAP_GET_BLOCK_WEST_IMAGE(x) (((x) >> 24) & ((1 << 6) - 1))
+#define FV_MAP_IS_WALL(x) (FV_MAP_GET_BLOCK_TYPE(x) != FV_MAP_BLOCK_TYPE_FLOOR)
 
 typedef uint32_t fv_map_block_t;
 
 extern const fv_map_block_t
 fv_map[FV_MAP_WIDTH * FV_MAP_HEIGHT];
+
+struct fv_map_special {
+        uint16_t x, y;
+        uint16_t num;
+};
+
+struct fv_map_tile {
+        struct fv_map_special specials[FV_MAP_MAX_SPECIALS];
+        int n_specials;
+};
+
+extern const struct fv_map_tile
+fv_map_tiles[FV_MAP_TILES_X * FV_MAP_TILES_Y];
 
 #endif /* FV_MAP_H */

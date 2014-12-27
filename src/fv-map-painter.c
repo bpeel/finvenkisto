@@ -29,19 +29,15 @@
 #include "fv-buffer.h"
 #include "fv-image.h"
 #include "fv-gl.h"
-
-#define FV_MAP_PAINTER_TILE_WIDTH 8
-#define FV_MAP_PAINTER_TILE_HEIGHT 8
-
-#define FV_MAP_PAINTER_TILES_X (FV_MAP_WIDTH / FV_MAP_PAINTER_TILE_WIDTH)
-#define FV_MAP_PAINTER_TILES_Y (FV_MAP_HEIGHT / FV_MAP_PAINTER_TILE_HEIGHT)
-
-_Static_assert(FV_MAP_WIDTH % FV_MAP_PAINTER_TILE_WIDTH == 0,
-               "The map size must be a multiple of the tile size");
-_Static_assert(FV_MAP_HEIGHT % FV_MAP_PAINTER_TILE_HEIGHT == 0,
-               "The map size must be a multiple of the tile size");
+#include "fv-model.h"
 
 #define FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE 64
+
+#define FV_MAP_PAINTER_N_MODELS FV_N_ELEMENTS(fv_map_painter_models)
+
+static const char *
+fv_map_painter_models[] = {
+};
 
 struct fv_map_painter_tile {
         size_t offset;
@@ -52,10 +48,12 @@ struct fv_map_painter_tile {
 struct fv_map_painter {
         GLuint buffer;
         GLuint array;
-        struct fv_map_painter_tile tiles[FV_MAP_PAINTER_TILES_X *
-                                         FV_MAP_PAINTER_TILES_Y];
+        struct fv_map_painter_tile tiles[FV_MAP_TILES_X *
+                                         FV_MAP_TILES_Y];
         GLuint program;
         GLuint transform_uniform;
+
+        struct fv_model models[FV_MAP_PAINTER_N_MODELS];
 
         GLuint texture;
         int texture_width, texture_height;
@@ -74,13 +72,14 @@ struct tile_data {
 static float
 get_block_height(fv_map_block_t block)
 {
-        if (FV_MAP_IS_FULL_WALL(block))
+        switch (FV_MAP_GET_BLOCK_TYPE(block)) {
+        case FV_MAP_BLOCK_TYPE_FULL_WALL:
                 return 2.0f;
-
-        if (FV_MAP_IS_HALF_WALL(block))
+        case FV_MAP_BLOCK_TYPE_HALF_WALL:
                 return 1.0f;
-
-        return 0.0f;
+        default:
+                return 0.0f;
+        }
 }
 
 static float
@@ -262,15 +261,37 @@ generate_tile(struct fv_map_painter *painter,
 {
         int x, y;
 
-        for (y = 0; y < FV_MAP_PAINTER_TILE_HEIGHT; y++) {
-                for (x = 0; x < FV_MAP_PAINTER_TILE_WIDTH; x++) {
+        for (y = 0; y < FV_MAP_TILE_HEIGHT; y++) {
+                for (x = 0; x < FV_MAP_TILE_WIDTH; x++) {
                         generate_square(painter,
                                         data,
-                                        tx * FV_MAP_PAINTER_TILE_WIDTH + x,
-                                        ty * FV_MAP_PAINTER_TILE_HEIGHT + y);
+                                        tx * FV_MAP_TILE_WIDTH + x,
+                                        ty * FV_MAP_TILE_HEIGHT + y);
                 }
         }
 
+}
+
+static bool
+load_models(struct fv_map_painter *painter)
+{
+        bool res;
+        int i;
+
+        for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++) {
+                res = fv_model_load(painter->models + i,
+                                    fv_map_painter_models[i]);
+                if (!res)
+                        goto error;
+        }
+
+        return true;
+
+error:
+        while (--i >= 0)
+                fv_model_destroy(painter->models + i);
+
+        return false;
 }
 
 struct fv_map_painter *
@@ -284,20 +305,21 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
         int tex_width, tex_height;
         GLuint tex_uniform;
 
-        tex_data = fv_image_load("map-texture.png",
-                                 &tex_width, &tex_height,
-                                 3 /* components */);
-        if (tex_data == NULL)
-                return NULL;
-
         painter = fv_alloc(sizeof *painter);
+
+        if (!load_models(painter))
+                goto error;
+
         painter->program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
         painter->transform_uniform =
                 fv_gl.glGetUniformLocation(painter->program, "transform");
 
-        painter->texture_width = tex_width;
-        painter->texture_height = tex_height;
+        tex_data = fv_image_load("map-texture.png",
+                                 &tex_width, &tex_height,
+                                 3 /* components */);
+        if (tex_data == NULL)
+                goto error_models;
 
         fv_gl.glGenTextures(1, &painter->texture);
         fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
@@ -309,6 +331,9 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                            GL_RGB,
                            GL_UNSIGNED_BYTE,
                            tex_data);
+
+        fv_free(tex_data);
+
         fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
         fv_gl.glTexParameteri(GL_TEXTURE_2D,
                               GL_TEXTURE_MIN_FILTER,
@@ -323,7 +348,8 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                               GL_TEXTURE_WRAP_T,
                               GL_CLAMP_TO_EDGE);
 
-        fv_free(tex_data);
+        painter->texture_width = tex_width;
+        painter->texture_height = tex_height;
 
         tex_uniform = fv_gl.glGetUniformLocation(painter->program, "tex");
         fv_gl.glUseProgram(painter->program);
@@ -334,8 +360,8 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
 
         tile = painter->tiles;
 
-        for (ty = 0; ty < FV_MAP_PAINTER_TILES_Y; ty++) {
-                for (tx = 0; tx < FV_MAP_PAINTER_TILES_X; tx++) {
+        for (ty = 0; ty < FV_MAP_TILES_Y; ty++) {
+                for (tx = 0; tx < FV_MAP_TILES_X; tx++) {
                         first = data.indices.length / sizeof (uint16_t);
                         tile->min = (data.vertices.length /
                                      sizeof (struct vertex));
@@ -350,7 +376,7 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                 }
         }
 
-        for (i = 0; i < FV_MAP_PAINTER_TILES_X * FV_MAP_PAINTER_TILES_Y; i++)
+        for (i = 0; i < FV_MAP_TILES_X * FV_MAP_TILES_Y; i++)
                 painter->tiles[i].offset += data.vertices.length;
 
         assert(data.vertices.length / sizeof (struct vertex) < 65536);
@@ -400,6 +426,35 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
         fv_buffer_destroy(&data.vertices);
 
         return painter;
+
+error_models:
+        for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++)
+                fv_model_destroy(painter->models + i);
+error:
+        fv_free(painter);
+
+        return NULL;
+}
+
+static void
+paint_special(struct fv_map_painter *painter,
+              const struct fv_map_special *special,
+              const struct fv_transform *transform_in)
+{
+        struct fv_transform transform = *transform_in;
+
+        fv_matrix_translate(&transform.modelview,
+                            special->x + 0.5f,
+                            special->y + 0.5f,
+                            0.0f);
+        fv_transform_update_derived_values(&transform);
+
+        fv_gl.glUniformMatrix4fv(painter->transform_uniform,
+                                 1, /* count */
+                                 GL_FALSE, /* transpose */
+                                 &transform.mvp.xx);
+
+        fv_model_paint(painter->models + special->num);
 }
 
 void
@@ -415,27 +470,28 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         int idx_max;
         const struct fv_map_painter_tile *tile = NULL;
         int count;
-        int y, x;
+        int y, x, i;
+        const struct fv_map_tile *map_tile;
 
         fv_logic_get_center(logic, &center_x, &center_y);
 
         x_min = floorf((center_x - visible_w / 2.0f) /
-                       FV_MAP_PAINTER_TILE_WIDTH);
+                       FV_MAP_TILE_WIDTH);
         x_max = ceilf((center_x + visible_w / 2.0f) /
-                      FV_MAP_PAINTER_TILE_WIDTH);
+                      FV_MAP_TILE_WIDTH);
         y_min = floorf((center_y - visible_h / 2.0f) /
-                       FV_MAP_PAINTER_TILE_HEIGHT);
+                       FV_MAP_TILE_HEIGHT);
         y_max = ceilf((center_y + visible_h / 2.0f) /
-                      FV_MAP_PAINTER_TILE_HEIGHT);
+                      FV_MAP_TILE_HEIGHT);
 
         if (x_min < 0)
                 x_min = 0;
-        if (x_max > FV_MAP_PAINTER_TILES_X)
-                x_max = FV_MAP_PAINTER_TILES_X;
+        if (x_max > FV_MAP_TILES_X)
+                x_max = FV_MAP_TILES_X;
         if (y_min < 0)
                 y_min = 0;
-        if (y_max > FV_MAP_PAINTER_TILES_Y)
-                y_max = FV_MAP_PAINTER_TILES_Y;
+        if (y_max > FV_MAP_TILES_Y)
+                y_max = FV_MAP_TILES_Y;
 
         if (y_min >= y_max || x_min >= x_max)
                 return;
@@ -459,7 +515,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 
                 for (x = x_max - 1; x >= x_min; x--) {
                         tile = painter->tiles +
-                                y * FV_MAP_PAINTER_TILES_X + x;
+                                y * FV_MAP_TILES_X + x;
                         count += tile->count;
                         if (tile->min < idx_min)
                                 idx_min = tile->min;
@@ -473,6 +529,17 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                                           GL_UNSIGNED_SHORT,
                                           (void *) (intptr_t)
                                           tile->offset);
+        }
+
+        for (y = y_min; y < y_max; y++) {
+                for (x = x_max - 1; x >= x_min; x--) {
+                        map_tile = fv_map_tiles + y * FV_MAP_TILES_X + x;
+                        for (i = 0; i < map_tile->n_specials; i++) {
+                                paint_special(painter,
+                                              map_tile->specials + i,
+                                              transform);
+                        }
+                }
         }
 
         fv_gl.glDisable(GL_DEPTH_TEST);

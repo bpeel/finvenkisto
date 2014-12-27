@@ -20,15 +20,21 @@ import sys
 MAP_WIDTH = 64
 MAP_HEIGHT = 64
 
-tiles = {
-    '#': 'FV_MAP_FULL_WALL | B(0, 15, 15, 15, 15)',
-    ' ': 'B(8, 0, 0, 0, 0)',
-    'g': 'B(10, 0, 0, 0, 0)',
-    'w': 'FV_MAP_FULL_WALL | B(0, 12, 12, 15, 15)',
-    'd': 'FV_MAP_FULL_WALL | B(0, 15, 12, 12, 15)',
-    's': 'FV_MAP_FULL_WALL | B(0, 15, 15, 12, 12)',
-    'a': 'FV_MAP_FULL_WALL | B(0, 12, 15, 15, 12)',
-    'T': 'FV_MAP_HALF_WALL | B(4, 16, 16, 16, 16)'
+MAP_TILE_WIDTH = 8
+MAP_TILE_HEIGHT = 8
+
+MAP_TILES_X = MAP_WIDTH // MAP_TILE_WIDTH
+MAP_TILES_Y = MAP_HEIGHT // MAP_TILE_HEIGHT
+
+BLOCKS = {
+    '#': 'B(FULL_WALL, 0, 15, 15, 15, 15)',
+    ' ': 'B(FLOOR, 8, 0, 0, 0, 0)',
+    'g': 'B(FLOOR, 10, 0, 0, 0, 0)',
+    'w': 'B(FULL_WALL, 0, 12, 12, 15, 15)',
+    'd': 'B(FULL_WALL, 0, 15, 12, 12, 15)',
+    's': 'B(FULL_WALL, 0, 15, 15, 12, 12)',
+    'a': 'B(FULL_WALL, 0, 12, 15, 15, 12)',
+    'T': 'B(HALF_WALL, 4, 16, 16, 16, 16)'
 }
 
 line_num = 1
@@ -43,7 +49,7 @@ for line in sys.stdin:
         sys.exit(1)
 
     for ch in line:
-        if ch not in tiles:
+        if ch not in BLOCKS:
             sys.stderr.write("Unknown character '" + ch + "' on line " +
                              str(line_num) + "\n")
             sys.exit(1)
@@ -61,8 +67,9 @@ print('''
 #include "fv-map.h"
 #define F FV_MAP_FULL_WALL
 #define H FV_MAP_HALF_WALL
-#define B(top, n, e, s, w) \\
-        ((top) | \\
+#define B(type, top, n, e, s, w) \\
+        (FV_MAP_BLOCK_TYPE_ ## type | \\
+         (top) | \\
          ((n) << 6) | \\
          ((e) << 12) | \\
          ((s) << 18) | \\
@@ -71,8 +78,39 @@ const fv_map_block_t
 fv_map[FV_MAP_WIDTH * FV_MAP_HEIGHT] = {
 ''')
 
+tiles = [[] for x in range(0, MAP_TILES_X * MAP_TILES_Y)]
+y = 0
+
 for line in reversed(lines):
+    x = 0
     for ch in line:
-        print("        " + tiles[ch] + ",")
+        block = BLOCKS[ch]
+        if isinstance(block, tuple):
+            tile = tiles[y // MAP_TILE_HEIGHT * MAP_TILES_X +
+                         x // MAP_TILE_WIDTH]
+            tile.append((x, y, block[0]))
+            block = block[1]
+        print("        " + block + ",")
+        x += 1
+    y += 1
+
 
 print("};")
+
+print('''
+const struct fv_map_tile
+fv_map_tiles[FV_MAP_TILES_X * FV_MAP_TILES_Y] = {
+''')
+
+for tile in tiles:
+    print("        {\n"
+          "                {\n")
+    for special in tile:
+        print("                        {{ {0}, {1}, {2} }},\n".
+              format(special[0], special[1], special[2]))
+    print("                },\n" +
+          "                " + str(len(tile)) + "\n" +
+          "        },\n")
+
+print("};")
+
