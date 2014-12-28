@@ -29,5 +29,6 @@
 /src/data/Makefile.in
 /src/data/Makefile
 /src/data/map-texture.png
+/src/data/*.blend[12]
 *.o
 .deps
