@@ -34,7 +34,8 @@ BLOCKS = {
     'd': 'B(FULL_WALL, 0, 15, 12, 12, 15)',
     's': 'B(FULL_WALL, 0, 15, 15, 12, 12)',
     'a': 'B(FULL_WALL, 0, 12, 15, 15, 12)',
-    'T': 'B(HALF_WALL, 4, 16, 16, 16, 16)'
+    'T': (0, 'B(SPECIAL, 8, 0, 0, 0, 0)'),
+    't': 'B(SPECIAL, 8, 0, 0, 0, 0)'
 }
 
 line_num = 1

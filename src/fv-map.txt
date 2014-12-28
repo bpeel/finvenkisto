@@ -12,13 +12,13 @@ ga##############################  ############################dg
 ga                                                            dg
 ga                                                            dg
 ga                                                            dg
-ga   TT      TT      TT      TT       TT      TT     TT       dg
+ga   Tt      Tt      Tt      Tt       Tt      Tt     Tt       dg
 ga                                                            dg
 ga                                                            dg
-ga   TT      TT      TT      TT       TT      TT     TT       dg
+ga   Tt      Tt      Tt      Tt       Tt      Tt     Tt       dg
 ga                                                            dg
 ga                                                            dg
-ga   TT      TT      TT      TT       TT      TT     TT       dg
+ga   Tt      Tt      Tt      Tt       Tt      Tt     Tt       dg
 ga                                                            dg
 ga#######  ######################  ##################  #######dg
 ga                                                            dg
@@ -42,11 +42,11 @@ ga                                                            dg
 ga################    #  ###################################  dg
 ga               #    #                          #            dg
 ga               #    #                          #            dg
-ga               #    #              TT          #            dg
+ga               #    #              Tt          #            dg
 ga               #    #                          #            dg
-ga    T          #    #        ###################            dg
-ga    T          #    #        #                              dg
-ga               #    #        #         TT                   dg
+ga    Tt         #    #        ###################            dg
+ga               #    #        #                              dg
+ga               #    #        #         Tt                   dg
 ga                    #        #                              dg
 ga                    #        #                              dg
 gssssssssssssssssd    ssssssssssssssssssssssssssssssssssssssssdg
