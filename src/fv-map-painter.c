@@ -499,6 +499,21 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         if (y_min >= y_max || x_min >= x_max)
                 return;
 
+        fv_gl.glUseProgram(painter->model_program);
+
+        fv_gl.glEnable(GL_DEPTH_TEST);
+
+        for (y = y_min; y < y_max; y++) {
+                for (x = x_max - 1; x >= x_min; x--) {
+                        map_tile = fv_map_tiles + y * FV_MAP_TILES_X + x;
+                        for (i = 0; i < map_tile->n_specials; i++) {
+                                paint_special(painter,
+                                              map_tile->specials + i,
+                                              transform);
+                        }
+                }
+        }
+
         fv_gl.glUseProgram(painter->map_program);
         fv_gl.glUniformMatrix4fv(painter->transform_uniform,
                                  1, /* count */
@@ -506,8 +521,6 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                                  &transform->mvp.xx);
 
         fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
-
-        fv_gl.glEnable(GL_DEPTH_TEST);
 
         fv_gl.glBindVertexArray(painter->array);
 
@@ -532,19 +545,6 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                                           GL_UNSIGNED_SHORT,
                                           (void *) (intptr_t)
                                           tile->offset);
-        }
-
-        fv_gl.glUseProgram(painter->model_program);
-
-        for (y = y_min; y < y_max; y++) {
-                for (x = x_max - 1; x >= x_min; x--) {
-                        map_tile = fv_map_tiles + y * FV_MAP_TILES_X + x;
-                        for (i = 0; i < map_tile->n_specials; i++) {
-                                paint_special(painter,
-                                              map_tile->specials + i,
-                                              transform);
-                        }
-                }
         }
 
         fv_gl.glDisable(GL_DEPTH_TEST);
