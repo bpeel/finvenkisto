@@ -50,7 +50,8 @@ struct fv_map_painter {
         GLuint array;
         struct fv_map_painter_tile tiles[FV_MAP_TILES_X *
                                          FV_MAP_TILES_Y];
-        GLuint program;
+        GLuint map_program;
+        GLuint model_program;
         GLuint transform_uniform;
 
         struct fv_model models[FV_MAP_PAINTER_N_MODELS];
@@ -310,10 +311,12 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
         if (!load_models(painter))
                 goto error;
 
-        painter->program =
+        painter->map_program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
         painter->transform_uniform =
-                fv_gl.glGetUniformLocation(painter->program, "transform");
+                fv_gl.glGetUniformLocation(painter->map_program, "transform");
+        painter->model_program =
+                shader_data->programs[FV_SHADER_DATA_PROGRAM_COLOR];
 
         tex_data = fv_image_load("map-texture.png",
                                  &tex_width, &tex_height,
@@ -351,8 +354,8 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
         painter->texture_width = tex_width;
         painter->texture_height = tex_height;
 
-        tex_uniform = fv_gl.glGetUniformLocation(painter->program, "tex");
-        fv_gl.glUseProgram(painter->program);
+        tex_uniform = fv_gl.glGetUniformLocation(painter->map_program, "tex");
+        fv_gl.glUseProgram(painter->map_program);
         fv_gl.glUniform1i(tex_uniform, 0);
 
         fv_buffer_init(&data.vertices);
@@ -496,7 +499,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         if (y_min >= y_max || x_min >= x_max)
                 return;
 
-        fv_gl.glUseProgram(painter->program);
+        fv_gl.glUseProgram(painter->map_program);
         fv_gl.glUniformMatrix4fv(painter->transform_uniform,
                                  1, /* count */
                                  GL_FALSE, /* transpose */
@@ -530,6 +533,8 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                                           (void *) (intptr_t)
                                           tile->offset);
         }
+
+        fv_gl.glUseProgram(painter->model_program);
 
         for (y = y_min; y < y_max; y++) {
                 for (x = x_max - 1; x >= x_min; x--) {

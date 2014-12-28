@@ -17,26 +17,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_SHADER_DATA_H
-#define FV_SHADER_DATA_H
+layout(location = 0) in vec3 pos;
+layout(location = 3) in vec3 color_attrib;
 
-#include <GL/gl.h>
-#include <stdbool.h>
+uniform mat4 transform;
 
-enum fv_shader_data_program {
-        FV_SHADER_DATA_PROGRAM_TEXTURE,
-        FV_SHADER_DATA_PROGRAM_COLOR,
-        FV_SHADER_DATA_N_PROGRAMS
-};
-
-struct fv_shader_data {
-        GLuint programs[FV_SHADER_DATA_N_PROGRAMS];
-};
-
-bool
-fv_shader_data_init(struct fv_shader_data *data);
+out vec3 color;
 
 void
-fv_shader_data_destroy(struct fv_shader_data *data);
+main()
+{
+        gl_Position = transform * vec4(pos, 1.0);
+        color = color_attrib;
+}
 
-#endif /* FV_SHADER_DATA_H */

@@ -53,6 +53,16 @@ fv_shader_data_shaders[] = {
                 GL_VERTEX_SHADER,
                 "fv-texture-vertex.glsl",
                 { FV_SHADER_DATA_PROGRAM_TEXTURE, -1 }
+        },
+        {
+                GL_FRAGMENT_SHADER,
+                "fv-color-fragment.glsl",
+                { FV_SHADER_DATA_PROGRAM_COLOR, -1 }
+        },
+        {
+                GL_VERTEX_SHADER,
+                "fv-color-vertex.glsl",
+                { FV_SHADER_DATA_PROGRAM_COLOR, -1 }
         }
 };
 

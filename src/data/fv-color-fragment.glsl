@@ -17,26 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_SHADER_DATA_H
-#define FV_SHADER_DATA_H
+layout(location = 0) out vec4 frag_color;
 
-#include <GL/gl.h>
-#include <stdbool.h>
-
-enum fv_shader_data_program {
-        FV_SHADER_DATA_PROGRAM_TEXTURE,
-        FV_SHADER_DATA_PROGRAM_COLOR,
-        FV_SHADER_DATA_N_PROGRAMS
-};
-
-struct fv_shader_data {
-        GLuint programs[FV_SHADER_DATA_N_PROGRAMS];
-};
-
-bool
-fv_shader_data_init(struct fv_shader_data *data);
+in vec3 color;
 
 void
-fv_shader_data_destroy(struct fv_shader_data *data);
-
-#endif /* FV_SHADER_DATA_H */
+main()
+{
+        frag_color = vec4(color, 1.0);
+}
