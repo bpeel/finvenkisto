@@ -34,10 +34,11 @@
 #include "fv-map.h"
 #include "fv-gl.h"
 
-#define FV_GAME_NEAR_PLANE 1.0f
-#define FV_GAME_FAR_PLANE 10.0f
+/* 40° vertical FOV angle when the height of the display is 2.0 */
+#define FV_GAME_NEAR_PLANE 2.7474774194546225f
+#define FV_GAME_FAR_PLANE 15.0f
 
-#define FV_GAME_ORIGIN_DISTANCE 5.0f
+#define FV_GAME_ORIGIN_DISTANCE 10.0f
 #define FV_GAME_SCALE 0.7f
 
 struct fv_game {
