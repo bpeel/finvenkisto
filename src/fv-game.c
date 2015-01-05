@@ -65,7 +65,7 @@ fv_game_new(struct fv_shader_data *shader_data)
                             0.0f, 0.0f, -FV_GAME_ORIGIN_DISTANCE);
 
         fv_matrix_rotate(&game->base_transform,
-                         -10.0f,
+                         -30.0f,
                          1.0f, 0.0f, 0.0f);
 
         fv_matrix_scale(&game->base_transform,
