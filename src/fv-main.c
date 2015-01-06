@@ -316,7 +316,7 @@ main(int argc, char **argv)
         data.window = SDL_CreateWindow("Finvenkisto",
                                        SDL_WINDOWPOS_UNDEFINED,
                                        SDL_WINDOWPOS_UNDEFINED,
-                                       640, 480,
+                                       800, 600,
                                        flags);
 
         if (data.window == NULL) {
