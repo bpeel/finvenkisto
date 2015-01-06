@@ -1,6 +1,6 @@
 # Finvenkisto
 #
-# Copyright (C) 2014 Neil Roberts
+# Copyright (C) 2014, 2015 Neil Roberts
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
+from PIL import Image
 
 MAP_WIDTH = 64
 MAP_HEIGHT = 64
@@ -26,41 +27,81 @@ MAP_TILE_HEIGHT = 8
 MAP_TILES_X = MAP_WIDTH // MAP_TILE_WIDTH
 MAP_TILES_Y = MAP_HEIGHT // MAP_TILE_HEIGHT
 
-BLOCKS = {
-    '#': 'B(FULL_WALL, 0, 15, 15, 15, 15)',
-    ' ': 'B(FLOOR, 8, 0, 0, 0, 0)',
-    'g': 'B(FLOOR, 10, 0, 0, 0, 0)',
-    'w': 'B(FULL_WALL, 0, 12, 12, 15, 15)',
-    'd': 'B(FULL_WALL, 0, 15, 12, 12, 15)',
-    's': 'B(FULL_WALL, 0, 15, 15, 12, 12)',
-    'a': 'B(FULL_WALL, 0, 12, 15, 15, 12)',
-    'T': (0, 'B(SPECIAL, 8, 0, 0, 0, 0)'),
-    't': 'B(SPECIAL, 8, 0, 0, 0, 0)'
+IMAGE_BLOCK_SIZE = 4
+
+# The map is defined by a PNG image. Each 4x4 rectangle of the image
+# represents a block in the map. The colours of the block have the
+# following significance:
+#
+#     xnxx
+#     wtpe
+#     xhxx
+#     xsxx
+#
+# Where the letters represent the following:
+#
+#  t:          The image to use for the top of the block. These are indexed
+#              from the TOPS dict.
+#  n, e, s, w: The colour for the walls of the block. However if the
+#              colour is the same as the top of the block then it is ignored.
+#              Otherwise they are indexed from the SIDES dict.
+#  p:          If this is different from the top of the block then the SPECIALS
+#              dict is used to select a special model to place on this block.
+#  h:          If this isn't a floor tile and the value is different from t
+#              then this is treated as a half-wall block.
+#  x:          The colour is ignored.
+
+TOPS = {
+    'b95': 8,
+    'c90': 0,
+    '452': 10
 }
 
-line_num = 1
+SIDES = {
+    '644': 12,
+    '9cc': 15
+}
 
-lines = []
+SPECIALS = {
+    'd53': 0,
+    '000': None # covered by a neighbouring special
+}
 
-for line in sys.stdin:
-    line = line.rstrip()
-    if len(line) != MAP_WIDTH:
-        sys.stderr.write("Line " + str(line_num) + " is " + str(len(line)) +
-                         " characters long\n")
-        sys.exit(1)
+def peek_color(image, bx, by, x, y):
+    x += bx * IMAGE_BLOCK_SIZE
+    y += by * IMAGE_BLOCK_SIZE
 
-    for ch in line:
-        if ch not in BLOCKS:
-            sys.stderr.write("Unknown character '" + ch + "' on line " +
-                             str(line_num) + "\n")
+    def make_nibble(v):
+        if (v & 0xf) << 4 != (v & 0xf0):
+            sys.stderr.write("Bad colour at " + x + ", " + y + "\n")
             sys.exit(1)
+        return hex(v >> 4)[2:]
 
-    lines.append(line)
+    return ''.join(map(make_nibble, image.getpixel((x, y))))
 
-    line_num += 1
+def generate_tile(image, tx, ty):
+    count = 0
 
-if line_num != MAP_HEIGHT + 1:
-    sys.stderr.write("Map file is " + str(line_num - 1) + " lines long\n")
+    for x in range(tx * MAP_TILE_WIDTH, (tx + 1) * MAP_TILE_WIDTH):
+        for y in range((ty + 1) * MAP_TILE_HEIGHT - 1,
+                       ty * MAP_TILE_HEIGHT - 1,
+                       -1):
+            top_color = peek_color(image, x, y, 1, 1)
+            special_color = peek_color(image, x, y, 2, 1)
+
+            if special_color != top_color:
+                special_index = SPECIALS[special_color]
+                if special_index != None:
+                    print("                        {{ {0}, {1}, {2} }},\n".
+                          format(x, MAP_HEIGHT - 1 - y, special_index))
+                    count += 1
+
+    return count
+
+image = Image.open(sys.argv[1])
+
+if image.size != (MAP_WIDTH * IMAGE_BLOCK_SIZE, MAP_HEIGHT * IMAGE_BLOCK_SIZE):
+    sys.stderr.write("Map image is not the correct size\n")
     sys.exit(1)
 
 print('''
@@ -79,22 +120,39 @@ const fv_map_block_t
 fv_map[FV_MAP_WIDTH * FV_MAP_HEIGHT] = {
 ''')
 
-tiles = [[] for x in range(0, MAP_TILES_X * MAP_TILES_Y)]
-y = 0
+for y in range(MAP_HEIGHT - 1, -1, -1):
+    for x in range(0, MAP_WIDTH):
+        top_color = peek_color(image, x, y, 1, 1)
+        top = TOPS[top_color]
 
-for line in reversed(lines):
-    x = 0
-    for ch in line:
-        block = BLOCKS[ch]
-        if isinstance(block, tuple):
-            tile = tiles[y // MAP_TILE_HEIGHT * MAP_TILES_X +
-                         x // MAP_TILE_WIDTH]
-            tile.append((x, y, block[0]))
-            block = block[1]
-        print("        " + block + ",")
-        x += 1
-    y += 1
+        north_color = peek_color(image, x, y, 1, 0)
+        if north_color == top_color:
+            north = 0
+            east = 0
+            south = 0
+            west = 0
 
+            special_color = peek_color(image, x, y, 2, 1)
+            if special_color == top_color:
+                block_type = 'FLOOR'
+            else:
+                block_type = 'SPECIAL'
+        else:
+            north = SIDES[north_color]
+            east = SIDES[peek_color(image, x, y, 3, 1)]
+            south = SIDES[peek_color(image, x, y, 1, 3)]
+            west = SIDES[peek_color(image, x, y, 0, 1)]
+            if peek_color(image, x, y, 1, 2) == top_color:
+                block_type = 'FULL_WALL'
+            else:
+                block_type = 'HALF_WALL'
+
+        print('        B(' + block_type, end='')
+
+        for image_index in (top, north, east, south, west):
+            print(', ' + str(image_index), end='')
+
+        print('),')
 
 print("};")
 
@@ -103,15 +161,15 @@ const struct fv_map_tile
 fv_map_tiles[FV_MAP_TILES_X * FV_MAP_TILES_Y] = {
 ''')
 
-for tile in tiles:
-    print("        {\n"
-          "                {\n")
-    for special in tile:
-        print("                        {{ {0}, {1}, {2} }},\n".
-              format(special[0], special[1], special[2]))
-    print("                },\n" +
-          "                " + str(len(tile)) + "\n" +
-          "        },\n")
+for y in range(MAP_TILES_Y - 1, -1, -1):
+    for x in range(0, MAP_TILES_X):
+        print("        {\n"
+              "                {\n")
+
+        count = generate_tile(image, x, y)
+
+        print("                },\n" +
+              "                " + str(count) + "\n" +
+              "        },\n")
 
 print("};")
-

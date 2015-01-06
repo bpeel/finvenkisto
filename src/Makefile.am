@@ -45,8 +45,8 @@ BUILT_SOURCES = \
 	fv-map.c \
 	$(NULL)
 
-fv-map.c : fv-map.txt make-map.py
-	$(AM_V_GEN)python3 $(srcdir)/make-map.py < $(srcdir)/fv-map.txt > $@
+fv-map.c : fv-map.png make-map.py
+	$(AM_V_GEN)python3 $(srcdir)/make-map.py $(srcdir)/fv-map.png > $@
 
 finvenkisto_LDADD = \
 	$(SDL_LIBS) \
@@ -54,6 +54,6 @@ finvenkisto_LDADD = \
 	$(NULL)
 
 EXTRA_DIST = \
-	fv-map.txt \
+	fv-map.png \
 	make-map.py \
 	$(NULL)
