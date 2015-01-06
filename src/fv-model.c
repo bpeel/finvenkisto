@@ -246,6 +246,10 @@ set_property_callbacks(struct data *data)
                                       face_read_cb,
                                       data, 0);
 
+        /* Align the vertex size to the size of a float */
+        data->vertex_size = ((data->vertex_size + sizeof (float) - 1) &
+                             ~(sizeof (float) - 1));
+
         return true;
 }
 
