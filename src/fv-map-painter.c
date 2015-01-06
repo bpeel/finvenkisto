@@ -554,8 +554,14 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 void
 fv_map_painter_free(struct fv_map_painter *painter)
 {
+        int i;
+
         fv_gl.glDeleteTextures(1, &painter->texture);
         fv_gl.glDeleteVertexArrays(1, &painter->array);
         fv_gl.glDeleteBuffers(1, &painter->buffer);
+
+        for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++)
+                fv_model_destroy(painter->models + i);
+
         fv_free(painter);
 }
