@@ -52,8 +52,9 @@ struct fv_map_painter {
         struct fv_map_painter_tile tiles[FV_MAP_TILES_X *
                                          FV_MAP_TILES_Y];
         GLuint map_program;
+        GLuint map_transform_uniform;
         GLuint model_program;
-        GLuint transform_uniform;
+        GLuint model_transform_uniform;
 
         struct fv_model models[FV_MAP_PAINTER_N_MODELS];
 
@@ -314,10 +315,12 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
 
         painter->map_program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
-        painter->transform_uniform =
+        painter->map_transform_uniform =
                 fv_gl.glGetUniformLocation(painter->map_program, "transform");
         painter->model_program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_COLOR];
+        painter->model_transform_uniform =
+                fv_gl.glGetUniformLocation(painter->model_program, "transform");
 
         tex_data = fv_image_load("map-texture.png",
                                  &tex_width, &tex_height,
@@ -453,7 +456,7 @@ paint_special(struct fv_map_painter *painter,
                             0.0f);
         fv_transform_update_derived_values(&transform);
 
-        fv_gl.glUniformMatrix4fv(painter->transform_uniform,
+        fv_gl.glUniformMatrix4fv(painter->model_transform_uniform,
                                  1, /* count */
                                  GL_FALSE, /* transpose */
                                  &transform.mvp.xx);
@@ -516,7 +519,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         }
 
         fv_gl.glUseProgram(painter->map_program);
-        fv_gl.glUniformMatrix4fv(painter->transform_uniform,
+        fv_gl.glUniformMatrix4fv(painter->map_transform_uniform,
                                  1, /* count */
                                  GL_FALSE, /* transpose */
                                  &transform->mvp.xx);
