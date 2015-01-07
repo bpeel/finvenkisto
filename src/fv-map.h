@@ -22,8 +22,8 @@
 
 #include <stdint.h>
 
-#define FV_MAP_WIDTH 64
-#define FV_MAP_HEIGHT 64
+#define FV_MAP_WIDTH 40
+#define FV_MAP_HEIGHT 40
 
 #define FV_MAP_TILE_WIDTH 8
 #define FV_MAP_TILE_HEIGHT 8
