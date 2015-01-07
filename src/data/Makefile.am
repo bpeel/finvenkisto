@@ -5,6 +5,11 @@ SHADERS = \
 	fv-texture-vertex.glsl \
 	$(NULL)
 
+MODELS = \
+	person.ply \
+	table.ply \
+	$(NULL)
+
 # The order here must match the order for the image numbers used in
 # the map
 BLOCK_IMAGES = \
@@ -24,7 +29,7 @@ map-texture.png : make-map-texture.py $(BLOCK_IMAGES)
 imagesdir = $(datadir)/finvenkisto
 dist_images_DATA = \
 	$(SHADERS) \
-	person.ply \
+	$(MODELS) \
 	person.png \
 	map-texture.png \
 	$(NULL)
@@ -32,6 +37,6 @@ dist_images_DATA = \
 EXTRA_DIST = \
 	ARTCREDITS \
 	make-map-texture.py \
-	person.blend \
+	$(MODELS:.ply=.blend) \
 	$(BLOCK_IMAGES) \
 	$(NULL)
