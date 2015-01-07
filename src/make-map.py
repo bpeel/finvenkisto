@@ -54,7 +54,8 @@ IMAGE_BLOCK_SIZE = 4
 TOPS = {
     'b95': 8,
     'c90': 0,
-    '452': 10
+    '452': 10,
+    'eee': 6
 }
 
 SIDES = {
