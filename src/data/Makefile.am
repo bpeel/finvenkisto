@@ -1,4 +1,6 @@
 SHADERS = \
+	fv-color-fragment.glsl \
+	fv-color-vertex.glsl \
 	fv-texture-fragment.glsl \
 	fv-texture-vertex.glsl \
 	$(NULL)
