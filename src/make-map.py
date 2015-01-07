@@ -77,7 +77,7 @@ def peek_color(image, bx, by, x, y):
             sys.exit(1)
         return hex(v >> 4)[2:]
 
-    return ''.join(map(make_nibble, image.getpixel((x, y))))
+    return ''.join(map(make_nibble, image.getpixel((x, y))[0:3]))
 
 def generate_tile(image, tx, ty):
     count = 0
