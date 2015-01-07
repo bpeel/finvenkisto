@@ -59,14 +59,14 @@ fv_logic_new(void)
 
         logic->last_ticks = 0;
 
-        logic->player_x = 2.0f;
-        logic->player_y = 2.0f;
-        logic->current_direction = 0.0f;
+        logic->player_x = FV_MAP_WIDTH / 2.0f;
+        logic->player_y = 0.5f;
+        logic->current_direction = -M_PI / 2.0f;
         logic->target_direction = 0.0f;
         logic->moving = false;
 
-        logic->center_x = 0.0f;
-        logic->center_y = 0.0f;
+        logic->center_x = logic->player_x;
+        logic->center_y = logic->player_y;
 
         return logic;
 }
