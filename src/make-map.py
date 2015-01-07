@@ -60,7 +60,7 @@ TOPS = {
 
 SIDES = {
     '644': 12,
-    '9cc': 15
+    '9cc': 14
 }
 
 SPECIALS = {

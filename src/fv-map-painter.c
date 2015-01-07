@@ -176,10 +176,10 @@ set_tex_coords_for_image(struct fv_map_painter *painter,
                          int image,
                          float height)
 {
-        int blocks_w = (painter->texture_width /
+        int blocks_h = (painter->texture_height /
                         FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE);
-        int is1 = image % blocks_w * FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE;
-        int it1 = image / blocks_w * FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE;
+        int is1 = image / blocks_h * FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE * 2;
+        int it1 = image % blocks_h * FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE;
         float s1 = is1 / (float) painter->texture_width;
         float t1 = it1 / (float) painter->texture_height;
         float s2 = ((is1 + FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE) /

@@ -23,39 +23,95 @@ import os
 
 BLOCK_SIZE = 64
 PADDING_SIZE = BLOCK_SIZE // 2
+MAX_TEXTURE_SIZE = 1024
 
-def make_padding(dst, dst_y, src, src_y):
+def make_vertical_padding(dst, dst_x, dst_y, src, src_y):
     pattern = src.crop((0, src_y, BLOCK_SIZE, src_y + 1))
     for y in range(dst_y, dst_y + PADDING_SIZE):
-        dst.paste(pattern, (0, y))
+        dst.paste(pattern, (dst_x, y))
+
+def make_horizontal_padding(dst, dst_x, dst_y, src, src_x, src_y):
+    pattern = src.crop((src_x, src_y, src_x + 1, src_y + BLOCK_SIZE))
+    for x in range(dst_x, dst_x + PADDING_SIZE):
+        dst.paste(pattern, (x, dst_y))
 
 images = list(map(Image.open, sys.argv[2:]))
 
-total_height = (len(images) - 1) * PADDING_SIZE * 2 + PADDING_SIZE
-
-for image in images:
-    total_height += image.size[1]
-
-pot_height = 1
-while pot_height < total_height:
-    pot_height *= 2
-
-final_image = Image.new('RGB', (BLOCK_SIZE, pot_height))
-
+image_width = 0
+image_height = 0
+x = 0
 y = 0
-first = True
 
 for image in images:
-    if first:
-        first = False
-    else:
-        make_padding(final_image, y, image, 0)
-        y += PADDING_SIZE
+    if y > 0:
+        y += PADDING_SIZE * 2
 
-    final_image.paste(image, (0, y))
+    if y + image.size[1] > MAX_TEXTURE_SIZE:
+        y = 0
+        x += BLOCK_SIZE + PADDING_SIZE * 2
+        image_width = x + BLOCK_SIZE
+
+    image.position = (x, y)
     y += image.size[1]
 
-    make_padding(final_image, y, image, image.size[1] - 1)
-    y += PADDING_SIZE
+    if y > image_height:
+        image_height = y
+
+final_image = Image.new('RGB', (image_width, image_height))
+
+for image in images:
+    final_image.paste(image, image.position)
+
+    if image.position[1] > 0:
+        make_vertical_padding(final_image,
+                              image.position[0],
+                              image.position[1] - PADDING_SIZE,
+                              image, 0)
+        if image.position[0] > 0:
+            final_image.paste(image.getpixel((0, 0)),
+                              (image.position[0] - PADDING_SIZE,
+                               image.position[1] - PADDING_SIZE,
+                               image.position[0],
+                               image.position[1]))
+        if image.position[0] + BLOCK_SIZE < image_width:
+            final_image.paste(image.getpixel((BLOCK_SIZE - 1, 0)),
+                              (image.position[0] + BLOCK_SIZE,
+                               image.position[1] - PADDING_SIZE,
+                               image.position[0] + BLOCK_SIZE + PADDING_SIZE,
+                               image.position[1]))
+    if image.position[1] + image.size[1] < image_height:
+        make_vertical_padding(final_image,
+                              image.position[0],
+                              image.position[1] + image.size[1],
+                              image, image.size[1] - 1)
+        if image.position[0] > 0:
+            final_image.paste(image.getpixel((0, image.size[1] - 1)),
+                              (image.position[0] - PADDING_SIZE,
+                               image.position[1] + image.size[1],
+                               image.position[0],
+                               image.position[1] +
+                               image.size[1] +
+                               PADDING_SIZE))
+        if image.position[0] + BLOCK_SIZE < image_width:
+            final_image.paste(image.getpixel((BLOCK_SIZE - 1,
+                                              image.size[1] - 1)),
+                              (image.position[0] + BLOCK_SIZE,
+                               image.position[1] + image.size[1],
+                               image.position[0] + BLOCK_SIZE + PADDING_SIZE,
+                               image.position[1] +
+                               image.size[1] +
+                               PADDING_SIZE))
+    if image.position[0] > 0:
+        for part in range(0, image.size[1], BLOCK_SIZE):
+            make_horizontal_padding(final_image,
+                                    image.position[0] - PADDING_SIZE,
+                                    image.position[1] + part,
+                                    image, 0, part)
+    if image.position[0] + BLOCK_SIZE < image_width:
+        for part in range(0, image.size[1], BLOCK_SIZE):
+            make_horizontal_padding(final_image,
+                                    image.position[0] + BLOCK_SIZE,
+                                    image.position[1] + part,
+                                    image, BLOCK_SIZE - 1, part)
 
 final_image.save(sys.argv[1])
