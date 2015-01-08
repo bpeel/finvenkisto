@@ -60,11 +60,14 @@ TOPS = {
 
 SIDES = {
     '644': 12,
-    '9cc': 14
+    '9cc': 14,
+    'ddd': 17,
+    'ccc': 20
 }
 
 SPECIALS = {
     'd53': 0,
+    '259': 1,
     '000': None # covered by a neighbouring special
 }
 

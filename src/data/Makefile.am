@@ -8,6 +8,7 @@ SHADERS = \
 MODELS = \
 	person.ply \
 	table.ply \
+	toilet.ply \
 	$(NULL)
 
 # The order here must match the order for the image numbers used in
@@ -21,6 +22,8 @@ BLOCK_IMAGES = \
 	grass.png \
 	brick-wall.png \
 	inner-wall.png \
+	bathroom-wall.png \
+	bathroom-wall-note.png \
 	$(NULL)
 
 map-texture.png : make-map-texture.py $(BLOCK_IMAGES)
