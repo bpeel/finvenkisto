@@ -122,6 +122,8 @@ tar -vxf "$DOWNLOADS_DIR/$SDL_FILENAME" -C "$INSTALL_DIR" \
 sed -i "s|^prefix=.*|prefix=${INSTALL_DIR}|" \
     "$INSTALL_DIR/lib/pkgconfig/sdl2.pc"
 
+cd "$SRC_DIR"
+
 ./autogen.sh --prefix="$INSTALL_DIR" \
     --host="$TARGET" \
     --target="$TARGET" \
