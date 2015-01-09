@@ -31,6 +31,7 @@ map-texture.png : make-map-texture.py $(BLOCK_IMAGES)
 
 imagesdir = $(datadir)/finvenkisto
 dist_images_DATA = \
+	ARTCREDITS \
 	$(SHADERS) \
 	$(MODELS) \
 	person.png \
@@ -38,7 +39,6 @@ dist_images_DATA = \
 	$(NULL)
 
 EXTRA_DIST = \
-	ARTCREDITS \
 	make-map-texture.py \
 	$(MODELS:.ply=.blend) \
 	$(BLOCK_IMAGES) \
