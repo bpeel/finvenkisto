@@ -9,6 +9,7 @@ MODELS = \
 	person.ply \
 	table.ply \
 	toilet.ply \
+	teaset.ply \
 	$(NULL)
 
 # The order here must match the order for the image numbers used in

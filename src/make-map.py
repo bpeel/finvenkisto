@@ -66,8 +66,9 @@ SIDES = {
 }
 
 SPECIALS = {
-    'd53': 0,
-    '259': 1,
+    'd53': 0, # table
+    '259': 1, # toilet
+    '1df': 2, # teaset
     '000': None # covered by a neighbouring special
 }
 

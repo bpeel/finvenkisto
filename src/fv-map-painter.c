@@ -38,7 +38,8 @@
 static const char *
 fv_map_painter_models[] = {
         "table.ply",
-        "toilet.ply"
+        "toilet.ply",
+        "teaset.ply"
 };
 
 struct fv_map_painter_tile {
