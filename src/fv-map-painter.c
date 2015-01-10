@@ -457,6 +457,11 @@ paint_special(struct fv_map_painter *painter,
                             special->x + 0.5f,
                             special->y + 0.5f,
                             0.0f);
+        if (special->rotation != 0)
+                fv_matrix_rotate(&transform.modelview,
+                                 special->rotation * 360.0f /
+                                 (UINT16_MAX + 1.0f),
+                                 0.0f, 0.0f, 1.0f);
         fv_transform_update_derived_values(&transform);
 
         fv_gl.glUniformMatrix4fv(painter->model_transform_uniform,

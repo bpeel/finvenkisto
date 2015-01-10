@@ -35,7 +35,7 @@ IMAGE_BLOCK_SIZE = 4
 #
 #     xnxx
 #     wtpe
-#     xhxx
+#     xhrx
 #     xsxx
 #
 # Where the letters represent the following:
@@ -47,6 +47,10 @@ IMAGE_BLOCK_SIZE = 4
 #              Otherwise they are indexed from the SIDES dict.
 #  p:          If this is different from the top of the block then the SPECIALS
 #              dict is used to select a special model to place on this block.
+#  r:          Rotation about the z-axis for the special model. Ignored if the
+#              color is the same as the top of the block, otherwise
+#              the r and g components together make a 16-bit rotation
+#              value where 65536 is a full circle.
 #  h:          If this isn't a floor tile and the value is different from t
 #              then this is treated as a half-wall block.
 #  x:          The colour is ignored.
@@ -85,6 +89,16 @@ def peek_color(image, bx, by, x, y):
 
     return ''.join(map(make_nibble, image.getpixel((x, y))[0:3]))
 
+def get_rotation(image, x, y):
+    top_color = image.getpixel((x * IMAGE_BLOCK_SIZE + 1,
+                                y * IMAGE_BLOCK_SIZE + 1))
+    rotation_color = image.getpixel((x * IMAGE_BLOCK_SIZE + 2,
+                                     y * IMAGE_BLOCK_SIZE + 2))
+    if top_color == rotation_color:
+        return 0
+    else:
+        return (rotation_color[0] << 8) | rotation_color[1]
+
 def generate_tile(image, tx, ty):
     count = 0
 
@@ -98,8 +112,11 @@ def generate_tile(image, tx, ty):
             if special_color != top_color:
                 special_index = SPECIALS[special_color]
                 if special_index != None:
-                    print("                        {{ {0}, {1}, {2} }},\n".
-                          format(x, MAP_HEIGHT - 1 - y, special_index))
+                    rotation = get_rotation(image, x, y)
+                    print("                        {{ {0}, {1}, {2}, {3} }},\n".
+                          format(x, MAP_HEIGHT - 1 - y,
+                                 rotation,
+                                 special_index))
                     count += 1
 
     return count

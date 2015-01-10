@@ -62,6 +62,7 @@ fv_map[FV_MAP_WIDTH * FV_MAP_HEIGHT];
 
 struct fv_map_special {
         uint16_t x, y;
+        uint16_t rotation;
         uint16_t num;
 };
 
