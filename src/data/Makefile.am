@@ -26,6 +26,9 @@ BLOCK_IMAGES = \
 	inner-wall.png \
 	bathroom-wall.png \
 	bathroom-wall-note.png \
+	room-floor.png \
+	wood.png \
+	table-side.png \
 	$(NULL)
 
 map-texture.png : make-map-texture.py $(BLOCK_IMAGES)
