@@ -69,6 +69,7 @@ SPECIALS = {
     'd53': 0, # table
     '259': 1, # toilet
     '1df': 2, # teaset
+    '00e': 3, # chair
     '000': None # covered by a neighbouring special
 }
 
