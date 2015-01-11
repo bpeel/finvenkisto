@@ -25,7 +25,7 @@
 
 enum fv_shader_data_program {
         FV_SHADER_DATA_PROGRAM_TEXTURE,
-        FV_SHADER_DATA_PROGRAM_COLOR,
+        FV_SHADER_DATA_PROGRAM_SPECIAL,
         FV_SHADER_DATA_N_PROGRAMS
 };
 

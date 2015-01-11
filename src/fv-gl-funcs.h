@@ -25,6 +25,14 @@ FV_GL_FUNC(void,
            glAttachShader, (GLuint program, GLuint shader))
 FV_GL_FUNC(void,
            glBindBuffer, (GLenum target, GLuint buffer))
+FV_GL_FUNC(GLboolean,
+           glUnmapBuffer, (GLenum target))
+FV_GL_FUNC(void *,
+           glMapBufferRange, (GLenum target, GLintptr offset,
+                              GLsizeiptr length, GLbitfield access))
+FV_GL_FUNC(void,
+           glFlushMappedBufferRange, (GLenum target, GLintptr offset,
+                                      GLsizei length))
 FV_GL_FUNC(void,
            glBindTexture, (GLenum target, GLuint texture))
 FV_GL_FUNC(void,
@@ -59,6 +67,10 @@ FV_GL_FUNC(void,
            glDrawRangeElements, (GLenum mode, GLuint start,
                                  GLuint end, GLsizei count, GLenum type,
                                  const GLvoid *indices))
+FV_GL_FUNC(void,
+           glDrawElementsInstanced, (GLenum mode, GLsizei count, GLenum type,
+                                     const void *indices,
+                                     GLsizei instancecount))
 FV_GL_FUNC(void,
            glEnable, (GLenum cap))
 FV_GL_FUNC(void,
@@ -107,6 +119,8 @@ FV_GL_FUNC(void,
            glVertexAttribPointer, (GLuint index, GLint size,
                                    GLenum type, GLboolean normalized,
                                    GLsizei stride, const void *pointer))
+FV_GL_FUNC(void,
+           glVertexAttribDivisor, (GLuint index, GLuint divisor))
 FV_GL_FUNC(void,
            glViewport, (GLint x, GLint y,
                                GLsizei width, GLsizei height))

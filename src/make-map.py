@@ -103,7 +103,7 @@ def get_rotation(image, x, y):
         return (rotation_color[0] << 8) | rotation_color[1]
 
 def generate_tile(image, tx, ty):
-    count = 0
+    specials = []
 
     for x in range(tx * MAP_TILE_WIDTH, (tx + 1) * MAP_TILE_WIDTH):
         for y in range((ty + 1) * MAP_TILE_HEIGHT - 1,
@@ -116,13 +116,20 @@ def generate_tile(image, tx, ty):
                 special_index = SPECIALS[special_color]
                 if special_index != None:
                     rotation = get_rotation(image, x, y)
-                    print("                        {{ {0}, {1}, {2}, {3} }},\n".
-                          format(x, MAP_HEIGHT - 1 - y,
-                                 rotation,
-                                 special_index))
-                    count += 1
+                    specials.append((x, MAP_HEIGHT - 1 - y,
+                                     rotation,
+                                     special_index))
 
-    return count
+    # Sort according to the model number so that the render can
+    # combine multiple copies of a model into a single draw call
+    specials.sort(key = lambda x: x[3])
+
+    for special in specials:
+        print("                        { ",
+              ", ".join(map(str, special)),
+              " },\n")
+
+    return len(specials)
 
 image = Image.open(sys.argv[1])
 

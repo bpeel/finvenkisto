@@ -19,8 +19,7 @@
 
 layout(location = 0) in vec3 pos;
 layout(location = 3) in vec3 color_attrib;
-
-uniform mat4 transform;
+layout(location = 4) in mat4 transform;
 
 out vec3 color;
 

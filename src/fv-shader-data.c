@@ -56,13 +56,13 @@ fv_shader_data_shaders[] = {
         },
         {
                 GL_FRAGMENT_SHADER,
-                "fv-color-fragment.glsl",
-                { FV_SHADER_DATA_PROGRAM_COLOR, -1 }
+                "fv-special-fragment.glsl",
+                { FV_SHADER_DATA_PROGRAM_SPECIAL, -1 }
         },
         {
                 GL_VERTEX_SHADER,
-                "fv-color-vertex.glsl",
-                { FV_SHADER_DATA_PROGRAM_COLOR, -1 }
+                "fv-special-vertex.glsl",
+                { FV_SHADER_DATA_PROGRAM_SPECIAL, -1 }
         }
 };
 
