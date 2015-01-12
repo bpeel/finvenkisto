@@ -309,8 +309,6 @@ create_buffer(struct data *data)
         }
 
         fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->buffer);
-
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 bool

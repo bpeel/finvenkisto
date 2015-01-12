@@ -346,8 +346,8 @@ main(int argc, char **argv)
 
         fv_gl.glEnable(GL_CULL_FACE);
 
-        /* The current program, vertex array and bound textures are
-         * not expected to be reset back to zero */
+        /* The current program, vertex array, array buffer and bound
+         * textures are not expected to be reset back to zero */
 
         data.quit = false;
 

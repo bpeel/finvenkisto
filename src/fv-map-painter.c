@@ -295,8 +295,10 @@ load_models(struct fv_map_painter *painter)
                 if (!res)
                         goto error;
 
-                fv_gl.glBindVertexArray(painter->models[i].array);
                 fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
+
+                fv_gl.glBindVertexArray(painter->models[i].array);
+
                 for (j = 0; j < 4; j++) {
                         fv_gl.glEnableVertexAttribArray(4 + j);
                         fv_gl.glVertexAttribPointer(4 + j,
@@ -308,7 +310,6 @@ load_models(struct fv_map_painter *painter)
                                                     (sizeof (float) * j * 4));
                         fv_gl.glVertexAttribDivisor(4 + j, 1);
                 }
-                fv_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
         }
 
         return true;
@@ -339,7 +340,6 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                            sizeof (float) * 16 * FV_MAP_MAX_SPECIALS,
                            NULL, /* data */
                            GL_DYNAMIC_DRAW);
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         if (!load_models(painter))
                 goto error_instance_buffer;
@@ -455,8 +455,6 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                                     offsetof(struct vertex, s));
 
         fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, painter->buffer);
-
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         fv_buffer_destroy(&data.indices);
         fv_buffer_destroy(&data.vertices);
