@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <math.h>
+#include <stdio.h>
 
 #include "fv-person-painter.h"
 #include "fv-logic.h"
@@ -35,55 +36,110 @@ struct fv_person_painter {
 
         GLuint program;
         GLuint transform_uniform;
+        GLuint layer_uniform;
 
         GLuint texture;
 };
+
+static const char *
+textures[] = {
+        "finvenkisto.png"
+};
+
+static bool
+load_texture(struct fv_person_painter *painter)
+{
+        int tex_width, tex_height;
+        int layer_width, layer_height;
+        uint8_t *tex_data;
+        int i;
+
+        fv_gl.glGenTextures(1, &painter->texture);
+        fv_gl.glBindTexture(GL_TEXTURE_2D_ARRAY, painter->texture);
+
+        for (i = 0; i < FV_N_ELEMENTS(textures); i++) {
+                tex_data = fv_image_load(textures[i],
+                                         &layer_width, &layer_height,
+                                         3 /* components */);
+                if (tex_data == NULL)
+                        goto error;
+
+                if (i == 0) {
+                        tex_width = layer_width;
+                        tex_height = layer_height;
+
+                        fv_gl.glTexImage3D(GL_TEXTURE_2D_ARRAY,
+                                           0, /* level */
+                                           GL_RGB,
+                                           tex_width, tex_height,
+                                           FV_N_ELEMENTS(textures),
+                                           0, /* border */
+                                           GL_RGB,
+                                           GL_UNSIGNED_BYTE,
+                                           NULL);
+                } else if (layer_width != tex_width ||
+                           layer_height != tex_height) {
+                        fprintf(stderr,
+                                "Size of %s does not match that of %s\n",
+                                textures[i],
+                                textures[0]);
+                        fv_free(tex_data);
+                        goto error;
+                }
+
+                fv_gl.glTexSubImage3D(GL_TEXTURE_2D_ARRAY,
+                                      0, /* level */
+                                      0, 0, /* x/y offset */
+                                      i, /* z offset */
+                                      tex_width, tex_height,
+                                      1, /* depth */
+                                      GL_RGB,
+                                      GL_UNSIGNED_BYTE,
+                                      tex_data);
+
+                fv_free(tex_data);
+        }
+
+        fv_gl.glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D_ARRAY,
+                              GL_TEXTURE_MIN_FILTER,
+                              GL_LINEAR_MIPMAP_NEAREST);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D_ARRAY,
+                              GL_TEXTURE_MAG_FILTER,
+                              GL_LINEAR);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D_ARRAY,
+                              GL_TEXTURE_WRAP_S,
+                              GL_CLAMP_TO_EDGE);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D_ARRAY,
+                              GL_TEXTURE_WRAP_T,
+                              GL_CLAMP_TO_EDGE);
+
+        return true;
+
+error:
+        fv_gl.glDeleteTextures(1, &painter->texture);
+
+        return false;
+}
 
 struct fv_person_painter *
 fv_person_painter_new(struct fv_shader_data *shader_data)
 {
         struct fv_person_painter *painter = fv_calloc(sizeof *painter);
         GLuint tex_uniform;
-        uint8_t *tex_data;
-        int tex_width, tex_height;
 
         painter->program =
-                shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
+                shader_data->programs[FV_SHADER_DATA_PROGRAM_PERSON];
         painter->transform_uniform =
                 fv_gl.glGetUniformLocation(painter->program, "transform");
+        painter->layer_uniform =
+                fv_gl.glGetUniformLocation(painter->program, "tex_layer");
 
         if (!fv_model_load(&painter->model, "person.ply"))
                 goto error;
 
-        tex_data = fv_image_load("person.png", &tex_width, &tex_height, 3);
-        if (tex_data == NULL)
+        if (!load_texture(painter))
                 goto error_model;
-
-        fv_gl.glGenTextures(1, &painter->texture);
-        fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
-        fv_gl.glTexImage2D(GL_TEXTURE_2D,
-                           0, /* level */
-                           GL_RGB,
-                           tex_width, tex_height,
-                           0, /* border */
-                           GL_RGB,
-                           GL_UNSIGNED_BYTE,
-                           tex_data);
-        fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_MIN_FILTER,
-                              GL_LINEAR_MIPMAP_NEAREST);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_MAG_FILTER,
-                              GL_LINEAR);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_WRAP_S,
-                              GL_CLAMP_TO_EDGE);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_WRAP_T,
-                              GL_CLAMP_TO_EDGE);
-
-        fv_free(tex_data);
 
         tex_uniform = fv_gl.glGetUniformLocation(painter->program, "tex");
         fv_gl.glUseProgram(painter->program);
@@ -123,6 +179,7 @@ paint_person_cb(const struct fv_logic_person *person,
                                  1, /* count */
                                  GL_FALSE, /* transpose */
                                  &data->transform.mvp.xx);
+        fv_gl.glUniform1i(data->painter->layer_uniform, 0);
 
         fv_model_paint(&data->painter->model);
 }
@@ -140,7 +197,7 @@ fv_person_painter_paint(struct fv_person_painter *painter,
 
         fv_gl.glUseProgram(painter->program);
 
-        fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
+        fv_gl.glBindTexture(GL_TEXTURE_2D_ARRAY, painter->texture);
 
         fv_gl.glEnable(GL_DEPTH_TEST);
 

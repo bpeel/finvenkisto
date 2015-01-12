@@ -1,8 +1,10 @@
 SHADERS = \
 	fv-special-fragment.glsl \
 	fv-special-vertex.glsl \
-	fv-texture-fragment.glsl \
-	fv-texture-vertex.glsl \
+	fv-map-fragment.glsl \
+	fv-map-vertex.glsl \
+	fv-person-fragment.glsl \
+	fv-person-vertex.glsl \
 	$(NULL)
 
 MODELS = \
@@ -39,7 +41,7 @@ dist_images_DATA = \
 	ARTCREDITS \
 	$(SHADERS) \
 	$(MODELS) \
-	person.png \
+	finvenkisto.png \
 	map-texture.png \
 	$(NULL)
 

@@ -107,6 +107,20 @@ FV_GL_FUNC(void,
                           GLint border, GLenum format, GLenum type,
                           const GLvoid *pixels))
 FV_GL_FUNC(void,
+           glTexImage3D, (GLenum target, GLint level,
+                          GLint internalFormat,
+                          GLsizei width, GLsizei height,
+                          GLsizei depth, GLint border,
+                          GLenum format, GLenum type,
+                          const GLvoid *pixels ))
+FV_GL_FUNC(void,
+           glTexSubImage3D, (GLenum target, GLint level,
+                             GLint xoffset, GLint yoffset,
+                             GLint zoffset, GLsizei width,
+                             GLsizei height, GLsizei depth,
+                             GLenum format,
+                             GLenum type, const GLvoid *pixels))
+FV_GL_FUNC(void,
            glTexParameteri, (GLenum target, GLenum pname, GLint param))
 FV_GL_FUNC(void,
            glUniform1i, (GLint location, GLint v0))
