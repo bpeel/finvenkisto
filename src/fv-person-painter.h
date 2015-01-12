@@ -30,6 +30,8 @@ fv_person_painter_new(struct fv_shader_data *shader_data);
 void
 fv_person_painter_paint(struct fv_person_painter *painter,
                         struct fv_logic *logic,
+                        float visible_w,
+                        float visible_h,
                         const struct fv_transform *transform);
 
 void

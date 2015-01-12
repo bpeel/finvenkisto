@@ -201,6 +201,9 @@ struct paint_closure {
 
         struct fv_person_painter_instance *instance_buffer_map;
         int n_instances;
+
+        float visible_w, visible_h;
+        float center_x, center_y;
 };
 
 static void
@@ -235,6 +238,13 @@ paint_person_cb(const struct fv_logic_person *person,
         struct fv_person_painter_instance *instance;
         struct paint_closure *data = user_data;
 
+        /* Don't paint people that are out of the visible range */
+        if (fabsf(person->x - data->center_x) + 0.5f >=
+            data->visible_w / 2.0f ||
+            fabsf(person->y - data->center_y) + 0.5f >=
+            data->visible_h / 2.0f)
+                return;
+
         if (data->n_instances >= FV_PERSON_PAINTER_MAX_INSTANCES)
                 flush_people(data);
 
@@ -267,6 +277,8 @@ paint_person_cb(const struct fv_logic_person *person,
 void
 fv_person_painter_paint(struct fv_person_painter *painter,
                         struct fv_logic *logic,
+                        float visible_w,
+                        float visible_h,
                         const struct fv_transform *transform)
 {
         struct paint_closure data;
@@ -275,6 +287,10 @@ fv_person_painter_paint(struct fv_person_painter *painter,
         data.transform_in = transform;
         data.transform.projection = transform->projection;
         data.n_instances = 0;
+        data.visible_w = visible_w;
+        data.visible_h = visible_h;
+
+        fv_logic_get_center(logic, &data.center_x, &data.center_y);
 
         fv_gl.glUseProgram(painter->program);
 

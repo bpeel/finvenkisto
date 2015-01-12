@@ -238,6 +238,7 @@ fv_game_paint(struct fv_game *game,
 
         fv_person_painter_paint(game->person_painter,
                                 logic,
+                                game->visible_w, game->visible_h,
                                 &game->transform);
 
         fv_map_painter_paint(game->map_painter,
