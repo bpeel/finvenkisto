@@ -53,7 +53,8 @@ struct fv_person_painter_instance {
  * the order of the enum in fv_person_type */
 static const char *
 textures[] = {
-        "finvenkisto.png"
+        "finvenkisto.png",
+        "bambo1.png",
 };
 
 static bool

@@ -41,6 +41,7 @@ dist_images_DATA = \
 	ARTCREDITS \
 	$(SHADERS) \
 	$(MODELS) \
+	bambo1.png \
 	finvenkisto.png \
 	map-texture.png \
 	$(NULL)

@@ -23,7 +23,8 @@
 #define FV_PERSON_N_NPCS 0
 
 enum fv_person_type {
-        FV_PERSON_TYPE_FINVENKISTO
+        FV_PERSON_TYPE_FINVENKISTO,
+        FV_PERSON_TYPE_BAMBISTO
 };
 
 struct fv_person_npc {
