@@ -23,9 +23,12 @@
 #include <float.h>
 #include <stdbool.h>
 
+#include "fv-person.h"
+
 struct fv_logic_person {
         float direction;
         float x, y;
+        enum fv_person_type type;
 };
 
 typedef void

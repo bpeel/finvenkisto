@@ -226,6 +226,7 @@ fv_logic_for_each_person(struct fv_logic *logic,
         person.x = logic->player_x;
         person.y = logic->player_y;
         person.direction = logic->current_direction;
+        person.type = FV_PERSON_TYPE_FINVENKISTO;
 
         person_cb(&person, user_data);
 }

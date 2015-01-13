@@ -49,6 +49,8 @@ struct fv_person_painter_instance {
 
 #define FV_PERSON_PAINTER_MAX_INSTANCES 16
 
+/* Textures to use for the different person types. These must match
+ * the order of the enum in fv_person_type */
 static const char *
 textures[] = {
         "finvenkisto.png"
@@ -269,7 +271,7 @@ paint_person_cb(const struct fv_logic_person *person,
 
         instance = data->instance_buffer_map + data->n_instances;
         memcpy(instance->mvp, &data->transform.mvp.xx, sizeof instance->mvp);
-        instance->tex_layer = 0;
+        instance->tex_layer = person->type;
 
         data->n_instances++;
 }
