@@ -47,7 +47,7 @@ struct fv_person_painter_instance {
         uint8_t tex_layer;
 };
 
-#define FV_PERSON_PAINTER_MAX_INSTANCES 16
+#define FV_PERSON_PAINTER_MAX_INSTANCES 32
 
 /* Textures to use for the different person types. These must match
  * the order of the enum in fv_person_type */
