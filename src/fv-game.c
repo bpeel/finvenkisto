@@ -97,7 +97,7 @@ update_visible_area(struct fv_game *game)
         float min_y = FLT_MAX, max_y = -FLT_MAX;
         float points_in[4 * 2 * 3], points_out[4 * 2 * 4];
         float *p = points_in;
-        int x, y, i;
+        int x, y, z, i;
         float px, py, frac;
 
         fv_matrix_multiply(&m,
@@ -131,27 +131,29 @@ update_visible_area(struct fv_game *game)
         }
 
         for (i = 0; i < 4; i++) {
-                p = points_out + i * 4 * 2;
                 /* The two unprojected points represent a line going
                  * from the near plane to the far plane which gets
                  * projected to a single point touching one of the
                  * corners of the viewport. Here we work out the x/y
                  * position of the point along the line where it
-                 * touches the plane representing the floor of the
-                 * world. This point will be the furthest visible x/y
-                 * extents for that corner */
-                frac = (0.0f - p[6]) / (p[2] - p[6]);
-                px = frac * (p[0] - p[4]) + p[4];
-                py = frac * (p[1] - p[5]) + p[5];
+                 * touches the plane representing the floor and the
+                 * ceiling of the world and keep track of the furthest
+                 * one. */
+                for (z = 0; z <= 2; z += 2) {
+                        p = points_out + i * 4 * 2;
+                        frac = (z - p[6]) / (p[2] - p[6]);
+                        px = frac * (p[0] - p[4]) + p[4];
+                        py = frac * (p[1] - p[5]) + p[5];
 
-                if (px < min_x)
-                        min_x = px;
-                if (px > max_x)
-                        max_x = px;
-                if (py < min_y)
-                        min_y = py;
-                if (py > max_y)
-                        max_y = py;
+                        if (px < min_x)
+                                min_x = px;
+                        if (px > max_x)
+                                max_x = px;
+                        if (py < min_y)
+                                min_y = py;
+                        if (py > max_y)
+                                max_y = py;
+                }
         }
 
         game->visible_w = fmaxf(fabsf(min_x), fabsf(max_x)) * 2.0f + 1.0f;
