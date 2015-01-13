@@ -41,6 +41,11 @@
 /* For collision detection the player is treated as a square of this size */
 #define FV_LOGIC_PLAYER_SIZE 0.8f
 
+struct fv_logic_npc {
+        float x, y;
+        float current_direction;
+};
+
 struct fv_logic {
         unsigned int last_ticks;
 
@@ -50,12 +55,15 @@ struct fv_logic {
         bool moving;
 
         float center_x, center_y;
+
+        struct fv_logic_npc npcs[FV_PERSON_N_NPCS];
 };
 
 struct fv_logic *
 fv_logic_new(void)
 {
         struct fv_logic *logic = fv_alloc(sizeof *logic);
+        int i;
 
         logic->last_ticks = 0;
 
@@ -67,6 +75,12 @@ fv_logic_new(void)
 
         logic->center_x = logic->player_x;
         logic->center_y = logic->player_y;
+
+        for (i = 0; i < FV_PERSON_N_NPCS; i++) {
+                logic->npcs[i].x = fv_person_npcs[i].x;
+                logic->npcs[i].y = fv_person_npcs[i].y;
+                logic->npcs[i].current_direction = fv_person_npcs[i].direction;
+        }
 
         return logic;
 }
@@ -221,6 +235,7 @@ fv_logic_for_each_person(struct fv_logic *logic,
                          void *user_data)
 {
         struct fv_logic_person person;
+        int i;
 
         /* Currently the only person is the player */
         person.x = logic->player_x;
@@ -229,4 +244,13 @@ fv_logic_for_each_person(struct fv_logic *logic,
         person.type = FV_PERSON_TYPE_FINVENKISTO;
 
         person_cb(&person, user_data);
+
+        for (i = 0; i < FV_PERSON_N_NPCS; i++) {
+                person.x = logic->npcs[i].x;
+                person.y = logic->npcs[i].y;
+                person.direction = logic->npcs[i].current_direction;
+                person.type = fv_person_npcs[i].type;
+
+                person_cb(&person, user_data);
+        }
 }

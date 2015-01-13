@@ -17,22 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_PERSON_H
-#define FV_PERSON_H
+#include "config.h"
 
-#define FV_PERSON_N_NPCS 0
+#include <math.h>
 
-enum fv_person_type {
-        FV_PERSON_TYPE_FINVENKISTO
+#include "fv-person.h"
+
+const struct fv_person_npc
+fv_person_npcs[FV_PERSON_N_NPCS] = {
 };
 
-struct fv_person_npc {
-        float direction;
-        float x, y;
-        enum fv_person_type type;
-};
-
-extern const struct fv_person_npc
-fv_person_npcs[FV_PERSON_N_NPCS];
-
-#endif /* FV_PERSON_H */
