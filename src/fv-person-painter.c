@@ -239,9 +239,9 @@ paint_person_cb(const struct fv_logic_person *person,
         struct paint_closure *data = user_data;
 
         /* Don't paint people that are out of the visible range */
-        if (fabsf(person->x - data->center_x) + 0.5f >=
+        if (fabsf(person->x - data->center_x) - 0.5f >=
             data->visible_w / 2.0f ||
-            fabsf(person->y - data->center_y) + 0.5f >=
+            fabsf(person->y - data->center_y) - 0.5f >=
             data->visible_h / 2.0f)
                 return;
 
