@@ -20,7 +20,7 @@
 #ifndef FV_PERSON_H
 #define FV_PERSON_H
 
-#define FV_PERSON_N_NPCS 0
+#define FV_PERSON_N_NPCS 24
 
 enum fv_person_type {
         FV_PERSON_TYPE_FINVENKISTO,
