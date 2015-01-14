@@ -31,6 +31,12 @@
 /* Player movement speed measured in blocks per second */
 #define FV_LOGIC_PLAYER_SPEED 10.0f
 
+/* Movement speed of an afraid NPC */
+#define FV_LOGIC_NPC_RUN_SPEED (FV_LOGIC_PLAYER_SPEED * 0.7f)
+
+/* Movement speed of a returning NPC */
+#define FV_LOGIC_NPC_WALK_SPEED (FV_LOGIC_NPC_RUN_SPEED * 0.5f)
+
 /* Turn speed of a person in radians per second */
 #define FV_LOGIC_TURN_SPEED (2.5f * M_PI)
 
@@ -41,6 +47,18 @@
 /* For collision detection the player is treated as a square of this size */
 #define FV_LOGIC_PLAYER_SIZE 0.8f
 
+/* If the player is closer than this distance to an NPC then they will
+ * become afraid */
+#define FV_LOGIC_FEAR_DISTANCE 2.0f
+
+/* and they will stop being afraid at this distance */
+#define FV_LOGIC_SAFE_DISTANCE 6.0f
+
+/* If a returning person is closer than this distance to their target
+ * position then they'll just jump to it instead. This is the distance
+ * the walking person can travel in a 60th of a second */
+#define FV_LOGIC_LOCK_DISTANCE (FV_LOGIC_NPC_WALK_SPEED / 60.0f)
+
 struct fv_logic_position {
         float x, y;
         float current_direction;
@@ -50,6 +68,7 @@ struct fv_logic_position {
 
 struct fv_logic_npc {
         struct fv_logic_position position;
+        bool is_afraid;
 };
 
 struct fv_logic {
@@ -87,6 +106,7 @@ fv_logic_new(void)
                 position->current_direction = fv_person_npcs[i].direction;
                 position->target_direction = 0.0f;
                 position->speed = 0.0f;
+                logic->npcs[i].is_afraid = false;
         }
 
         return logic;
@@ -212,11 +232,80 @@ update_player_movement(struct fv_logic *logic, float progress_secs)
         update_center(logic);
 }
 
+static bool
+position_in_range(const struct fv_logic_position *position,
+                  float x, float y,
+                  float distance)
+{
+        float dx = x - position->x;
+        float dy = y - position->y;
+
+        return dx * dx + dy * dy < distance * distance;
+}
+
+static void
+npc_update_fear(struct fv_logic *logic,
+                struct fv_logic_npc *npc)
+{
+        if (npc->is_afraid) {
+                /* Stop being afraid once the player is far enough
+                 * away */
+                if (!position_in_range(&npc->position,
+                                       logic->player_position.x,
+                                       logic->player_position.y,
+                                       FV_LOGIC_SAFE_DISTANCE))
+                        npc->is_afraid = false;
+        } else if (position_in_range(&npc->position,
+                                     logic->player_position.x,
+                                     logic->player_position.y,
+                                     FV_LOGIC_FEAR_DISTANCE)) {
+                npc->is_afraid = true;
+        }
+}
+
+static void
+update_npc_movement(struct fv_logic *logic,
+                    int npc_num,
+                    float progress_secs)
+{
+        struct fv_logic_npc *npc = logic->npcs + npc_num;
+        const struct fv_person_npc *initial_state = fv_person_npcs + npc_num;
+
+        npc_update_fear(logic, npc);
+
+        if (npc->is_afraid) {
+                /* Run directly away from the player */
+                npc->position.target_direction =
+                        atan2(npc->position.y - logic->player_position.y,
+                              npc->position.x - logic->player_position.x);
+                if (npc->position.target_direction < 0)
+                        npc->position.target_direction += M_PI * 2.0f;
+                npc->position.speed = FV_LOGIC_NPC_RUN_SPEED;
+        } else if (position_in_range(&npc->position,
+                                     initial_state->x,
+                                     initial_state->y,
+                                     FV_LOGIC_LOCK_DISTANCE)) {
+                npc->position.x = initial_state->x;
+                npc->position.y = initial_state->y;
+                npc->position.speed = 0.0f;
+        } else {
+                npc->position.target_direction =
+                        atan2(initial_state->y - npc->position.y,
+                              initial_state->x - npc->position.x);
+                if (npc->position.target_direction < 0)
+                        npc->position.target_direction += M_PI * 2.0f;
+                npc->position.speed = FV_LOGIC_NPC_WALK_SPEED;
+        }
+
+        update_position(logic, &npc->position, progress_secs);
+}
+
 void
 fv_logic_update(struct fv_logic *logic, unsigned int ticks)
 {
         unsigned int progress = ticks - logic->last_ticks;
         float progress_secs;
+        int i;
 
         logic->last_ticks = ticks;
 
@@ -228,6 +317,9 @@ fv_logic_update(struct fv_logic *logic, unsigned int ticks)
         progress_secs = progress / 1000.0f;
 
         update_player_movement(logic, progress_secs);
+
+        for (i = 0; i < FV_PERSON_N_NPCS; i++)
+                update_npc_movement(logic, i, progress_secs);
 }
 
 void
