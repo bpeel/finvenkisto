@@ -72,7 +72,7 @@ struct fv_map_painter {
 
 struct vertex {
         uint8_t x, y, z;
-        float s, t;
+        uint16_t s, t;
 };
 
 struct tile_data {
@@ -188,12 +188,12 @@ set_tex_coords_for_image(struct fv_map_painter *painter,
                         FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE);
         int is1 = image / blocks_h * FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE * 2;
         int it1 = image % blocks_h * FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE;
-        float s1 = is1 / (float) painter->texture_width;
-        float t1 = it1 / (float) painter->texture_height;
-        float s2 = ((is1 + FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE) /
-                    (float) painter->texture_width);
-        float t2 = ((it1 + FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE * height) /
-                    (float) painter->texture_height);
+        uint16_t s1 = is1 * (UINT16_MAX - 1) / painter->texture_width;
+        uint16_t t1 = it1 * (UINT16_MAX - 1) / painter->texture_height;
+        uint16_t s2 = ((is1 + FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE) *
+                       (UINT16_MAX - 1) / painter->texture_width);
+        uint16_t t2 = ((it1 + FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE * height) *
+                       (UINT16_MAX - 1) / painter->texture_height);
 
         v[0].s = s1;
         v[0].t = t2;
@@ -448,8 +448,8 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
         fv_gl.glEnableVertexAttribArray(1);
         fv_gl.glVertexAttribPointer(1, /* index */
                                     2, /* size */
-                                    GL_FLOAT,
-                                    GL_FALSE, /* normalized */
+                                    GL_UNSIGNED_SHORT,
+                                    GL_TRUE, /* normalized */
                                     sizeof (struct vertex),
                                     (void *) (intptr_t)
                                     offsetof(struct vertex, s));
