@@ -71,7 +71,7 @@ struct fv_map_painter {
 };
 
 struct vertex {
-        float x, y, z;
+        uint8_t x, y, z;
         float s, t;
 };
 
@@ -132,9 +132,9 @@ reserve_quad(struct tile_data *data)
 
 static struct vertex *
 add_horizontal_side(struct tile_data *data,
-                    float y,
-                    float x1, float z1,
-                    float x2, float z2)
+                    int y,
+                    int x1, int z1,
+                    int x2, int z2)
 {
         struct vertex *v = reserve_quad(data);
         int i;
@@ -156,9 +156,9 @@ add_horizontal_side(struct tile_data *data,
 
 static struct vertex *
 add_vertical_side(struct tile_data *data,
-                  float x,
-                  float y1, float z1,
-                  float y2, float z2)
+                  int x,
+                  int y1, int z1,
+                  int y2, int z2)
 {
         struct vertex *v = reserve_quad(data);
         int i;
@@ -182,7 +182,7 @@ static void
 set_tex_coords_for_image(struct fv_map_painter *painter,
                          struct vertex v[4],
                          int image,
-                         float height)
+                         int height)
 {
         int blocks_h = (painter->texture_height /
                         FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE);
@@ -213,7 +213,7 @@ generate_square(struct fv_map_painter *painter,
         fv_map_block_t block = fv_map[y * FV_MAP_WIDTH + x];
         struct vertex *v;
         int i;
-        float z, oz;
+        int z, oz;
 
         v = reserve_quad(data);
 
@@ -439,7 +439,7 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
         fv_gl.glEnableVertexAttribArray(0);
         fv_gl.glVertexAttribPointer(0, /* index */
                                     3, /* size */
-                                    GL_FLOAT,
+                                    GL_UNSIGNED_BYTE,
                                     GL_FALSE, /* normalized */
                                     sizeof (struct vertex),
                                     (void *) (intptr_t)
