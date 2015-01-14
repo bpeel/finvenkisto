@@ -44,8 +44,11 @@
  * start scrolling */
 #define FV_LOGIC_CAMERA_DISTANCE 3.0f
 
-/* For collision detection the player is treated as a square of this size */
-#define FV_LOGIC_PLAYER_SIZE 0.8f
+/* The size of a person. When checking against something this
+ * represents a square centered at the person's position. When being
+ * checked against for person-person collisions it is a circle with
+ * this diameter */
+#define FV_LOGIC_PERSON_SIZE 0.8f
 
 /* If the player is closer than this distance to an NPC then they will
  * become afraid */
@@ -122,6 +125,43 @@ is_wall(int x, int y)
         return FV_MAP_IS_WALL(fv_map[y * FV_MAP_WIDTH + x]);
 }
 
+static bool
+position_in_range(const struct fv_logic_position *position,
+                  float x, float y,
+                  float distance)
+{
+        float dx = x - position->x;
+        float dy = y - position->y;
+
+        return dx * dx + dy * dy < distance * distance;
+}
+
+static bool
+person_blocking(const struct fv_logic *logic,
+                const struct fv_logic_position *this_position,
+                float x, float y)
+{
+        int i;
+
+        if (this_position != &logic->player_position &&
+            position_in_range(&logic->player_position,
+                              x, y,
+                              FV_LOGIC_PERSON_SIZE / 2.0f))
+                return true;
+
+        for (i = 0; i < FV_PERSON_N_NPCS; i++) {
+                if (this_position == &logic->npcs[i].position)
+                        continue;
+
+                if (position_in_range(&logic->npcs[i].position,
+                                      x, y,
+                                      FV_LOGIC_PERSON_SIZE / 2.0f))
+                        return true;
+        }
+
+        return false;
+}
+
 static void
 update_position_direction(struct fv_logic *logic,
                           struct fv_logic_position *position,
@@ -176,11 +216,12 @@ update_position_xy(struct fv_logic *logic,
                 diff = copysign(1.0f, diff);
 
         pos = (position->x + diff +
-               copysignf(FV_LOGIC_PLAYER_SIZE / 2.0f, diff));
+               copysignf(FV_LOGIC_PERSON_SIZE / 2.0f, diff));
         if (!is_wall(floorf(pos),
-                     floorf(position->y + FV_LOGIC_PLAYER_SIZE / 2.0f)) &&
+                     floorf(position->y + FV_LOGIC_PERSON_SIZE / 2.0f)) &&
             !is_wall(floorf(pos),
-                     floorf(position->y - FV_LOGIC_PLAYER_SIZE / 2.0f)))
+                     floorf(position->y - FV_LOGIC_PERSON_SIZE / 2.0f)) &&
+            !person_blocking(logic, position, pos, position->y))
                 position->x += diff;
 
         diff = distance * sinf(position->target_direction);
@@ -189,11 +230,12 @@ update_position_xy(struct fv_logic *logic,
                 diff = copysign(1.0f, diff);
 
         pos = (position->y + diff +
-               copysignf(FV_LOGIC_PLAYER_SIZE / 2.0f, diff));
-        if (!is_wall(floorf(position->x + FV_LOGIC_PLAYER_SIZE / 2.0f),
+               copysignf(FV_LOGIC_PERSON_SIZE / 2.0f, diff));
+        if (!is_wall(floorf(position->x + FV_LOGIC_PERSON_SIZE / 2.0f),
                      floorf(pos)) &&
-            !is_wall(floorf(position->x - FV_LOGIC_PLAYER_SIZE / 2.0f),
-                     floorf(pos)))
+            !is_wall(floorf(position->x - FV_LOGIC_PERSON_SIZE / 2.0f),
+                     floorf(pos)) &&
+            !person_blocking(logic, position, position->x, pos))
                 position->y += diff;
 }
 
@@ -230,17 +272,6 @@ update_player_movement(struct fv_logic *logic, float progress_secs)
 
         update_position(logic, &logic->player_position, progress_secs);
         update_center(logic);
-}
-
-static bool
-position_in_range(const struct fv_logic_position *position,
-                  float x, float y,
-                  float distance)
-{
-        float dx = x - position->x;
-        float dy = y - position->y;
-
-        return dx * dx + dy * dy < distance * distance;
 }
 
 static void
