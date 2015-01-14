@@ -27,10 +27,15 @@ enum fv_person_type {
         FV_PERSON_TYPE_BAMBISTO
 };
 
+enum fv_person_motion {
+        FV_PERSON_MOTION_STATIC
+};
+
 struct fv_person_npc {
         float direction;
         float x, y;
         enum fv_person_type type;
+        enum fv_person_motion motion;
 };
 
 extern const struct fv_person_npc
