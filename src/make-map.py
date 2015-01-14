@@ -56,20 +56,20 @@ IMAGE_BLOCK_SIZE = 4
 #  x:          The colour is ignored.
 
 TOPS = {
-    'b95': 8,
-    'c90': 0,
-    '452': 10,
-    'eee': 6,
-    '522': 23,
-    '933': 25
+    'b95': 4, # brick flooring
+    'c90': 0, # wall top
+    '452': 6, # grass
+    'eee': 2, # bathroom floor
+    '522': 19, # room floor
+    '933': 21 # wood
 }
 
 SIDES = {
-    '644': 12,
-    '9cc': 14,
-    'ddd': 17,
-    'ccc': 20,
-    '911': 27,
+    '644': 8, # brick wall
+    '9cc': 11, # inner wall
+    'ddd': 14, # bathroom wall
+    'ccc': 16, # bathroom wall special
+    '911': 23 # table side
 }
 
 SPECIALS = {

@@ -19,8 +19,6 @@ MODELS = \
 # the map
 BLOCK_IMAGES = \
 	walltop.png \
-	parquet.png \
-	paving.png \
 	bathroom-floor.png \
 	brick-flooring.png \
 	grass.png \
@@ -31,6 +29,7 @@ BLOCK_IMAGES = \
 	room-floor.png \
 	wood.png \
 	table-side.png \
+	paving.png \
 	$(NULL)
 
 map-texture.png : make-map-texture.py $(BLOCK_IMAGES)
