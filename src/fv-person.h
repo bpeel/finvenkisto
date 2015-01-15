@@ -20,6 +20,8 @@
 #ifndef FV_PERSON_H
 #define FV_PERSON_H
 
+#include <stdint.h>
+
 #define FV_PERSON_N_NPCS 24
 
 enum fv_person_type {
@@ -29,7 +31,8 @@ enum fv_person_type {
 
 enum fv_person_motion {
         FV_PERSON_MOTION_STATIC,
-        FV_PERSON_MOTION_CIRCLE
+        FV_PERSON_MOTION_CIRCLE,
+        FV_PERSON_MOTION_RANDOM
 };
 
 struct fv_person_npc {
@@ -43,6 +46,16 @@ struct fv_person_npc {
                 struct {
                         float radius;
                 } circle;
+
+                struct {
+                        /* The NPCs will walk to random locations
+                         * within this circle */
+                        float center_x, center_y;
+                        float radius;
+                        /* Time in milliseconds between picking a new
+                         * target */
+                        uint32_t retarget_time;
+                } random;
         };
 };
 

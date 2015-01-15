@@ -82,6 +82,14 @@ enum fv_logic_npc_state {
 struct fv_logic_npc {
         struct fv_logic_position position;
         enum fv_logic_npc_state state;
+
+        /* State depending on the motion type */
+        union {
+                struct {
+                        float target_x, target_y;
+                        unsigned int last_target_time;
+                } random;
+        };
 };
 
 struct fv_logic {
@@ -121,6 +129,15 @@ init_npc(struct fv_logic *logic,
                                initial_state->circle.radius *
                                sinf(initial_state->direction));
                 position->current_direction = initial_state->direction;
+                break;
+
+        case FV_PERSON_MOTION_RANDOM:
+                position->x = initial_state->x;
+                position->y = initial_state->y;
+                position->current_direction = initial_state->direction;
+                npc->random.target_x = position->x;
+                npc->random.target_y = position->y;
+                npc->random.last_target_time = 0;
                 break;
         }
 }
@@ -399,6 +416,51 @@ update_npc_circle_movement(struct fv_logic *logic,
 }
 
 static void
+update_npc_random_movement(struct fv_logic *logic,
+                           int npc_num,
+                           float progress_secs)
+{
+        struct fv_logic_npc *npc = logic->npcs + npc_num;
+        const struct fv_person_npc *initial_state = fv_person_npcs + npc_num;
+        float target_angle, target_radius;
+
+        if (logic->last_ticks - npc->random.last_target_time >=
+            initial_state->random.retarget_time) {
+                npc->position.speed = FV_LOGIC_NPC_WALK_SPEED;
+                npc->state = FV_LOGIC_NPC_STATE_RETURNING;
+
+                target_angle = rand() * 2.0f * M_PI / RAND_MAX;
+                target_radius = (rand() * initial_state->random.radius /
+                                 RAND_MAX);
+                npc->random.target_x = (sinf(target_angle) * target_radius +
+                                        initial_state->random.center_x);
+                npc->random.target_y = (cosf(target_angle) * target_radius +
+                                        initial_state->random.center_y);
+
+                npc->random.last_target_time = logic->last_ticks;
+        }
+
+        if (npc->state == FV_LOGIC_NPC_STATE_RETURNING) {
+                if (position_in_range(&npc->position,
+                                      npc->random.target_x,
+                                      npc->random.target_y,
+                                      FV_LOGIC_LOCK_DISTANCE)) {
+                        npc->position.speed = 0.0f;
+                        npc->state = FV_LOGIC_NPC_STATE_NORMAL;
+                } else {
+                        npc->position.target_direction =
+                                atan2(npc->random.target_y - npc->position.y,
+                                      npc->random.target_x - npc->position.x);
+
+                        if (npc->position.target_direction < 0)
+                                npc->position.target_direction += M_PI * 2.0f;
+
+                        update_position(logic, &npc->position, progress_secs);
+                }
+        }
+}
+
+static void
 update_npc_normal_movement(struct fv_logic *logic,
                            int npc_num,
                            float progress_secs)
@@ -412,6 +474,10 @@ update_npc_normal_movement(struct fv_logic *logic,
 
         case FV_PERSON_MOTION_CIRCLE:
                 update_npc_circle_movement(logic, npc_num, progress_secs);
+                break;
+
+        case FV_PERSON_MOTION_RANDOM:
+                update_npc_random_movement(logic, npc_num, progress_secs);
                 break;
         }
 }
