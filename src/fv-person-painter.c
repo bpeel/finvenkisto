@@ -55,6 +55,8 @@ static const char *
 textures[] = {
         "finvenkisto.png",
         "bambo1.png",
+        "bambo2.png",
+        "bambo3.png",
 };
 
 static bool

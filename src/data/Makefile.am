@@ -41,6 +41,8 @@ dist_images_DATA = \
 	$(SHADERS) \
 	$(MODELS) \
 	bambo1.png \
+	bambo2.png \
+	bambo3.png \
 	finvenkisto.png \
 	map-texture.png \
 	$(NULL)

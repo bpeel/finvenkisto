@@ -26,7 +26,9 @@
 
 enum fv_person_type {
         FV_PERSON_TYPE_FINVENKISTO,
-        FV_PERSON_TYPE_BAMBISTO
+        FV_PERSON_TYPE_BAMBISTO1,
+        FV_PERSON_TYPE_BAMBISTO2,
+        FV_PERSON_TYPE_BAMBISTO3,
 };
 
 enum fv_person_motion {
