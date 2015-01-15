@@ -28,7 +28,8 @@ enum fv_person_type {
 };
 
 enum fv_person_motion {
-        FV_PERSON_MOTION_STATIC
+        FV_PERSON_MOTION_STATIC,
+        FV_PERSON_MOTION_CIRCLE
 };
 
 struct fv_person_npc {
@@ -36,6 +37,13 @@ struct fv_person_npc {
         float x, y;
         enum fv_person_type type;
         enum fv_person_motion motion;
+
+        /* Data depending on the type of motion */
+        union {
+                struct {
+                        float radius;
+                } circle;
+        };
 };
 
 extern const struct fv_person_npc

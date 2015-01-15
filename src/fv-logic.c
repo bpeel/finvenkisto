@@ -62,6 +62,10 @@
  * the walking person can travel in a 60th of a second */
 #define FV_LOGIC_LOCK_DISTANCE (FV_LOGIC_NPC_WALK_SPEED / 60.0f)
 
+/* Speed of rotation for the NPCs who move in a circle in radians per
+ * second */
+#define FV_LOGIC_CIRCLE_SPEED 0.2f
+
 struct fv_logic_position {
         float x, y;
         float current_direction;
@@ -90,11 +94,41 @@ struct fv_logic {
         struct fv_logic_npc npcs[FV_PERSON_N_NPCS];
 };
 
+static void
+init_npc(struct fv_logic *logic,
+         int npc_num)
+{
+        struct fv_logic_npc *npc = logic->npcs + npc_num;
+        const struct fv_person_npc *initial_state = fv_person_npcs + npc_num;
+        struct fv_logic_position *position = &npc->position;
+
+        npc->state = FV_LOGIC_NPC_STATE_NORMAL;
+        position->target_direction = 0.0f;
+        position->speed = 0.0f;
+
+        switch (initial_state->motion) {
+        case FV_PERSON_MOTION_STATIC:
+                position->x = initial_state->x;
+                position->y = initial_state->y;
+                position->current_direction = initial_state->direction;
+                break;
+
+        case FV_PERSON_MOTION_CIRCLE:
+                position->x = (initial_state->x -
+                               initial_state->circle.radius *
+                               cosf(initial_state->direction));
+                position->y = (initial_state->y -
+                               initial_state->circle.radius *
+                               sinf(initial_state->direction));
+                position->current_direction = initial_state->direction;
+                break;
+        }
+}
+
 struct fv_logic *
 fv_logic_new(void)
 {
         struct fv_logic *logic = fv_alloc(sizeof *logic);
-        struct fv_logic_position *position;
         int i;
 
         logic->last_ticks = 0;
@@ -108,15 +142,8 @@ fv_logic_new(void)
         logic->center_x = logic->player_position.x;
         logic->center_y = logic->player_position.y;
 
-        for (i = 0; i < FV_PERSON_N_NPCS; i++) {
-                position = &logic->npcs[i].position;
-                position->x = fv_person_npcs[i].x;
-                position->y = fv_person_npcs[i].y;
-                position->current_direction = fv_person_npcs[i].direction;
-                position->target_direction = 0.0f;
-                position->speed = 0.0f;
-                logic->npcs[i].state = FV_LOGIC_NPC_STATE_NORMAL;
-        }
+        for (i = 0; i < FV_PERSON_N_NPCS; i++)
+                init_npc(logic, i);
 
         return logic;
 }
@@ -314,6 +341,64 @@ update_npc_static_movement(struct fv_logic *logic,
 }
 
 static void
+update_npc_circle_movement(struct fv_logic *logic,
+                           int npc_num,
+                           float progress_secs)
+{
+        struct fv_logic_npc *npc = logic->npcs + npc_num;
+        const struct fv_person_npc *initial_state = fv_person_npcs + npc_num;
+        float target_x, target_y;
+        float facing_angle;
+
+        facing_angle = (logic->last_ticks * FV_LOGIC_CIRCLE_SPEED /
+                        1000.0f + initial_state->direction);
+        target_x = (initial_state->x -
+                    initial_state->circle.radius * cosf(facing_angle));
+        target_y = (initial_state->y -
+                    initial_state->circle.radius * sinf(facing_angle));
+
+        if (npc->state == FV_LOGIC_NPC_STATE_RETURNING) {
+                /* Check if the person is within a block of where they
+                 * should be be (ie, not where they are headed) */
+                if (position_in_range(&npc->position,
+                                      target_x,
+                                      target_y,
+                                      1.0f))
+                        npc->state = FV_LOGIC_NPC_STATE_NORMAL;
+        }
+
+        if (npc->state == FV_LOGIC_NPC_STATE_NORMAL) {
+                /* Work out the speed along the diameter based on the
+                 * turning circle speed.
+                 *
+                 * r = radius of circle
+                 * v = turn speed in radians per second
+                 * circumference = 2πr
+                 * distance along circumference of one radian = 2πr / 2π
+                 * speed along circumference = 2πrv / 2π
+                 *                           = rv
+                 */
+                npc->position.speed =
+                        initial_state->circle.radius * FV_LOGIC_CIRCLE_SPEED;
+        } else {
+                npc->position.speed =
+                        FV_LOGIC_NPC_WALK_SPEED;
+        }
+
+        npc->position.target_direction =
+                atan2(target_y - npc->position.y,
+                      target_x - npc->position.x);
+
+        update_position_xy(logic, &npc->position, progress_secs);
+
+        if (npc->state == FV_LOGIC_NPC_STATE_NORMAL)
+                npc->position.target_direction =
+                        fmodf(facing_angle, 2.0f * M_PI);
+
+        update_position_direction(logic, &npc->position, progress_secs);
+}
+
+static void
 update_npc_normal_movement(struct fv_logic *logic,
                            int npc_num,
                            float progress_secs)
@@ -323,6 +408,10 @@ update_npc_normal_movement(struct fv_logic *logic,
         switch (initial_state->motion) {
         case FV_PERSON_MOTION_STATIC:
                 update_npc_static_movement(logic, npc_num, progress_secs);
+                break;
+
+        case FV_PERSON_MOTION_CIRCLE:
+                update_npc_circle_movement(logic, npc_num, progress_secs);
                 break;
         }
 }
