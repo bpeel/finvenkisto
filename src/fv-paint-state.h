@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2013, 2014 Neil Roberts
+ * Copyright (C) 2015 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,22 +17,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_PERSON_PAINTER_H
-#define FV_PERSON_PAINTER_H
+#ifndef FV_PAINT_STATE_H
+#define FV_PAINT_STATE_H
 
-#include "fv-logic.h"
-#include "fv-shader-data.h"
-#include "fv-paint-state.h"
+#include "fv-transform.h"
 
-struct fv_person_painter *
-fv_person_painter_new(struct fv_shader_data *shader_data);
+struct fv_paint_state {
+        struct fv_transform transform;
+        float center_x, center_y;
+        float visible_w, visible_h;
+};
 
-void
-fv_person_painter_paint(struct fv_person_painter *painter,
-                        struct fv_logic *logic,
-                        const struct fv_paint_state *paint_state);
-
-void
-fv_person_painter_free(struct fv_person_painter *painter);
-
-#endif /* FV_PERSON_PAINTER_H */
+#endif /* FV_PAINT_STATE_H */

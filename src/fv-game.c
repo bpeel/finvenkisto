@@ -33,6 +33,7 @@
 #include "fv-person-painter.h"
 #include "fv-map.h"
 #include "fv-gl.h"
+#include "fv-paint-state.h"
 
 /* 40° vertical FOV angle when the height of the display is 2.0 */
 #define FV_GAME_NEAR_PLANE 2.7474774194546225f
@@ -44,12 +45,11 @@
 struct fv_game {
         /* Size of the framebuffer the last time we painted */
         int last_fb_width, last_fb_height;
-        int visible_w, visible_h;
+
+        struct fv_paint_state paint_state;
 
         struct fv_map_painter *map_painter;
         struct fv_person_painter *person_painter;
-
-        struct fv_transform transform;
 
         struct fv_matrix base_transform;
 };
@@ -101,7 +101,7 @@ update_visible_area(struct fv_game *game)
         float px, py, frac;
 
         fv_matrix_multiply(&m,
-                           &game->transform.projection,
+                           &game->paint_state.transform.projection,
                            &game->base_transform);
         fv_matrix_get_inverse(&m, &inverse);
 
@@ -156,14 +156,17 @@ update_visible_area(struct fv_game *game)
                 }
         }
 
-        game->visible_w = fmaxf(fabsf(min_x), fabsf(max_x)) * 2.0f + 1.0f;
-        game->visible_h = fmaxf(fabsf(min_y), fabsf(max_y)) * 2.0f + 1.0f;
+        game->paint_state.visible_w =
+                fmaxf(fabsf(min_x), fabsf(max_x)) * 2.0f + 1.0f;
+        game->paint_state.visible_h =
+                fmaxf(fabsf(min_y), fabsf(max_y)) * 2.0f + 1.0f;
 }
 
 static void
 update_projection(struct fv_game *game,
                   int w, int h)
 {
+        struct fv_transform *transform = &game->paint_state.transform;
         float right, top;
 
         if (w == 0 || h == 0)
@@ -180,9 +183,9 @@ update_projection(struct fv_game *game,
                         right = w / (float) h;
                 }
 
-                fv_matrix_init_identity(&game->transform.projection);
+                fv_matrix_init_identity(&transform->projection);
 
-                fv_matrix_frustum(&game->transform.projection,
+                fv_matrix_frustum(&transform->projection,
                                   -right, right,
                                   -top, top,
                                   FV_GAME_NEAR_PLANE,
@@ -199,29 +202,29 @@ static void
 update_modelview(struct fv_game *game,
                  struct fv_logic *logic)
 {
-        float center_x, center_y;
+        game->paint_state.transform.modelview = game->base_transform;
 
-        game->transform.modelview = game->base_transform;
-
-        fv_logic_get_center(logic, &center_x, &center_y);
-        fv_matrix_translate(&game->transform.modelview,
-                            -center_x, -center_y, 0.0f);
+        fv_matrix_translate(&game->paint_state.transform.modelview,
+                            -game->paint_state.center_x,
+                            -game->paint_state.center_y,
+                            0.0f);
 }
 
 static bool
 need_clear(struct fv_game *game,
            struct fv_logic *logic)
 {
-        float center_x, center_y;
-
-        fv_logic_get_center(logic, &center_x, &center_y);
+        float visible_w = game->paint_state.visible_w;
+        float visible_h = game->paint_state.visible_h;
+        float center_x = game->paint_state.center_x;
+        float center_y = game->paint_state.center_y;
 
         /* We only need to clear if the map doesn't cover the entire
          * viewport */
-        return (center_x - game->visible_w / 2.0f < 0.0f ||
-                center_y - game->visible_h / 2.0f < 0.0f ||
-                center_x + game->visible_w / 2.0f > FV_MAP_WIDTH ||
-                center_y + game->visible_h / 2.0f > FV_MAP_HEIGHT);
+        return (center_x - visible_w / 2.0f < 0.0f ||
+                center_y - visible_h / 2.0f < 0.0f ||
+                center_x + visible_w / 2.0f > FV_MAP_WIDTH ||
+                center_y + visible_h / 2.0f > FV_MAP_HEIGHT);
 }
 
 void
@@ -229,24 +232,26 @@ fv_game_paint(struct fv_game *game,
               int width, int height,
               struct fv_logic *logic)
 {
+        fv_logic_get_center(logic,
+                            &game->paint_state.center_x,
+                            &game->paint_state.center_y);
+
         update_projection(game, width, height);
 
         update_modelview(game, logic);
 
-        fv_transform_update_derived_values(&game->transform);
+        fv_transform_update_derived_values(&game->paint_state.transform);
 
         if (need_clear(game, logic))
                 fv_gl.glClear(GL_COLOR_BUFFER_BIT);
 
         fv_person_painter_paint(game->person_painter,
                                 logic,
-                                game->visible_w, game->visible_h,
-                                &game->transform);
+                                &game->paint_state);
 
         fv_map_painter_paint(game->map_painter,
                              logic,
-                             game->visible_w, game->visible_h,
-                             &game->transform);
+                             &game->paint_state);
 }
 
 void

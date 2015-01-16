@@ -201,14 +201,11 @@ error:
 
 struct paint_closure {
         struct fv_person_painter *painter;
-        const struct fv_transform *transform_in;
+        const struct fv_paint_state *paint_state;
         struct fv_transform transform;
 
         struct fv_person_painter_instance *instance_buffer_map;
         int n_instances;
-
-        float visible_w, visible_h;
-        float center_x, center_y;
 };
 
 static void
@@ -244,10 +241,10 @@ paint_person_cb(const struct fv_logic_person *person,
         struct paint_closure *data = user_data;
 
         /* Don't paint people that are out of the visible range */
-        if (fabsf(person->x - data->center_x) - 0.5f >=
-            data->visible_w / 2.0f ||
-            fabsf(person->y - data->center_y) - 0.5f >=
-            data->visible_h / 2.0f)
+        if (fabsf(person->x - data->paint_state->center_x) - 0.5f >=
+            data->paint_state->visible_w / 2.0f ||
+            fabsf(person->y - data->paint_state->center_y) - 0.5f >=
+            data->paint_state->visible_h / 2.0f)
                 return;
 
         if (data->n_instances >= FV_PERSON_PAINTER_MAX_INSTANCES)
@@ -264,7 +261,7 @@ paint_person_cb(const struct fv_logic_person *person,
                                                GL_MAP_FLUSH_EXPLICIT_BIT);
         }
 
-        data->transform.modelview = data->transform_in->modelview;
+        data->transform.modelview = data->paint_state->transform.modelview;
         fv_matrix_translate(&data->transform.modelview,
                             person->x, person->y, 0.0f);
         fv_matrix_rotate(&data->transform.modelview,
@@ -282,20 +279,14 @@ paint_person_cb(const struct fv_logic_person *person,
 void
 fv_person_painter_paint(struct fv_person_painter *painter,
                         struct fv_logic *logic,
-                        float visible_w,
-                        float visible_h,
-                        const struct fv_transform *transform)
+                        const struct fv_paint_state *paint_state)
 {
         struct paint_closure data;
 
         data.painter = painter;
-        data.transform_in = transform;
-        data.transform.projection = transform->projection;
+        data.paint_state = paint_state;
+        data.transform.projection = paint_state->transform.projection;
         data.n_instances = 0;
-        data.visible_w = visible_w;
-        data.visible_h = visible_h;
-
-        fv_logic_get_center(logic, &data.center_x, &data.center_y);
 
         fv_gl.glUseProgram(painter->program);
 

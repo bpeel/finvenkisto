@@ -542,11 +542,8 @@ paint_special(struct fv_map_painter *painter,
 void
 fv_map_painter_paint(struct fv_map_painter *painter,
                      struct fv_logic *logic,
-                     float visible_w,
-                     float visible_h,
-                     const struct fv_transform *transform)
+                     const struct fv_paint_state *paint_state)
 {
-        float center_x, center_y;
         int x_min, x_max, y_min, y_max;
         int idx_min;
         int idx_max;
@@ -555,15 +552,13 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         int y, x, i;
         const struct fv_map_tile *map_tile;
 
-        fv_logic_get_center(logic, &center_x, &center_y);
-
-        x_min = floorf((center_x - visible_w / 2.0f) /
+        x_min = floorf((paint_state->center_x - paint_state->visible_w / 2.0f) /
                        FV_MAP_TILE_WIDTH);
-        x_max = ceilf((center_x + visible_w / 2.0f) /
+        x_max = ceilf((paint_state->center_x + paint_state->visible_w / 2.0f) /
                       FV_MAP_TILE_WIDTH);
-        y_min = floorf((center_y - visible_h / 2.0f) /
+        y_min = floorf((paint_state->center_y - paint_state->visible_h / 2.0f) /
                        FV_MAP_TILE_HEIGHT);
-        y_max = ceilf((center_y + visible_h / 2.0f) /
+        y_max = ceilf((paint_state->center_y + paint_state->visible_h / 2.0f) /
                       FV_MAP_TILE_HEIGHT);
 
         if (x_min < 0)
@@ -593,7 +588,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                         for (i = 0; i < map_tile->n_specials; i++) {
                                 paint_special(painter,
                                               map_tile->specials + i,
-                                              transform);
+                                              &paint_state->transform);
                         }
                 }
         }
@@ -604,7 +599,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         fv_gl.glUniformMatrix4fv(painter->map_transform_uniform,
                                  1, /* count */
                                  GL_FALSE, /* transpose */
-                                 &transform->mvp.xx);
+                                 &paint_state->transform.mvp.xx);
 
         fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
 
