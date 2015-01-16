@@ -33,7 +33,8 @@
 
 static const char
 fv_shader_data_version[] =
-        "#version 330 core\n"
+        "#version 140\n"
+        "#extension GL_ARB_explicit_attrib_location : require\n"
         "\n";
 
 struct fv_shader_data_shader {

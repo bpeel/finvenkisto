@@ -134,7 +134,7 @@ FV_GL_FUNC(void,
                                    GLenum type, GLboolean normalized,
                                    GLsizei stride, const void *pointer))
 FV_GL_FUNC(void,
-           glVertexAttribDivisor, (GLuint index, GLuint divisor))
+           glVertexAttribDivisorARB, (GLuint index, GLuint divisor))
 FV_GL_FUNC(void,
            glViewport, (GLint x, GLint y,
                                GLsizei width, GLsizei height))

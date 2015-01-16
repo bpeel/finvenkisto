@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <time.h>
+#include <stdarg.h>
 
 #include "fv-game.h"
 #include "fv-logic.h"
@@ -276,6 +277,33 @@ process_arguments(struct data *data,
         return true;
 }
 
+FV_NULL_TERMINATED
+static bool
+check_extensions(const char *extension, ...)
+{
+        bool missing_extension = false;
+        va_list ap;
+
+        va_start(ap, extension);
+
+        do {
+                if (!SDL_GL_ExtensionSupported(extension)) {
+                        if (!missing_extension) {
+                                missing_extension = true;
+                                fprintf(stderr,
+                                        "The GL implementation does not the "
+                                        "support the following required "
+                                        "extensions:\n");
+                        }
+                        fprintf(stderr, "%s\n", extension);
+                }
+        } while ((extension = va_arg(ap, const char *)));
+
+        va_end(ap);
+
+        return !missing_extension;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -305,7 +333,7 @@ main(int argc, char **argv)
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
                             SDL_GL_CONTEXT_PROFILE_CORE);
 
@@ -336,6 +364,13 @@ main(int argc, char **argv)
         }
 
         SDL_GL_MakeCurrent(data.window, data.gl_context);
+
+        if (!check_extensions("GL_ARB_instanced_arrays",
+                              "GL_ARB_explicit_attrib_location",
+                              NULL)) {
+                ret = EXIT_FAILURE;
+                goto out_context;
+        }
 
         SDL_ShowCursor(0);
 

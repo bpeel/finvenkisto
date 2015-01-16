@@ -308,7 +308,7 @@ load_models(struct fv_map_painter *painter)
                                                     sizeof (float) * 16,
                                                     (GLvoid *) (intptr_t)
                                                     (sizeof (float) * j * 4));
-                        fv_gl.glVertexAttribDivisor(4 + j, 1);
+                        fv_gl.glVertexAttribDivisorARB(4 + j, 1);
                 }
         }
 

@@ -172,7 +172,7 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
                                             (GLvoid *) (intptr_t)
                                             (matrix_offset +
                                              sizeof (float) * i * 4));
-                fv_gl.glVertexAttribDivisor(4 + i, 1);
+                fv_gl.glVertexAttribDivisorARB(4 + i, 1);
         }
         fv_gl.glEnableVertexAttribArray(8);
         fv_gl.glVertexAttribPointer(8,
@@ -183,7 +183,7 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
                                     (GLvoid *) (intptr_t)
                                     offsetof(struct fv_person_painter_instance,
                                              tex_layer));
-        fv_gl.glVertexAttribDivisor(8, 1);
+        fv_gl.glVertexAttribDivisorARB(8, 1);
 
         tex_uniform = fv_gl.glGetUniformLocation(painter->program, "tex");
         fv_gl.glUseProgram(painter->program);
