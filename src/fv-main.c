@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2013, 2014 Neil Roberts
+ * Copyright (C) 2013, 2014, 2015 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -199,6 +199,8 @@ handle_event(struct data *data,
 static void
 paint(struct data *data)
 {
+        GLbitfield clear_mask = GL_DEPTH_BUFFER_BIT;
+        float center_x, center_y;
         int w, h;
 
         SDL_GetWindowSize(data->window, &w, &h);
@@ -209,10 +211,21 @@ paint(struct data *data)
                 data->last_fb_height = h;
         }
 
-        fv_gl.glClear(GL_DEPTH_BUFFER_BIT);
-
         fv_logic_update(data->logic, SDL_GetTicks());
-        fv_game_paint(data->game, w, h, data->logic);
+
+        fv_logic_get_center(data->logic, &center_x, &center_y);
+
+        if (!fv_game_covers_framebuffer(data->game,
+                                        center_x, center_y,
+                                        w, h))
+                clear_mask |= GL_COLOR_BUFFER_BIT;
+
+        fv_gl.glClear(clear_mask);
+
+        fv_game_paint(data->game,
+                      center_x, center_y,
+                      w, h,
+                      data->logic);
 
         SDL_GL_SwapWindow(data->window);
 }

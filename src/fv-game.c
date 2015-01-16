@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2013, 2014 Neil Roberts
+ * Copyright (C) 2013, 2014, 2015 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -210,40 +210,40 @@ update_modelview(struct fv_game *game,
                             0.0f);
 }
 
-static bool
-need_clear(struct fv_game *game,
-           struct fv_logic *logic)
+bool
+fv_game_covers_framebuffer(struct fv_game *game,
+                           float center_x, float center_y,
+                           int width, int height)
 {
-        float visible_w = game->paint_state.visible_w;
-        float visible_h = game->paint_state.visible_h;
-        float center_x = game->paint_state.center_x;
-        float center_y = game->paint_state.center_y;
+        float visible_w, visible_h;
+
+        update_projection(game, width, height);
+
+        visible_w = game->paint_state.visible_w;
+        visible_h = game->paint_state.visible_h;
 
         /* We only need to clear if the map doesn't cover the entire
          * viewport */
-        return (center_x - visible_w / 2.0f < 0.0f ||
-                center_y - visible_h / 2.0f < 0.0f ||
-                center_x + visible_w / 2.0f > FV_MAP_WIDTH ||
-                center_y + visible_h / 2.0f > FV_MAP_HEIGHT);
+        return (center_x - visible_w / 2.0f >= 0.0f &&
+                center_y - visible_h / 2.0f >= 0.0f &&
+                center_x + visible_w / 2.0f <= FV_MAP_WIDTH &&
+                center_y + visible_h / 2.0f <= FV_MAP_HEIGHT);
 }
 
 void
 fv_game_paint(struct fv_game *game,
+              float center_x, float center_y,
               int width, int height,
               struct fv_logic *logic)
 {
-        fv_logic_get_center(logic,
-                            &game->paint_state.center_x,
-                            &game->paint_state.center_y);
+        game->paint_state.center_x = center_x;
+        game->paint_state.center_y = center_y;
 
         update_projection(game, width, height);
 
         update_modelview(game, logic);
 
         fv_transform_update_derived_values(&game->paint_state.transform);
-
-        if (need_clear(game, logic))
-                fv_gl.glClear(GL_COLOR_BUFFER_BIT);
 
         fv_person_painter_paint(game->person_painter,
                                 logic,

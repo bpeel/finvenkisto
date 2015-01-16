@@ -30,8 +30,14 @@ fv_game_new(struct fv_shader_data *shader_data);
 
 void
 fv_game_paint(struct fv_game *game,
+              float center_x, float center_y,
               int width, int height,
               struct fv_logic *logic);
+
+bool
+fv_game_covers_framebuffer(struct fv_game *game,
+                           float center_x, float center_y,
+                           int width, int height);
 
 void
 fv_game_free(struct fv_game *game);
