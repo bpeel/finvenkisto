@@ -31,6 +31,7 @@
 #include "fv-logic.h"
 #include "fv-shader-data.h"
 #include "fv-gl.h"
+#include "fv-util.h"
 
 enum direction_key {
         DIRECTION_KEY_UP = (1 << 0),
