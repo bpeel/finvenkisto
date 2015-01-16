@@ -25,26 +25,6 @@
 void
 fv_transform_update_derived_values(struct fv_transform *transform)
 {
-        struct fv_matrix inverse_modelview;
-
-        /* Calculate the normal matrix */
-
-        /* Invert the matrix */
-        fv_matrix_get_inverse(&transform->modelview, &inverse_modelview);
-
-        /* Transpose it while converting it to 3x3 */
-        transform->normal_matrix[0] = inverse_modelview.xx;
-        transform->normal_matrix[1] = inverse_modelview.xy;
-        transform->normal_matrix[2] = inverse_modelview.xz;
-
-        transform->normal_matrix[3] = inverse_modelview.yx;
-        transform->normal_matrix[4] = inverse_modelview.yy;
-        transform->normal_matrix[5] = inverse_modelview.yz;
-
-        transform->normal_matrix[6] = inverse_modelview.zx;
-        transform->normal_matrix[7] = inverse_modelview.zy;
-        transform->normal_matrix[8] = inverse_modelview.zz;
-
         /* Calculate the combined modelview-projection matrix */
         fv_matrix_multiply(&transform->mvp,
                            &transform->projection,

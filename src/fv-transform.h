@@ -24,7 +24,6 @@
 
 struct fv_transform {
         struct fv_matrix modelview;
-        float normal_matrix[3 * 3];
         struct fv_matrix projection;
         struct fv_matrix mvp;
 };
