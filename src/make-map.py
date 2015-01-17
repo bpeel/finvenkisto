@@ -19,7 +19,7 @@ import sys
 from PIL import Image
 
 MAP_WIDTH = 40
-MAP_HEIGHT = 40
+MAP_HEIGHT = 48
 
 MAP_TILE_WIDTH = 8
 MAP_TILE_HEIGHT = 8

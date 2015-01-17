@@ -23,7 +23,7 @@
 #include <stdint.h>
 
 #define FV_MAP_WIDTH 40
-#define FV_MAP_HEIGHT 40
+#define FV_MAP_HEIGHT 48
 
 #define FV_MAP_TILE_WIDTH 8
 #define FV_MAP_TILE_HEIGHT 8
@@ -35,7 +35,7 @@
 /* Start position. When there is more than one player the players are
  * put on a horizontal line centered around this point */
 #define FV_MAP_START_X (FV_MAP_WIDTH / 2.0f)
-#define FV_MAP_START_Y 0.5f
+#define FV_MAP_START_Y 8.5f
 
 _Static_assert(FV_MAP_WIDTH % FV_MAP_TILE_WIDTH == 0,
                "The map size must be a multiple of the tile size");
