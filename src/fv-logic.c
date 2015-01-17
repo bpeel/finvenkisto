@@ -101,6 +101,7 @@ struct fv_logic_player {
 };
 
 struct fv_logic {
+        enum fv_logic_state state;
 
         unsigned int last_ticks;
 
@@ -150,20 +151,20 @@ init_npc(struct fv_logic *logic,
         }
 }
 
-struct fv_logic *
-fv_logic_new(void)
+void
+fv_logic_reset(struct fv_logic *logic,
+               int n_players)
 {
-        struct fv_logic *logic = fv_alloc(sizeof *logic);
         struct fv_logic_player *player;
         int i;
 
         logic->last_ticks = 0;
-        logic->n_players = 1;
+        logic->n_players = n_players;
 
-        for (i = 0; i < logic->n_players; i++) {
+        for (i = 0; i < n_players; i++) {
                 player = logic->players + i;
                 player->position.x = (FV_MAP_WIDTH / 2.0f -
-                                      (logic->n_players - 1) *
+                                      (n_players - 1) *
                                       FV_LOGIC_PLAYER_START_GAP / 2.0f +
                                       i * FV_LOGIC_PLAYER_START_GAP);
                 player->position.y = 0.5f;
@@ -177,6 +178,19 @@ fv_logic_new(void)
 
         for (i = 0; i < FV_PERSON_N_NPCS; i++)
                 init_npc(logic, i);
+
+        if (n_players == 0)
+                logic->state = FV_LOGIC_STATE_GAME_OVER;
+        else
+                logic->state = FV_LOGIC_STATE_RUNNING;
+}
+
+struct fv_logic *
+fv_logic_new(void)
+{
+        struct fv_logic *logic = fv_alloc(sizeof *logic);
+
+        fv_logic_reset(logic, 0);
 
         return logic;
 }
@@ -565,6 +579,9 @@ fv_logic_update(struct fv_logic *logic, unsigned int ticks)
         /* If we've skipped over half a second then we'll assume something
          * has gone wrong and we won't do anything */
         if (progress >= 500 || progress < 0)
+                return;
+
+        if (logic->state != FV_LOGIC_STATE_RUNNING)
                 return;
 
         progress_secs = progress / 1000.0f;

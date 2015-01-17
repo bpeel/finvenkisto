@@ -429,6 +429,8 @@ main(int argc, char **argv)
 
         data.logic = fv_logic_new();
 
+        fv_logic_reset(data.logic, 1);
+
         while (!data.quit) {
                 if (!SDL_PollEvent(&event))
                         paint(&data);

@@ -25,6 +25,11 @@
 
 #include "fv-person.h"
 
+enum fv_logic_state {
+        FV_LOGIC_STATE_RUNNING,
+        FV_LOGIC_STATE_GAME_OVER
+};
+
 #define FV_LOGIC_MAX_PLAYERS 4
 
 struct fv_logic_person {
@@ -39,6 +44,10 @@ typedef void
 
 struct fv_logic *
 fv_logic_new(void);
+
+void
+fv_logic_reset(struct fv_logic *logic,
+               int n_players);
 
 void
 fv_logic_update(struct fv_logic *logic,
