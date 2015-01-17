@@ -1,7 +1,20 @@
+HUD_SVGS = \
+	hud/down.svg \
+	hud/left.svg \
+	hud/player_select.svg \
+	hud/push.svg \
+	hud/right.svg \
+	hud/title.svg \
+	hud/up.svg \
+	$(NULL)
+
+HUD_PNGS = $(HUD_SVGS:.svg=.png)
+
 SHADERS = \
+	fv-hud-vertex.glsl \
 	fv-special-fragment.glsl \
 	fv-special-vertex.glsl \
-	fv-map-fragment.glsl \
+	fv-texture-fragment.glsl \
 	fv-map-vertex.glsl \
 	fv-person-fragment.glsl \
 	fv-person-vertex.glsl \
@@ -45,10 +58,23 @@ dist_images_DATA = \
 	bambo3.png \
 	finvenkisto.png \
 	map-texture.png \
+	hud.png \
 	$(NULL)
 
 EXTRA_DIST = \
+	$(HUD_SVGS) \
+	$(HUD_PNGS) \
+	hud.png \
+	hud-layout.h \
+	make-atlas.py \
 	make-map-texture.py \
 	$(MODELS:.ply=.blend) \
 	$(BLOCK_IMAGES) \
 	$(NULL)
+
+.svg.png :
+	$(AM_V_GEN)inkscape -e $@ $<
+
+hud.png hud-layout.h : $(HUD_PNGS) make-atlas.py
+	$(AM_V_GEN)python3 $(srcdir)/make-atlas.py \
+	hud.png hud-layout.h $(HUD_PNGS)

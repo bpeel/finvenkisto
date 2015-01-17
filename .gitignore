@@ -30,5 +30,8 @@
 /src/data/Makefile
 /src/data/map-texture.png
 /src/data/*.blend[12]
+/src/data/hud/*.png
+/src/data/hud.png
+/src/data/hud-layout.h
 *.o
 .deps

@@ -32,6 +32,7 @@
 #include "fv-shader-data.h"
 #include "fv-gl.h"
 #include "fv-util.h"
+#include "fv-hud.h"
 
 enum direction_key {
         DIRECTION_KEY_UP = (1 << 0),
@@ -44,6 +45,7 @@ struct data {
         struct fv_shader_data shader_data;
         struct fv_game *game;
         struct fv_logic *logic;
+        struct fv_hud *hud;
 
         SDL_Window *window;
         int last_fb_width, last_fb_height;
@@ -344,6 +346,7 @@ main(int argc, char **argv)
         SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+        SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
@@ -394,6 +397,7 @@ main(int argc, char **argv)
          * OpenGL state plus the following modifications */
 
         fv_gl.glEnable(GL_CULL_FACE);
+        fv_gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         /* The current program, vertex array, array buffer and bound
          * textures are not expected to be reset back to zero */
@@ -409,11 +413,18 @@ main(int argc, char **argv)
                 goto out_context;
         }
 
+        data.hud = fv_hud_new(&data.shader_data);
+
+        if (data.hud == NULL) {
+                ret = EXIT_FAILURE;
+                goto out_shader_data;
+        }
+
         data.game = fv_game_new(&data.shader_data);
 
         if (data.game == NULL) {
                 ret = EXIT_FAILURE;
-                goto out_shader_data;
+                goto out_hud;
         }
 
         data.logic = fv_logic_new();
@@ -428,6 +439,8 @@ main(int argc, char **argv)
         fv_logic_free(data.logic);
 
         fv_game_free(data.game);
+ out_hud:
+        fv_hud_free(data.hud);
  out_shader_data:
         fv_shader_data_destroy(&data.shader_data);
  out_context:

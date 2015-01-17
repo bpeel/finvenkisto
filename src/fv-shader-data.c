@@ -47,8 +47,12 @@ static const struct fv_shader_data_shader
 fv_shader_data_shaders[] = {
         {
                 GL_FRAGMENT_SHADER,
-                "fv-map-fragment.glsl",
-                { FV_SHADER_DATA_PROGRAM_MAP, -1 }
+                "fv-texture-fragment.glsl",
+                {
+                        FV_SHADER_DATA_PROGRAM_MAP,
+                        FV_SHADER_DATA_PROGRAM_HUD,
+                        -1
+                }
         },
         {
                 GL_VERTEX_SHADER,
@@ -74,7 +78,12 @@ fv_shader_data_shaders[] = {
                 GL_VERTEX_SHADER,
                 "fv-person-vertex.glsl",
                 { FV_SHADER_DATA_PROGRAM_PERSON, -1 }
-        }
+        },
+        {
+                GL_VERTEX_SHADER,
+                "fv-hud-vertex.glsl",
+                { FV_SHADER_DATA_PROGRAM_HUD, -1 }
+        },
 };
 
 static GLuint

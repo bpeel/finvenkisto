@@ -18,6 +18,8 @@ finvenkisto_SOURCES = \
 	fv-gl.c \
 	fv-gl.h \
 	fv-gl-funcs.h \
+	fv-hud.c \
+	fv-hud.h \
 	fv-image.c \
 	fv-image.h \
 	fv-logic.c \

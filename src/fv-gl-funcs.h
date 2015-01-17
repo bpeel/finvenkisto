@@ -25,11 +25,15 @@ FV_GL_FUNC(void,
            glAttachShader, (GLuint program, GLuint shader))
 FV_GL_FUNC(void,
            glBindBuffer, (GLenum target, GLuint buffer))
+FV_GL_FUNC(void,
+           glBlendFunc, (GLenum sfactor, GLenum dfactor))
 FV_GL_FUNC(GLboolean,
            glUnmapBuffer, (GLenum target))
 FV_GL_FUNC(void *,
            glMapBufferRange, (GLenum target, GLintptr offset,
                               GLsizeiptr length, GLbitfield access))
+FV_GL_FUNC(void *,
+           glMapBuffer, (GLenum target, GLenum access))
 FV_GL_FUNC(void,
            glFlushMappedBufferRange, (GLenum target, GLintptr offset,
                                       GLsizei length))
