@@ -49,15 +49,15 @@ fv_shader_data_shaders[] = {
                 GL_FRAGMENT_SHADER,
                 "fv-texture-fragment.glsl",
                 {
-                        FV_SHADER_DATA_PROGRAM_MAP,
+                        FV_SHADER_DATA_PROGRAM_TEXTURE,
                         FV_SHADER_DATA_PROGRAM_HUD,
                         -1
                 }
         },
         {
                 GL_VERTEX_SHADER,
-                "fv-map-vertex.glsl",
-                { FV_SHADER_DATA_PROGRAM_MAP, -1 }
+                "fv-texture-vertex.glsl",
+                { FV_SHADER_DATA_PROGRAM_TEXTURE, -1 }
         },
         {
                 GL_FRAGMENT_SHADER,

@@ -68,6 +68,8 @@ FV_GL_FUNC(void,
 FV_GL_FUNC(void,
            glDisable, (GLenum cap))
 FV_GL_FUNC(void,
+           glDrawArrays, (GLenum mode, GLint first, GLsizei count))
+FV_GL_FUNC(void,
            glDrawRangeElements, (GLenum mode, GLuint start,
                                  GLuint end, GLsizei count, GLenum type,
                                  const GLvoid *indices))

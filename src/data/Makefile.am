@@ -10,12 +10,18 @@ HUD_SVGS = \
 
 HUD_PNGS = $(HUD_SVGS:.svg=.png)
 
+OTHER_SVGS = \
+	nekrokodilu.svg \
+	$(NULL)
+
+OTHER_PNGS = $(OTHER_SVGS:.svg=.png)
+
 SHADERS = \
 	fv-hud-vertex.glsl \
 	fv-special-fragment.glsl \
 	fv-special-vertex.glsl \
 	fv-texture-fragment.glsl \
-	fv-map-vertex.glsl \
+	fv-texture-vertex.glsl \
 	fv-person-fragment.glsl \
 	fv-person-vertex.glsl \
 	$(NULL)
@@ -53,6 +59,7 @@ dist_images_DATA = \
 	ARTCREDITS \
 	$(SHADERS) \
 	$(MODELS) \
+	$(OTHER_PNGS) \
 	bambo1.png \
 	bambo2.png \
 	bambo3.png \
@@ -64,10 +71,13 @@ dist_images_DATA = \
 EXTRA_DIST = \
 	$(HUD_SVGS) \
 	$(HUD_PNGS) \
+	$(OTHER_SVGS) \
+	$(OTHER_PNGS) \
 	hud.png \
 	hud-layout.h \
 	make-atlas.py \
 	make-map-texture.py \
+	nekrokodilu.svg \
 	$(MODELS:.ply=.blend) \
 	$(BLOCK_IMAGES) \
 	$(NULL)

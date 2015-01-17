@@ -345,7 +345,7 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                 goto error_instance_buffer;
 
         painter->map_program =
-                shader_data->programs[FV_SHADER_DATA_PROGRAM_MAP];
+                shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
         painter->map_transform_uniform =
                 fv_gl.glGetUniformLocation(painter->map_program, "transform");
         painter->model_program =
