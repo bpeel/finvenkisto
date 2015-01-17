@@ -95,6 +95,7 @@ enum fv_logic_npc_state {
 struct fv_logic_npc {
         struct fv_logic_position position;
         enum fv_logic_npc_state state;
+        bool esperantified;
 
         /* State depending on the motion type */
         union {
@@ -142,6 +143,7 @@ init_npc(struct fv_logic *logic,
         struct fv_logic_position *position = &npc->position;
 
         npc->state = FV_LOGIC_NPC_STATE_NORMAL;
+        npc->esperantified = false;
         position->target_direction = 0.0f;
         position->speed = 0.0f;
 
@@ -527,6 +529,11 @@ update_npc_normal_movement(struct fv_logic *logic,
 {
         const struct fv_person_npc *initial_state = fv_person_npcs + npc_num;
 
+        /* NPCs who have been esperantified are fed up and can't be
+         * bothered to move apart from to run away */
+        if (logic->npcs[npc_num].esperantified)
+                return;
+
         switch (initial_state->motion) {
         case FV_PERSON_MOTION_STATIC:
                 update_npc_static_movement(logic, npc_num, progress_secs);
@@ -591,6 +598,58 @@ update_npc_movement(struct fv_logic *logic,
         }
 }
 
+static bool
+shout_in_range(struct fv_logic_player *player,
+               struct fv_logic_npc *npc)
+{
+        float npc_angle, diff;
+
+        if (!position_in_range(&player->position,
+                               npc->position.x, npc->position.y,
+                               player->shout_distance +
+                               FV_LOGIC_PERSON_SIZE / 2.0f))
+                return false;
+
+        npc_angle = atan2(npc->position.y - player->position.y,
+                          npc->position.x - player->position.x);
+        diff = fabsf(npc_angle - player->position.current_direction);
+
+        if (diff > M_PI)
+                diff = 2.0f * M_PI - diff;
+
+        return diff <= FV_LOGIC_SHOUT_ANGLE;
+}
+
+static void
+check_esperantification(struct fv_logic *logic)
+{
+        struct fv_logic_npc *npc;
+        struct fv_logic_player *player;
+        int i, j;
+
+        if (!logic->anyone_shouting)
+                return;
+
+        for (i = 0; i < FV_PERSON_N_NPCS; i++) {
+                npc = logic->npcs + i;
+
+                if (npc->esperantified)
+                        continue;
+
+                for (j = 0; j < logic->n_players; j++) {
+                        player = logic->players + j;
+
+                        if (!player->shouting)
+                                continue;
+
+                        if (shout_in_range(player, npc)) {
+                                npc->esperantified = true;
+                                break;
+                        }
+                }
+        }
+}
+
 static void
 update_shout_distance(struct fv_logic_player *player)
 {
@@ -634,6 +693,8 @@ update_shouts(struct fv_logic *logic,
                         }
                 }
         }
+
+        check_esperantification(logic);
 }
 
 void
@@ -723,6 +784,7 @@ fv_logic_for_each_person(struct fv_logic *logic,
         int i;
 
         person.type = FV_PERSON_TYPE_FINVENKISTO;
+        person.esperantified = false;
 
         for (i = 0; i < logic->n_players; i++) {
                 player = logic->players + i;
@@ -739,6 +801,7 @@ fv_logic_for_each_person(struct fv_logic *logic,
                 person.y = logic->npcs[i].position.y;
                 person.direction = logic->npcs[i].position.current_direction;
                 person.type = fv_person_npcs[i].type;
+                person.esperantified = logic->npcs[i].esperantified;
 
                 person_cb(&person, user_data);
         }
