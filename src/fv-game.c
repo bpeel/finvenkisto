@@ -43,8 +43,8 @@
 #define FV_GAME_SCALE 0.7f
 
 struct fv_game {
-        /* Size of the framebuffer the last time we painted */
-        int last_fb_width, last_fb_height;
+        /* Size of a players viewport the last time we painted */
+        int last_viewport_width, last_viewport_height;
 
         struct fv_paint_state paint_state;
 
@@ -174,7 +174,7 @@ update_projection(struct fv_game *game,
 
         /* Recalculate the projection matrix if we've got a different size
          * from last time */
-        if (w != game->last_fb_width || h != game->last_fb_height) {
+        if (w != game->last_viewport_width || h != game->last_viewport_height) {
                 if (w < h) {
                         right = 1.0f;
                         top = h / (float) w;
@@ -193,8 +193,8 @@ update_projection(struct fv_game *game,
 
                 update_visible_area(game);
 
-                game->last_fb_width = w;
-                game->last_fb_height = h;
+                game->last_viewport_width = w;
+                game->last_viewport_height = h;
         }
 }
 
