@@ -40,10 +40,11 @@ enum key_code {
         KEY_CODE_UP,
         KEY_CODE_DOWN,
         KEY_CODE_LEFT,
-        KEY_CODE_RIGHT
+        KEY_CODE_RIGHT,
+        KEY_CODE_SHOUT
 };
 
-#define N_KEYS 4
+#define N_KEYS 5
 
 enum key_type {
         KEY_TYPE_KEYBOARD,
@@ -222,6 +223,27 @@ set_key(struct data *data,
 }
 
 static void
+set_key_state(struct data *data,
+              int player_num,
+              enum key_code key,
+              bool state)
+{
+        bool old_state = data->players[player_num].keys[key].down;
+
+        if (old_state == state)
+                return;
+
+        data->players[player_num].keys[key].down = state;
+
+        if (key == KEY_CODE_SHOUT) {
+                if (data->menu_state == MENU_STATE_PLAYING && state)
+                        fv_logic_shout(data->logic, player_num);
+        } else {
+                update_direction(data, player_num);
+        }
+}
+
+static void
 handle_key(struct data *data,
            const struct key *key)
 {
@@ -237,8 +259,7 @@ handle_key(struct data *data,
                         for (j = 0; j < N_KEYS; j++) {
                                 player_key = data->players[i].keys + j;
                                 if (is_key(player_key, key)) {
-                                        player_key->down = key->down;
-                                        update_direction(data, i);
+                                        set_key_state(data, i, j, key->down);
                                         goto handled;
                                 }
                         }
@@ -247,8 +268,7 @@ handle_key(struct data *data,
                 for (j = 0; j < data->next_key; j++) {
                         player_key = data->players[i].keys + j;
                         if (is_key(player_key, key)) {
-                                player_key->down = key->down;
-                                update_direction(data, i);
+                                set_key_state(data, i, j, key->down);
                                 goto handled;
                         }
                 }
@@ -264,8 +284,7 @@ handle_key(struct data *data,
                         for (j = 0; j < N_KEYS; j++) {
                                 player_key = data->players[i].keys + j;
                                 if (is_key(player_key, key)) {
-                                        player_key->down = key->down;
-                                        update_direction(data, i);
+                                        set_key_state(data, i, j, key->down);
                                         goto found;
                                 }
                         }

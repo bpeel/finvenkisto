@@ -60,7 +60,8 @@ fv_hud_key_images[] = {
         &fv_hud_image_up,
         &fv_hud_image_down,
         &fv_hud_image_left,
-        &fv_hud_image_right
+        &fv_hud_image_right,
+        &fv_hud_image_shout
 };
 
 #define FV_HUD_MAX_RECTANGLES 16

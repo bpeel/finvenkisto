@@ -4,6 +4,7 @@ HUD_SVGS = \
 	hud/player_select.svg \
 	hud/push.svg \
 	hud/right.svg \
+	hud/shout.svg \
 	hud/title.svg \
 	hud/up.svg \
 	$(NULL)
