@@ -69,6 +69,16 @@
 /* Gap between player positions at the start of the game */
 #define FV_LOGIC_PLAYER_START_GAP 2.0f
 
+/* Length of a fully extended shout */
+#define FV_LOGIC_SHOUT_LENGTH 4.0f
+
+/* Time taken for the shout distance to reach its full extent in
+ * seconds */
+#define FV_LOGIC_SHOUT_GROWTH_TIME 0.5f
+
+/* Time that a shout stays around for once it is fully extended */
+#define FV_LOGIC_SHOUT_LINGER_TIME 0.2f
+
 struct fv_logic_position {
         float x, y;
         float current_direction;
@@ -98,6 +108,14 @@ struct fv_logic_npc {
 struct fv_logic_player {
         struct fv_logic_position position;
         float center_x, center_y;
+
+        /* The other two shout fields are invalid if this is false */
+        bool shouting;
+        /* The current extent of the shout. Updated in
+         * fv_logic_update */
+        float shout_distance;
+        /* Time in seconds since the player started shouting */
+        float shout_time;
 };
 
 struct fv_logic {
@@ -109,6 +127,10 @@ struct fv_logic {
         int n_players;
 
         struct fv_logic_npc npcs[FV_PERSON_N_NPCS];
+
+        /* Updated at the beginning of fv_logic_update and is set to
+         * true if any of the players are shouting */
+        bool anyone_shouting;
 };
 
 static void
@@ -171,6 +193,8 @@ fv_logic_reset(struct fv_logic *logic,
                 player->position.current_direction = -M_PI / 2.0f;
                 player->position.target_direction = 0.0f;
                 player->position.speed = 0.0f;
+
+                player->shouting = false;
 
                 player->center_x = player->position.x;
                 player->center_y = player->position.y;
@@ -567,6 +591,51 @@ update_npc_movement(struct fv_logic *logic,
         }
 }
 
+static void
+update_shout_distance(struct fv_logic_player *player)
+{
+        if (player->shout_time >= FV_LOGIC_SHOUT_GROWTH_TIME) {
+                player->shout_distance = FV_LOGIC_SHOUT_LENGTH;
+        } else {
+                /* Simple tweening based on a sine wave */
+                player->shout_distance =
+                        FV_LOGIC_SHOUT_LENGTH *
+                        sinf(player->shout_time * M_PI / 2.0f /
+                             FV_LOGIC_SHOUT_GROWTH_TIME);
+        }
+}
+
+static void
+update_shouts(struct fv_logic *logic,
+              float progress_secs)
+{
+        struct fv_logic_player *player;
+        int i;
+
+        if (!logic->anyone_shouting)
+                return;
+
+        logic->anyone_shouting = false;
+
+        for (i = 0; i < logic->n_players; i++) {
+                player = logic->players + i;
+
+                if (player->shouting) {
+                        player->shout_time += progress_secs;
+
+                        if (player->shout_time >=
+                            (FV_LOGIC_SHOUT_LINGER_TIME +
+                             FV_LOGIC_SHOUT_GROWTH_TIME)) {
+                                player->shouting = false;
+                        } else {
+                                logic->anyone_shouting = true;
+
+                                update_shout_distance(player);
+                        }
+                }
+        }
+}
+
 void
 fv_logic_update(struct fv_logic *logic, unsigned int ticks)
 {
@@ -585,6 +654,8 @@ fv_logic_update(struct fv_logic *logic, unsigned int ticks)
                 return;
 
         progress_secs = progress / 1000.0f;
+
+        update_shouts(logic, progress_secs);
 
         for (i = 0; i < logic->n_players; i++)
                 update_player_movement(logic,
@@ -612,6 +683,22 @@ fv_logic_set_direction(struct fv_logic *logic,
 }
 
 void
+fv_logic_shout(struct fv_logic *logic,
+               int player_num)
+{
+        struct fv_logic_player *player = logic->players + player_num;
+
+        if (player->shouting)
+                return;
+
+        player->shouting = true;
+        player->shout_distance = 0.0f;
+        player->shout_time = 0.0f;
+
+        logic->anyone_shouting = true;
+}
+
+void
 fv_logic_free(struct fv_logic *logic)
 {
         fv_free(logic);
@@ -631,16 +718,18 @@ fv_logic_for_each_person(struct fv_logic *logic,
                          fv_logic_person_cb person_cb,
                          void *user_data)
 {
+        const struct fv_logic_player *player;
         struct fv_logic_person person;
-        struct fv_logic_player *player;
         int i;
+
+        person.type = FV_PERSON_TYPE_FINVENKISTO;
 
         for (i = 0; i < logic->n_players; i++) {
                 player = logic->players + i;
+
                 person.x = player->position.x;
                 person.y = player->position.y;
                 person.direction = player->position.current_direction;
-                person.type = FV_PERSON_TYPE_FINVENKISTO;
 
                 person_cb(&person, user_data);
         }
@@ -652,5 +741,28 @@ fv_logic_for_each_person(struct fv_logic *logic,
                 person.type = fv_person_npcs[i].type;
 
                 person_cb(&person, user_data);
+        }
+}
+
+void
+fv_logic_for_each_shout(struct fv_logic *logic,
+                        fv_logic_shout_cb shout_cb,
+                        void *user_data)
+{
+        struct fv_logic_player *player;
+        struct fv_logic_shout shout;
+        int i;
+
+        for (i = 0; i < logic->n_players; i++) {
+                player = logic->players + i;
+
+                if (!player->shouting)
+                        continue;
+
+                shout.x = player->position.x;
+                shout.y = player->position.y;
+                shout.direction = player->position.current_direction;
+                shout.distance = player->shout_distance;
+                shout_cb(&shout, user_data);
         }
 }
