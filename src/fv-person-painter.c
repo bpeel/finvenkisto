@@ -45,6 +45,7 @@ struct fv_person_painter {
 struct fv_person_painter_instance {
         float mvp[16];
         uint8_t tex_layer;
+        uint8_t green_tint;
 };
 
 #define FV_PERSON_PAINTER_MAX_INSTANCES 32
@@ -185,6 +186,17 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
                                              tex_layer));
         fv_gl.glVertexAttribDivisorARB(8, 1);
 
+        fv_gl.glEnableVertexAttribArray(9);
+        fv_gl.glVertexAttribPointer(9,
+                                    1, /* size */
+                                    GL_UNSIGNED_BYTE,
+                                    GL_TRUE, /* normalized */
+                                    instance_size,
+                                    (GLvoid *) (intptr_t)
+                                    offsetof(struct fv_person_painter_instance,
+                                             green_tint));
+        fv_gl.glVertexAttribDivisorARB(9, 1);
+
         tex_uniform = fv_gl.glGetUniformLocation(painter->program, "tex");
         fv_gl.glUseProgram(painter->program);
         fv_gl.glUniform1i(tex_uniform, 0);
@@ -272,6 +284,7 @@ paint_person_cb(const struct fv_logic_person *person,
         instance = data->instance_buffer_map + data->n_instances;
         memcpy(instance->mvp, &data->transform.mvp.xx, sizeof instance->mvp);
         instance->tex_layer = person->type;
+        instance->green_tint = person->esperantified ? 120 : 0;
 
         data->n_instances++;
 }

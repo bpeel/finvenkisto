@@ -21,13 +21,16 @@ layout(location = 0) in vec3 pos;
 layout(location = 1) in vec2 tex_coord_attrib;
 layout(location = 4) in mat4 transform;
 layout(location = 8) in float tex_layer;
+layout(location = 9) in float green_tint_attrib;
 
 out vec3 tex_coord;
+flat out float green_tint;
 
 void
 main()
 {
         gl_Position = transform * vec4(pos, 1.0);
         tex_coord = vec3(tex_coord_attrib, tex_layer);
+        green_tint = green_tint_attrib;
 }
 

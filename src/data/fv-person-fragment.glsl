@@ -20,11 +20,14 @@
 layout(location = 0) out vec4 frag_color;
 
 in vec3 tex_coord;
+flat in float green_tint;
 
 uniform sampler2DArray tex;
 
 void
 main()
 {
-        frag_color = texture(tex, tex_coord);
+        frag_color = mix(texture(tex, tex_coord),
+                         vec4(0.0, 1.0, 0.0, 1.0),
+                         green_tint);
 }
