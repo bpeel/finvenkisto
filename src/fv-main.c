@@ -527,8 +527,8 @@ update_centers(struct data *data)
                 }
         } else {
                 for (i = 0; i < data->n_viewports; i++) {
-                        data->players[i].center_x = FV_MAP_WIDTH / 2.0f;
-                        data->players[i].center_y = 0.5f;
+                        data->players[i].center_x = FV_MAP_START_X;
+                        data->players[i].center_y = FV_MAP_START_Y;
                 }
         }
 }

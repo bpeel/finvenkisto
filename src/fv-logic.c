@@ -163,11 +163,11 @@ fv_logic_reset(struct fv_logic *logic,
 
         for (i = 0; i < n_players; i++) {
                 player = logic->players + i;
-                player->position.x = (FV_MAP_WIDTH / 2.0f -
+                player->position.x = (FV_MAP_START_X -
                                       (n_players - 1) *
                                       FV_LOGIC_PLAYER_START_GAP / 2.0f +
                                       i * FV_LOGIC_PLAYER_START_GAP);
-                player->position.y = 0.5f;
+                player->position.y = FV_MAP_START_Y;
                 player->position.current_direction = -M_PI / 2.0f;
                 player->position.target_direction = 0.0f;
                 player->position.speed = 0.0f;
