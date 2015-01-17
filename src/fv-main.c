@@ -120,7 +120,7 @@ update_direction(struct data *data)
                 break;
         }
 
-        fv_logic_set_direction(data->logic, moving, direction);
+        fv_logic_set_direction(data->logic, 0, moving, direction);
 }
 
 static void
@@ -213,7 +213,7 @@ paint(struct data *data)
 
         fv_logic_update(data->logic, SDL_GetTicks());
 
-        fv_logic_get_center(data->logic, &center_x, &center_y);
+        fv_logic_get_center(data->logic, 0, &center_x, &center_y);
 
         if (!fv_game_covers_framebuffer(data->game,
                                         center_x, center_y,

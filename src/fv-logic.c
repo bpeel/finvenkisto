@@ -66,6 +66,9 @@
  * second */
 #define FV_LOGIC_CIRCLE_SPEED 0.2f
 
+/* Gap between player positions at the start of the game */
+#define FV_LOGIC_PLAYER_START_GAP 2.0f
+
 struct fv_logic_position {
         float x, y;
         float current_direction;
@@ -92,12 +95,17 @@ struct fv_logic_npc {
         };
 };
 
+struct fv_logic_player {
+        struct fv_logic_position position;
+        float center_x, center_y;
+};
+
 struct fv_logic {
+
         unsigned int last_ticks;
 
-        float center_x, center_y;
-
-        struct fv_logic_position player_position;
+        struct fv_logic_player players[FV_LOGIC_MAX_PLAYERS];
+        int n_players;
 
         struct fv_logic_npc npcs[FV_PERSON_N_NPCS];
 };
@@ -146,18 +154,26 @@ struct fv_logic *
 fv_logic_new(void)
 {
         struct fv_logic *logic = fv_alloc(sizeof *logic);
+        struct fv_logic_player *player;
         int i;
 
         logic->last_ticks = 0;
+        logic->n_players = 1;
 
-        logic->player_position.x = FV_MAP_WIDTH / 2.0f;
-        logic->player_position.y = 0.5f;
-        logic->player_position.current_direction = -M_PI / 2.0f;
-        logic->player_position.target_direction = 0.0f;
-        logic->player_position.speed = 0.0f;
+        for (i = 0; i < logic->n_players; i++) {
+                player = logic->players + i;
+                player->position.x = (FV_MAP_WIDTH / 2.0f -
+                                      (logic->n_players - 1) *
+                                      FV_LOGIC_PLAYER_START_GAP / 2.0f +
+                                      i * FV_LOGIC_PLAYER_START_GAP);
+                player->position.y = 0.5f;
+                player->position.current_direction = -M_PI / 2.0f;
+                player->position.target_direction = 0.0f;
+                player->position.speed = 0.0f;
 
-        logic->center_x = logic->player_position.x;
-        logic->center_y = logic->player_position.y;
+                player->center_x = player->position.x;
+                player->center_y = player->position.y;
+        }
 
         for (i = 0; i < FV_PERSON_N_NPCS; i++)
                 init_npc(logic, i);
@@ -193,11 +209,15 @@ person_blocking(const struct fv_logic *logic,
 {
         int i;
 
-        if (this_position != &logic->player_position &&
-            position_in_range(&logic->player_position,
-                              x, y,
-                              FV_LOGIC_PERSON_SIZE / 2.0f))
-                return true;
+        for (i = 0; i < logic->n_players; i++) {
+                if (this_position == &logic->players[i].position)
+                        continue;
+
+                if (position_in_range(&logic->players[i].position,
+                                      x, y,
+                                      FV_LOGIC_PERSON_SIZE / 2.0f))
+                        return true;
+        }
 
         for (i = 0; i < FV_PERSON_N_NPCS; i++) {
                 if (this_position == &logic->npcs[i].position)
@@ -296,29 +316,31 @@ update_position(struct fv_logic *logic,
 }
 
 static void
-update_center(struct fv_logic *logic)
+update_center(struct fv_logic_player *player)
 {
-        float dx = logic->player_position.x - logic->center_x;
-        float dy = logic->player_position.y - logic->center_y;
+        float dx = player->position.x - player->center_x;
+        float dy = player->position.y - player->center_y;
         float d2, d;
 
         d2 = dx * dx + dy * dy;
 
         if (d2 > FV_LOGIC_CAMERA_DISTANCE * FV_LOGIC_CAMERA_DISTANCE) {
                 d = sqrtf(d2);
-                logic->center_x += dx * (1 - FV_LOGIC_CAMERA_DISTANCE / d);
-                logic->center_y += dy * (1 - FV_LOGIC_CAMERA_DISTANCE / d);
+                player->center_x += dx * (1 - FV_LOGIC_CAMERA_DISTANCE / d);
+                player->center_y += dy * (1 - FV_LOGIC_CAMERA_DISTANCE / d);
         }
 }
 
 static void
-update_player_movement(struct fv_logic *logic, float progress_secs)
+update_player_movement(struct fv_logic *logic,
+                       struct fv_logic_player *player,
+                       float progress_secs)
 {
-        if (!logic->player_position.speed)
+        if (!player->position.speed)
                 return;
 
-        update_position(logic, &logic->player_position, progress_secs);
-        update_center(logic);
+        update_position(logic, &player->position, progress_secs);
+        update_center(player);
 }
 
 static void
@@ -483,39 +505,44 @@ update_npc_normal_movement(struct fv_logic *logic,
 }
 
 static void
-npc_update_fear(struct fv_logic *logic,
-                struct fv_logic_npc *npc)
-{
-        if (npc->state == FV_LOGIC_NPC_STATE_AFRAID) {
-                /* Stop being afraid once the player is far enough
-                 * away */
-                if (!position_in_range(&npc->position,
-                                       logic->player_position.x,
-                                       logic->player_position.y,
-                                       FV_LOGIC_SAFE_DISTANCE))
-                        npc->state = FV_LOGIC_NPC_STATE_RETURNING;
-        } else if (position_in_range(&npc->position,
-                                     logic->player_position.x,
-                                     logic->player_position.y,
-                                     FV_LOGIC_FEAR_DISTANCE)) {
-                npc->state = FV_LOGIC_NPC_STATE_AFRAID;
-        }
-}
-
-static void
 update_npc_movement(struct fv_logic *logic,
                     int npc_num,
                     float progress_secs)
 {
         struct fv_logic_npc *npc = logic->npcs + npc_num;
+        struct fv_logic_player *player, *nearest_player = NULL;
+        float nearest_distance2 = FLT_MAX;
+        float dx, dy, distance2;
+        int i;
 
-        npc_update_fear(logic, npc);
+        for (i = 0; i < logic->n_players; i++) {
+                player = logic->players + i;
+                dx = player->position.x - npc->position.x;
+                dy = player->position.y - npc->position.y;
+                distance2 = dx * dx + dy * dy;
+
+                if (distance2 < nearest_distance2) {
+                        nearest_distance2 = distance2;
+                        nearest_player = player;
+                }
+        }
 
         if (npc->state == FV_LOGIC_NPC_STATE_AFRAID) {
-                /* Run directly away from the player */
+                /* Stop being afraid once the player is far enough
+                 * away */
+                if (nearest_distance2 >= (FV_LOGIC_SAFE_DISTANCE *
+                                          FV_LOGIC_SAFE_DISTANCE))
+                        npc->state = FV_LOGIC_NPC_STATE_RETURNING;
+        } else if (nearest_distance2 < (FV_LOGIC_FEAR_DISTANCE *
+                                        FV_LOGIC_FEAR_DISTANCE)) {
+                npc->state = FV_LOGIC_NPC_STATE_AFRAID;
+        }
+
+        if (npc->state == FV_LOGIC_NPC_STATE_AFRAID) {
+                /* Run directly away from the nearest player */
                 npc->position.target_direction =
-                        atan2(npc->position.y - logic->player_position.y,
-                              npc->position.x - logic->player_position.x);
+                        atan2(npc->position.y - nearest_player->position.y,
+                              npc->position.x - nearest_player->position.x);
                 if (npc->position.target_direction < 0)
                         npc->position.target_direction += M_PI * 2.0f;
                 npc->position.speed = FV_LOGIC_NPC_RUN_SPEED;
@@ -542,7 +569,10 @@ fv_logic_update(struct fv_logic *logic, unsigned int ticks)
 
         progress_secs = progress / 1000.0f;
 
-        update_player_movement(logic, progress_secs);
+        for (i = 0; i < logic->n_players; i++)
+                update_player_movement(logic,
+                                       logic->players + i,
+                                       progress_secs);
 
         for (i = 0; i < FV_PERSON_N_NPCS; i++)
                 update_npc_movement(logic, i, progress_secs);
@@ -550,14 +580,17 @@ fv_logic_update(struct fv_logic *logic, unsigned int ticks)
 
 void
 fv_logic_set_direction(struct fv_logic *logic,
+                       int player_num,
                        bool moving,
                        float direction)
 {
+        struct fv_logic_player *player = logic->players + player_num;
+
         if (moving) {
-                logic->player_position.speed = FV_LOGIC_PLAYER_SPEED;
-                logic->player_position.target_direction = direction;
+                player->position.speed = FV_LOGIC_PLAYER_SPEED;
+                player->position.target_direction = direction;
         } else {
-                logic->player_position.speed = 0.0f;
+                player->position.speed = 0.0f;
         }
 }
 
@@ -569,10 +602,11 @@ fv_logic_free(struct fv_logic *logic)
 
 void
 fv_logic_get_center(struct fv_logic *logic,
+                    int player_num,
                     float *x, float *y)
 {
-        *x = logic->center_x;
-        *y = logic->center_y;
+        *x = logic->players[player_num].center_x;
+        *y = logic->players[player_num].center_y;
 }
 
 void
@@ -581,15 +615,18 @@ fv_logic_for_each_person(struct fv_logic *logic,
                          void *user_data)
 {
         struct fv_logic_person person;
+        struct fv_logic_player *player;
         int i;
 
-        /* Currently the only person is the player */
-        person.x = logic->player_position.x;
-        person.y = logic->player_position.y;
-        person.direction = logic->player_position.current_direction;
-        person.type = FV_PERSON_TYPE_FINVENKISTO;
+        for (i = 0; i < logic->n_players; i++) {
+                player = logic->players + i;
+                person.x = player->position.x;
+                person.y = player->position.y;
+                person.direction = player->position.current_direction;
+                person.type = FV_PERSON_TYPE_FINVENKISTO;
 
-        person_cb(&person, user_data);
+                person_cb(&person, user_data);
+        }
 
         for (i = 0; i < FV_PERSON_N_NPCS; i++) {
                 person.x = logic->npcs[i].position.x;

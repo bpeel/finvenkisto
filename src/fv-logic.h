@@ -25,6 +25,8 @@
 
 #include "fv-person.h"
 
+#define FV_LOGIC_MAX_PLAYERS 4
+
 struct fv_logic_person {
         float direction;
         float x, y;
@@ -44,6 +46,7 @@ fv_logic_update(struct fv_logic *logic,
 
 void
 fv_logic_get_center(struct fv_logic *logic,
+                    int player_num,
                     float *x, float *y);
 
 void
@@ -56,6 +59,7 @@ fv_logic_for_each_person(struct fv_logic *logic,
  */
 void
 fv_logic_set_direction(struct fv_logic *logic,
+                       int player_num,
                        bool moving,
                        float direction);
 
