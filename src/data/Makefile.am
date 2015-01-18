@@ -9,7 +9,29 @@ HUD_SVGS = \
 	hud/up.svg \
 	$(NULL)
 
-HUD_PNGS = $(HUD_SVGS:.svg=.png)
+HUD_DIGITS = \
+	hud/digit0.png \
+	hud/digit1.png \
+	hud/digit2.png \
+	hud/digit3.png \
+	hud/digit4.png \
+	hud/digit5.png \
+	hud/digit6.png \
+	hud/digit7.png \
+	hud/digit8.png \
+	hud/digit9.png \
+	$(NULL)
+
+$(HUD_DIGITS) : hud/digits-stamp
+
+hud/digits-stamp : make-digits.py
+	$(AM_V_GEN)python3 $(srcdir)/make-digits.py
+	@touch $@
+
+HUD_PNGS = \
+	$(HUD_SVGS:.svg=.png) \
+	$(HUD_DIGITS) \
+	$(NULL)
 
 OTHER_SVGS = \
 	nekrokodilu.svg \
@@ -77,8 +99,11 @@ EXTRA_DIST = \
 	hud.png \
 	hud-layout.h \
 	make-atlas.py \
+	make-digits.py \
 	make-map-texture.py \
 	nekrokodilu.svg \
+	hud/digits-stamp \
+	$(HUD_DIGITS) \
 	$(MODELS:.ply=.blend) \
 	$(BLOCK_IMAGES) \
 	$(NULL)
