@@ -95,6 +95,7 @@ dist_images_DATA = \
 	bambo2.png \
 	bambo3.png \
 	finvenkisto.png \
+	gufujestro.png \
 	map-texture.png \
 	hud.png \
 	$(NULL)

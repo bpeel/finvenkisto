@@ -55,3 +55,4 @@ crocodile.svg
 star.svg
 fina.svg
 venko.svg
+gufujestro.png

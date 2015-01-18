@@ -22,13 +22,14 @@
 
 #include <stdint.h>
 
-#define FV_PERSON_N_NPCS 24
+#define FV_PERSON_N_NPCS 25
 
 enum fv_person_type {
         FV_PERSON_TYPE_FINVENKISTO,
         FV_PERSON_TYPE_BAMBISTO1,
         FV_PERSON_TYPE_BAMBISTO2,
         FV_PERSON_TYPE_BAMBISTO3,
+        FV_PERSON_TYPE_GUFUJESTRO,
 };
 
 enum fv_person_motion {
