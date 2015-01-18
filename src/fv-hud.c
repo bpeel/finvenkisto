@@ -121,10 +121,20 @@ fv_hud_new(struct fv_shader_data *shader_data)
                            GL_RGBA,
                            GL_UNSIGNED_BYTE,
                            image);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_MIN_FILTER,
+                              GL_NEAREST);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_MAG_FILTER,
+                              GL_LINEAR);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_WRAP_S,
+                              GL_CLAMP_TO_EDGE);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_WRAP_T,
+                              GL_CLAMP_TO_EDGE);
 
         fv_free(image);
-
-        fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
 
         fv_gl.glGenVertexArrays(1, &hud->array);
         fv_gl.glBindVertexArray(hud->array);
