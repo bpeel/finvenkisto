@@ -83,7 +83,7 @@ map-texture.png : make-map-texture.py $(BLOCK_IMAGES)
 
 imagesdir = $(datadir)/finvenkisto
 dist_images_DATA = \
-	ARTCREDITS \
+	ARTCREDITS.txt \
 	$(SHADERS) \
 	$(MODELS) \
 	$(OTHER_PNGS) \
