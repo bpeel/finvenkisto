@@ -119,4 +119,11 @@ EXTRA_DIST = \
 hud.png hud-layout.h : $(HUD_PNGS) make-atlas.py
 	$(AM_V_GEN)mkdir -p $(builddir)/hud
 	$(AM_V_at)python3 $(srcdir)/make-atlas.py \
-	hud.png hud-layout.h $(HUD_PNGS)
+	hud.png hud-layout.h $(filter %.png,$^)
+
+DISTCLEANFILES = \
+	$(HUD_PNGS) \
+	hud-layout.h \
+	hud.png \
+	hud/digits-stamp \
+	$(NULL)
