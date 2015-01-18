@@ -877,6 +877,12 @@ fv_logic_get_score(struct fv_logic *logic,
         return logic->players[player_num].score;
 }
 
+enum fv_logic_state
+fv_logic_get_state(struct fv_logic *logic)
+{
+        return logic->state;
+}
+
 float
 fv_logic_get_time_since_fina_venko(struct fv_logic *logic)
 {

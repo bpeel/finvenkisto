@@ -99,6 +99,9 @@ fv_logic_get_n_crocodiles(struct fv_logic *logic);
 int
 fv_logic_get_n_players(struct fv_logic *logic);
 
+enum fv_logic_state
+fv_logic_get_state(struct fv_logic *logic);
+
 void
 fv_logic_shout(struct fv_logic *logic,
                int player_num);
