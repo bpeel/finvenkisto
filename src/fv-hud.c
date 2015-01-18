@@ -412,6 +412,49 @@ fv_hud_add_number(struct fv_hud *hud,
         fv_hud_add_images(hud, images, n_images, x, y, alignment);
 }
 
+static void
+fv_hud_add_scores(struct fv_hud *hud,
+                  int screen_width,
+                  int screen_height,
+                  struct fv_logic *logic)
+{
+        int n_players = fv_logic_get_n_players(logic);
+
+        fv_hud_add_number(hud,
+                          &fv_hud_image_star,
+                          fv_logic_get_score(logic, 0),
+                          0, screen_height - fv_hud_digit_images[0]->h,
+                          FV_HUD_ALIGNMENT_LEFT);
+
+        if (n_players < 2)
+                return;
+
+        fv_hud_add_number(hud,
+                          &fv_hud_image_star,
+                          fv_logic_get_score(logic, 1),
+                          screen_width,
+                          screen_height - fv_hud_digit_images[0]->h,
+                          FV_HUD_ALIGNMENT_RIGHT);
+
+        if (n_players < 3)
+                return;
+
+        fv_hud_add_number(hud,
+                          &fv_hud_image_star,
+                          fv_logic_get_score(logic, 2),
+                          0, 0,
+                          FV_HUD_ALIGNMENT_LEFT);
+
+        if (n_players < 4)
+                return;
+
+        fv_hud_add_number(hud,
+                          &fv_hud_image_star,
+                          fv_logic_get_score(logic, 3),
+                          screen_width, 0,
+                          FV_HUD_ALIGNMENT_RIGHT);
+}
+
 void
 fv_hud_paint_game_state(struct fv_hud *hud,
                         int screen_width,
@@ -451,6 +494,11 @@ fv_hud_paint_game_state(struct fv_hud *hud,
                           n_crocodiles,
                           crocodile_x, crocodile_y,
                           crocodile_alignment);
+
+        fv_hud_add_scores(hud,
+                          screen_width,
+                          screen_height,
+                          logic);
 
         fv_hud_end_rectangles(hud);
 }
