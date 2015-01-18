@@ -104,6 +104,26 @@ struct data {
 };
 
 static void
+reset_menu_state(struct data *data)
+{
+        int i, j;
+
+        data->menu_state = MENU_STATE_CHOOSING_N_PLAYERS;
+        data->start_time = SDL_GetTicks();
+        data->viewports_dirty = true;
+        data->n_viewports = 1;
+
+        for (i = 0; i < FV_LOGIC_MAX_PLAYERS; i++) {
+                for (j = 0; j < N_KEYS; j++) {
+                        data->players[i].keys[j].down = false;
+                        data->players[i].keys[j].down = false;
+                }
+        }
+
+        fv_logic_reset(data->logic, 0);
+}
+
+static void
 toggle_fullscreen(struct data *data)
 {
         int display_index;
@@ -328,8 +348,12 @@ handle_key_event(struct data *data,
 {
         switch (event->keysym.sym) {
         case SDLK_ESCAPE:
-                if (event->state == SDL_PRESSED)
-                        data->quit = true;
+                if (event->state == SDL_PRESSED) {
+                        if (data->menu_state == MENU_STATE_CHOOSING_N_PLAYERS)
+                                data->quit = true;
+                        else
+                                reset_menu_state(data);
+                }
                 break;
 
         case SDLK_F11:
@@ -742,7 +766,6 @@ main(int argc, char **argv)
         Uint32 flags;
         int res;
         int ret;
-        int i, j;
 
         data.is_fullscreen = true;
 
@@ -819,19 +842,7 @@ main(int argc, char **argv)
          * textures are not expected to be reset back to zero */
 
         data.quit = false;
-        data.menu_state = MENU_STATE_CHOOSING_N_PLAYERS;
-        data.start_time = SDL_GetTicks();
-        data.viewports_dirty = true;
-        data.n_viewports = 1;
-
         data.last_fb_width = data.last_fb_height = 0;
-
-        for (i = 0; i < FV_LOGIC_MAX_PLAYERS; i++) {
-                for (j = 0; j < N_KEYS; j++) {
-                        data.players[i].keys[j].down = false;
-                        data.players[i].keys[j].down = false;
-                }
-        }
 
         if (!fv_shader_data_init(&data.shader_data)) {
                 ret = EXIT_FAILURE;
@@ -853,6 +864,8 @@ main(int argc, char **argv)
         }
 
         data.logic = fv_logic_new();
+
+        reset_menu_state(&data);
 
         while (!data.quit) {
                 if (SDL_PollEvent(&event))
