@@ -30,6 +30,7 @@
 #include "fv-data.h"
 #include "fv-buffer.h"
 #include "fv-gl.h"
+#include "fv-error-message.h"
 
 static const char
 fv_shader_data_version[] =
@@ -129,7 +130,7 @@ create_shader(const char *name,
         fv_gl.glGetShaderiv(shader, GL_COMPILE_STATUS, &compile_status);
 
         if (!compile_status) {
-                fprintf(stderr, "%s compilation failed\n", name);
+                fv_error_message("%s compilation failed", name);
                 fv_gl.glDeleteShader(shader);
                 return 0;
         }
@@ -151,7 +152,7 @@ create_shader_from_file(GLenum shader_type,
         fullname = fv_data_get_filename(filename);
 
         if (fullname == NULL) {
-                fprintf(stderr, "Couldn't get filename for %s\n", filename);
+                fv_error_message("Couldn't get filename for %s", filename);
                 return 0;
         }
 
@@ -160,7 +161,7 @@ create_shader_from_file(GLenum shader_type,
         fv_free(fullname);
 
         if (file == NULL) {
-                fprintf(stderr, "%s: %s\n", filename, strerror(errno));
+                fv_error_message("%s: %s", filename, strerror(errno));
                 return 0;
         }
 
@@ -182,7 +183,7 @@ create_shader_from_file(GLenum shader_type,
                 fv_free(source);
                 if (ferror(file))
                         goto file_error;
-                fprintf(stderr, "%s: Unexpected EOF\n", filename);
+                fv_error_message("%s: Unexpected EOF", filename);
                 goto close_error;
         }
 
@@ -195,7 +196,7 @@ create_shader_from_file(GLenum shader_type,
         return shader;
 
 file_error:
-        fprintf(stderr, "%s: %s\n", filename, strerror(errno));
+        fv_error_message("%s: %s", filename, strerror(errno));
 close_error:
         fclose(file);
 
@@ -278,7 +279,7 @@ link_program(struct fv_shader_data *data,
 
         if (!link_status) {
                 program_name = get_program_name(program_num);
-                fprintf(stderr, "%s program link failed\n", program_name);
+                fv_error_message("%s program link failed", program_name);
                 fv_free(program_name);
                 return false;
         }

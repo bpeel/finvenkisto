@@ -31,6 +31,7 @@
 #include "fv-model.h"
 #include "fv-gl.h"
 #include "fv-image.h"
+#include "fv-error-message.h"
 
 struct fv_person_painter {
         struct fv_model model;
@@ -93,10 +94,9 @@ load_texture(struct fv_person_painter *painter)
                                            NULL);
                 } else if (layer_width != tex_width ||
                            layer_height != tex_height) {
-                        fprintf(stderr,
-                                "Size of %s does not match that of %s\n",
-                                textures[i],
-                                textures[0]);
+                        fv_error_message("Size of %s does not match that of %s",
+                                         textures[i],
+                                         textures[0]);
                         fv_free(tex_data);
                         goto error;
                 }

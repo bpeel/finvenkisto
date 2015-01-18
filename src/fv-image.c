@@ -22,6 +22,7 @@
 #include "fv-image.h"
 #include "fv-data.h"
 #include "fv-util.h"
+#include "fv-error-message.h"
 
 #define STB_IMAGE_IMPLEMENTATION 1
 #include "stb_image.h"
@@ -37,17 +38,16 @@ fv_image_load(const char *name,
         uint8_t *data;
 
         if (filename == NULL) {
-                fprintf(stderr, "Failed to get filename for %s\n", name);
+                fv_error_message("Failed to get filename for %s", name);
                 return NULL;
         }
 
         data = stbi_load(filename, width, height, &comp_out, components);
 
         if (data == NULL) {
-                fprintf(stderr,
-                        "%s: %s\n",
-                        filename,
-                        stbi_failure_reason());
+                fv_error_message("%s: %s",
+                                 filename,
+                                 stbi_failure_reason());
         }
 
         fv_free(filename);

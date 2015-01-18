@@ -35,6 +35,7 @@
 #include "fv-hud.h"
 #include "fv-buffer.h"
 #include "fv-map.h"
+#include "fv-error-message.h"
 
 enum key_code {
         KEY_CODE_UP,
@@ -702,6 +703,9 @@ check_extensions(const char *extension, ...)
 {
         bool missing_extension = false;
         va_list ap;
+        struct fv_buffer buffer;
+
+        fv_buffer_init(&buffer);
 
         va_start(ap, extension);
 
@@ -709,16 +713,23 @@ check_extensions(const char *extension, ...)
                 if (!SDL_GL_ExtensionSupported(extension)) {
                         if (!missing_extension) {
                                 missing_extension = true;
-                                fprintf(stderr,
-                                        "The GL implementation does not the "
-                                        "support the following required "
-                                        "extensions:\n");
+                                fv_buffer_append_string(&buffer,
+                                                        "The GL implementation "
+                                                        "does not support the "
+                                                        "following required "
+                                                        "extensions:");
                         }
-                        fprintf(stderr, "%s\n", extension);
+                        fv_buffer_append_c(&buffer, '\n');
+                        fv_buffer_append_string(&buffer, extension);
                 }
         } while ((extension = va_arg(ap, const char *)));
 
         va_end(ap);
+
+        if (missing_extension)
+                fv_error_message("%s", (const char *) buffer.data);
+
+        fv_buffer_destroy(&buffer);
 
         return !missing_extension;
 }
@@ -742,7 +753,7 @@ main(int argc, char **argv)
 
         res = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
         if (res < 0) {
-                fprintf(stderr, "Unable to init SDL: %s\n", SDL_GetError());
+                fv_error_message("Unable to init SDL: %s\n", SDL_GetError());
                 ret = EXIT_FAILURE;
                 goto out;
         }
@@ -771,17 +782,16 @@ main(int argc, char **argv)
                                        flags);
 
         if (data.window == NULL) {
-                fprintf(stderr,
-                        "Failed to create SDL window: %s\n", SDL_GetError());
+                fv_error_message("Failed to create SDL window: %s",
+                                 SDL_GetError());
                 ret = EXIT_FAILURE;
                 goto out_sdl;
         }
 
         data.gl_context = SDL_GL_CreateContext(data.window);
         if (data.gl_context == NULL) {
-                fprintf(stderr,
-                        "Failed to create GL context: %s\n",
-                        SDL_GetError());
+                fv_error_message("Failed to create GL context: %s",
+                                 SDL_GetError());
                 ret = EXIT_FAILURE;
                 goto out_window;
         }

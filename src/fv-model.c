@@ -29,6 +29,7 @@
 #include "fv-data.h"
 #include "fv-buffer.h"
 #include "fv-gl.h"
+#include "fv-error-message.h"
 
 struct property {
         int n_components;
@@ -79,7 +80,7 @@ error_cb(const char *message,
 {
         struct data *data = user_data;
 
-        fprintf(stderr, "%s: %s\n", data->filename, message);
+        fv_error_message("%s: %s", data->filename, message);
 
         data->had_error = true;
 }
@@ -103,11 +104,10 @@ vertex_read_cb(p_ply_argument argument)
                data->vertices + data->n_vertices * data->vertex_size);
 
         if (length != 1 || index != 0) {
-                fprintf(stderr,
-                        "%s: List type property not expected for "
-                        "vertex element '%s'",
-                        data->filename,
-                        properties[prop_num].components[comp_num]);
+                fv_error_message("%s: List type property not expected for "
+                                 "vertex element '%s'",
+                                 data->filename,
+                                 properties[prop_num].components[comp_num]);
                 data->had_error = true;
 
                 return 0;
@@ -154,9 +154,8 @@ face_read_cb(p_ply_argument argument)
 
         value = ply_get_argument_value(argument);
         if (value < 0 || value >= data->n_vertices) {
-                fprintf(stderr,
-                        "%s: index value out of range\n",
-                        data->filename);
+                fv_error_message("%s: index value out of range",
+                                 data->filename);
                 return 0;
         }
 
@@ -205,18 +204,17 @@ set_property_callbacks(struct data *data)
                                                       (prop << 8) | comp);
                         if (n_instances == 0) {
                                 if (comp > 0) {
-                                        fprintf(stderr,
-                                                "%s: Missing component ‘%s’\n",
-                                                data->filename,
-                                                component);
+                                        fv_error_message("%s: Missing "
+                                                         "component ‘%s’",
+                                                         data->filename,
+                                                         component);
                                         return false;
                                 }
                                 break;
                         } else if (n_instances > UINT16_MAX) {
-                                fprintf(stderr,
-                                        "%s: Too many vertices to fit in a "
-                                        "uint16_t\n",
-                                        data->filename);
+                                fv_error_message("%s: Too many vertices to fit "
+                                                 "in a uint16_t",
+                                                 data->filename);
                                 return false;
                         }
 

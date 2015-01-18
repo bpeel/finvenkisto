@@ -13,6 +13,8 @@ finvenkisto_SOURCES = \
 	fv-buffer.h \
 	fv-data.c \
 	fv-data.h \
+	fv-error-message.c \
+	fv-error-message.h \
 	fv-game.c \
 	fv-game.h \
 	fv-gl.c \
