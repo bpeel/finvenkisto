@@ -78,6 +78,8 @@ BLOCK_IMAGES = \
 	table-side.png \
 	welcome-poster1.png \
 	welcome-poster2.png \
+	sleeping-bag1.png \
+	sleeping-bag2.png \
 	paving.png \
 	$(NULL)
 

@@ -61,7 +61,9 @@ TOPS = {
     '452': 6, # grass
     'eee': 2, # bathroom floor
     '522': 19, # room floor
-    '933': 21 # wood
+    '933': 21, # wood
+    '54c': 31, # sleeping bag 1
+    '54d': 32 # sleeping bag 2
 }
 
 SIDES = {

@@ -56,3 +56,5 @@ star.svg
 fina.svg
 venko.svg
 gufujestro.png
+sleeping-bag1.png
+sleeping-bag2.png
