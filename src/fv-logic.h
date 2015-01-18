@@ -93,6 +93,12 @@ fv_logic_set_direction(struct fv_logic *logic,
                        bool moving,
                        float direction);
 
+int
+fv_logic_get_n_crocodiles(struct fv_logic *logic);
+
+int
+fv_logic_get_n_players(struct fv_logic *logic);
+
 void
 fv_logic_shout(struct fv_logic *logic,
                int player_num);

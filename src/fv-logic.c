@@ -846,3 +846,15 @@ fv_logic_for_each_shout(struct fv_logic *logic,
                 shout_cb(&shout, user_data);
         }
 }
+
+int
+fv_logic_get_n_crocodiles(struct fv_logic *logic)
+{
+        return FV_PERSON_N_NPCS - logic->n_esperantified;
+}
+
+int
+fv_logic_get_n_players(struct fv_logic *logic)
+{
+        return logic->n_players;
+}
