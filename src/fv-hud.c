@@ -28,6 +28,7 @@
 #include "fv-image.h"
 #include "fv-logic.h"
 #include "fv-gl.h"
+#include "fv-ease.h"
 
 struct fv_hud_vertex {
         float x, y;
@@ -85,6 +86,8 @@ fv_hud_digit_images[] = {
 };
 
 #define FV_HUD_MAX_RECTANGLES 16
+
+#define FV_HUD_FINA_VENKO_SLIDE_TIME 1.0f
 
 struct fv_hud *
 fv_hud_new(struct fv_shader_data *shader_data)
@@ -465,6 +468,40 @@ fv_hud_add_scores(struct fv_hud *hud,
                           FV_HUD_ALIGNMENT_RIGHT);
 }
 
+static void
+fv_hud_add_fina_venko(struct fv_hud *hud,
+                      int screen_width,
+                      int screen_height,
+                      float fina_venko_time)
+{
+        float x;
+
+        x = fv_ease_out_bounce(fina_venko_time,
+                               -fv_hud_image_fina.w,
+                               screen_width / 2 - fv_hud_image_fina.w / 2 +
+                               fv_hud_image_fina.w,
+                               FV_HUD_FINA_VENKO_SLIDE_TIME);
+        fv_hud_add_rectangle(hud,
+                             x, screen_height / 2,
+                             &fv_hud_image_fina);
+
+        if (fina_venko_time >= FV_HUD_FINA_VENKO_SLIDE_TIME / 2.0f) {
+                fina_venko_time -= FV_HUD_FINA_VENKO_SLIDE_TIME / 2.0f;
+
+                x = fv_ease_out_bounce(fina_venko_time,
+                                       screen_width,
+                                       -screen_width / 2 -
+                                       fv_hud_image_venko.w / 2 +
+                                       30.0f,
+                                       FV_HUD_FINA_VENKO_SLIDE_TIME);
+                fv_hud_add_rectangle(hud,
+                                     x,
+                                     screen_height / 2 - fv_hud_image_venko.h,
+                                     &fv_hud_image_venko);
+        }
+}
+
+
 void
 fv_hud_paint_game_state(struct fv_hud *hud,
                         int screen_width,
@@ -474,6 +511,7 @@ fv_hud_paint_game_state(struct fv_hud *hud,
         int crocodile_x, crocodile_y;
         enum fv_hud_alignment crocodile_alignment;
         int n_crocodiles;
+        float time_since_fina_venko;
 
         fv_hud_begin_rectangles(hud, screen_width, screen_height);
 
@@ -509,6 +547,14 @@ fv_hud_paint_game_state(struct fv_hud *hud,
                           screen_width,
                           screen_height,
                           logic);
+
+        if (fv_logic_get_state(logic) == FV_LOGIC_STATE_FINA_VENKO) {
+                time_since_fina_venko =
+                        fv_logic_get_time_since_fina_venko(logic);
+                fv_hud_add_fina_venko(hud,
+                                      screen_width, screen_height,
+                                      time_since_fina_venko);
+        }
 
         fv_hud_end_rectangles(hud);
 }

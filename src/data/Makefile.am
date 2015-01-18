@@ -1,4 +1,5 @@
 HUD_SVGS = \
+	hud/fina.svg \
 	hud/crocodile.svg \
 	hud/down.svg \
 	hud/left.svg \
@@ -9,6 +10,7 @@ HUD_SVGS = \
 	hud/star.svg \
 	hud/title.svg \
 	hud/up.svg \
+	hud/venko.svg \
 	$(NULL)
 
 HUD_DIGITS = \

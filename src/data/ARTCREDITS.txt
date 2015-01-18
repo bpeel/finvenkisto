@@ -53,3 +53,5 @@ crocodile.svg
  https://commons.wikimedia.org/wiki/File:Crocodile_warning_sign_02.svg)
 
 star.svg
+fina.svg
+venko.svg
