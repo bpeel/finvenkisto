@@ -69,7 +69,9 @@ SIDES = {
     '9cc': 11, # inner wall
     'ddd': 14, # bathroom wall
     'ccc': 16, # bathroom wall special
-    '911': 23 # table side
+    '911': 23, # table side
+    '56c': 25, # welcome poster 1
+    '56d': 28 # welcome poster 2
 }
 
 SPECIALS = {
