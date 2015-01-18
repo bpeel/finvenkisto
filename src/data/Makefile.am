@@ -105,7 +105,6 @@ EXTRA_DIST = \
 	make-atlas.py \
 	make-digits.py \
 	make-map-texture.py \
-	nekrokodilu.svg \
 	hud/digits-stamp \
 	$(HUD_DIGITS) \
 	$(MODELS:.ply=.blend) \
