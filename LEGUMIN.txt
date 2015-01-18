@@ -21,7 +21,7 @@ Bonan ŝancon!
 
 ===
 
-Finvenkisto is copyright 2013, 2014, 2014 Neil Roberts
+Finvenkisto is copyright 2013, 2014, 2015 Neil Roberts
 Copyright (C) 2003-2005 Diego Nehab
 Copyright (C) 2009,2010,2011 Intel Corporation
 Copyright (C) 1999-2005  Brian Paul
