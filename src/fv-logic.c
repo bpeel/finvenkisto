@@ -132,6 +132,10 @@ struct fv_logic {
         /* Updated at the beginning of fv_logic_update and is set to
          * true if any of the players are shouting */
         bool anyone_shouting;
+
+        /* Number of NPCs that have been shouted at. Once this reaches
+         * FV_PERSON_N_NPCS the fina venko comes and the game ends */
+        int n_esperantified;
 };
 
 static void
@@ -184,6 +188,7 @@ fv_logic_reset(struct fv_logic *logic,
 
         logic->last_ticks = 0;
         logic->n_players = n_players;
+        logic->n_esperantified = 0;
 
         for (i = 0; i < n_players; i++) {
                 player = logic->players + i;
@@ -206,7 +211,7 @@ fv_logic_reset(struct fv_logic *logic,
                 init_npc(logic, i);
 
         if (n_players == 0)
-                logic->state = FV_LOGIC_STATE_GAME_OVER;
+                logic->state = FV_LOGIC_STATE_NO_PLAYERS;
         else
                 logic->state = FV_LOGIC_STATE_RUNNING;
 }
@@ -621,6 +626,18 @@ shout_in_range(struct fv_logic_player *player,
 }
 
 static void
+esperantify(struct fv_logic *logic,
+            struct fv_logic_npc *npc)
+{
+        npc->esperantified = true;
+
+        logic->n_esperantified++;
+
+        if (logic->n_esperantified >= FV_PERSON_N_NPCS)
+                logic->state = FV_LOGIC_STATE_FINA_VENKO;
+}
+
+static void
 check_esperantification(struct fv_logic *logic)
 {
         struct fv_logic_npc *npc;
@@ -643,7 +660,7 @@ check_esperantification(struct fv_logic *logic)
                                 continue;
 
                         if (shout_in_range(player, npc)) {
-                                npc->esperantified = true;
+                                esperantify(logic, npc);
                                 break;
                         }
                 }

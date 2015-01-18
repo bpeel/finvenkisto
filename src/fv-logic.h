@@ -27,8 +27,9 @@
 #include "fv-person.h"
 
 enum fv_logic_state {
+        FV_LOGIC_STATE_NO_PLAYERS,
         FV_LOGIC_STATE_RUNNING,
-        FV_LOGIC_STATE_GAME_OVER
+        FV_LOGIC_STATE_FINA_VENKO
 };
 
 #define FV_LOGIC_MAX_PLAYERS 4
