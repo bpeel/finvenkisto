@@ -136,6 +136,8 @@ make install
 
 cp "$INSTALL_DIR/bin/"{finvenkisto.exe,SDL2.dll} "$RESULT_DIR"
 cp -R "$INSTALL_DIR/share/finvenkisto" "$RESULT_DIR/data"
+cp "$SRC_DIR/LEGUMIN.txt" "$RESULT_DIR"
+cp "$SRC_DIR/COPYING" "$RESULT_DIR/COPYING.txt"
 
 cd "$RESULT_DIR"
 zip -r "$RESULT_FILE" *
