@@ -106,6 +106,7 @@ EXTRA_DIST = \
 	make-digits.py \
 	make-map-texture.py \
 	hud/digits-stamp \
+	hud-stamp \
 	$(HUD_DIGITS) \
 	$(MODELS:.ply=.blend) \
 	$(BLOCK_IMAGES) \
@@ -115,14 +116,18 @@ EXTRA_DIST = \
 	$(AM_V_GEN)mkdir -p `dirname $@`
 	$(AM_V_at)inkscape -e $@ $<
 
-hud.png hud-layout.h : $(HUD_PNGS) make-atlas.py
+hud.png hud-layout.h : hud-stamp
+
+hud-stamp : $(HUD_PNGS) make-atlas.py
 	$(AM_V_GEN)mkdir -p $(builddir)/hud
 	$(AM_V_at)python3 $(srcdir)/make-atlas.py \
 	hud.png hud-layout.h $(filter %.png,$^)
+	$(AM_V_at)touch $@
 
 DISTCLEANFILES = \
 	$(HUD_PNGS) \
 	hud-layout.h \
 	hud.png \
 	hud/digits-stamp \
+	hud-stamp \
 	$(NULL)
