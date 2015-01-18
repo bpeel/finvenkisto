@@ -27,8 +27,9 @@ HUD_DIGITS = \
 $(HUD_DIGITS) : hud/digits-stamp
 
 hud/digits-stamp : make-digits.py
-	$(AM_V_GEN)python3 $(srcdir)/make-digits.py
-	@touch $@
+	$(AM_V_GEN)mkdir -p $(builddir)/hud
+	$(AM_V_at)python3 $(srcdir)/make-digits.py
+	$(AM_V_at)touch $@
 
 HUD_PNGS = \
 	$(HUD_SVGS:.svg=.png) \
@@ -77,7 +78,8 @@ BLOCK_IMAGES = \
 	$(NULL)
 
 map-texture.png : make-map-texture.py $(BLOCK_IMAGES)
-	$(AM_V_GEN)python3 $(srcdir)/make-map-texture.py $@ $(BLOCK_IMAGES)
+	$(AM_V_GEN)python3 $(srcdir)/make-map-texture.py $@ \
+	$(BLOCK_IMAGES:%=$(srcdir)/%)
 
 imagesdir = $(datadir)/finvenkisto
 dist_images_DATA = \
@@ -111,8 +113,10 @@ EXTRA_DIST = \
 	$(NULL)
 
 .svg.png :
-	$(AM_V_GEN)inkscape -e $@ $<
+	$(AM_V_GEN)mkdir -p `dirname $@`
+	$(AM_V_at)inkscape -e $@ $<
 
 hud.png hud-layout.h : $(HUD_PNGS) make-atlas.py
-	$(AM_V_GEN)python3 $(srcdir)/make-atlas.py \
+	$(AM_V_GEN)mkdir -p $(builddir)/hud
+	$(AM_V_at)python3 $(srcdir)/make-atlas.py \
 	hud.png hud-layout.h $(HUD_PNGS)
