@@ -64,9 +64,23 @@ fv_buffer_append_vprintf(struct fv_buffer *buffer,
         va_list apcopy;
         int length;
 
+        va_copy(apcopy, ap);
+
+#ifdef WIN32
+        /* Windows handles this differently and returns a negative
+         * number when the buffer is too small. Instead we can pass it
+         * NULL as a destination buffer to query the actual size */
+        length = vsnprintf(NULL, 0, format, ap);
+        if (length < 0) {
+                va_end(apcopy);
+                return;
+        }
+        fv_buffer_ensure_size(buffer, buffer->length + length + 1);
+        vsnprintf((char *)buffer->data + buffer->length,
+                  buffer->size - buffer->length, format, apcopy);
+#else
         fv_buffer_ensure_size(buffer, buffer->length + 16);
 
-        va_copy(apcopy, ap);
         length = vsnprintf((char *)buffer->data + buffer->length,
                            buffer->size - buffer->length, format, ap);
 
@@ -75,6 +89,7 @@ fv_buffer_append_vprintf(struct fv_buffer *buffer,
                 vsnprintf((char *)buffer->data + buffer->length,
                           buffer->size - buffer->length, format, apcopy);
         }
+#endif
 
         va_end(apcopy);
 
