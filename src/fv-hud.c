@@ -53,6 +53,12 @@ struct fv_hud_image {
         int x, y, w, h;
 };
 
+enum fv_hud_alignment {
+        FV_HUD_ALIGNMENT_LEFT,
+        FV_HUD_ALIGNMENT_CENTER,
+        FV_HUD_ALIGNMENT_RIGHT
+};
+
 #include "data/hud-layout.h"
 
 static const struct fv_hud_image *
@@ -62,6 +68,20 @@ fv_hud_key_images[] = {
         &fv_hud_image_left,
         &fv_hud_image_right,
         &fv_hud_image_shout
+};
+
+static const struct fv_hud_image *
+fv_hud_digit_images[] = {
+        &fv_hud_image_digit0,
+        &fv_hud_image_digit1,
+        &fv_hud_image_digit2,
+        &fv_hud_image_digit3,
+        &fv_hud_image_digit4,
+        &fv_hud_image_digit5,
+        &fv_hud_image_digit6,
+        &fv_hud_image_digit7,
+        &fv_hud_image_digit8,
+        &fv_hud_image_digit9,
 };
 
 #define FV_HUD_MAX_RECTANGLES 16
@@ -318,12 +338,121 @@ fv_hud_paint_key_select(struct fv_hud *hud,
         fv_hud_end_rectangles(hud);
 }
 
+static void
+fv_hud_add_images(struct fv_hud *hud,
+                  const struct fv_hud_image * const *images,
+                  int n_images,
+                  int x, int y,
+                  enum fv_hud_alignment alignment)
+{
+        int total_width = 0;
+        int height = 0;
+        int i;
+
+        if (n_images <= 0)
+                return;
+
+        for (i = 0; i < n_images; i++) {
+                total_width += images[i]->w;
+                if (images[i]->h > height)
+                        height = images[i]->h;
+        }
+
+        if (alignment == FV_HUD_ALIGNMENT_RIGHT) {
+                for (i = n_images - 1; i >= 0; i--) {
+                        x -= images[i]->w;
+                        fv_hud_add_rectangle(hud,
+                                             x,
+                                             y + height / 2 - images[i]->h / 2,
+                                             images[i]);
+                }
+        } else {
+                if (alignment == FV_HUD_ALIGNMENT_CENTER)
+                        x -= total_width / 2;
+
+                for (i = 0; i < n_images; i++) {
+                        fv_hud_add_rectangle(hud,
+                                             x,
+                                             y + height / 2 - images[i]->h / 2,
+                                             images[i]);
+                        x += images[i]->w;
+                }
+        }
+}
+
+static void
+fv_hud_add_number(struct fv_hud *hud,
+                  const struct fv_hud_image *symbol,
+                  int value,
+                  int x, int y,
+                  enum fv_hud_alignment alignment)
+{
+        const struct fv_hud_image *images[4], *digits[FV_N_ELEMENTS(images)];
+        int n_images, i;
+
+        images[0] = symbol;
+
+        if (value == 0) {
+                images[1] = fv_hud_digit_images[0];
+                n_images = 2;
+        } else {
+                n_images = 0;
+
+                while (value > 0) {
+                        digits[n_images++] = fv_hud_digit_images[value % 10];
+                        value /= 10;
+                }
+
+                for (i = 0; i < n_images; i++)
+                        images[i + 1] = digits[n_images - 1 - i];
+
+                n_images++;
+        }
+
+        fv_hud_add_images(hud, images, n_images, x, y, alignment);
+}
+
 void
 fv_hud_paint_game_state(struct fv_hud *hud,
                         int screen_width,
                         int screen_height,
                         struct fv_logic *logic)
 {
+        int crocodile_x, crocodile_y;
+        enum fv_hud_alignment crocodile_alignment;
+        int n_crocodiles;
+
+        fv_hud_begin_rectangles(hud, screen_width, screen_height);
+
+        n_crocodiles = fv_logic_get_n_crocodiles(logic);
+
+        switch (fv_logic_get_n_players(logic)) {
+        case 1:
+                crocodile_x = screen_width;
+                crocodile_y = screen_height - fv_hud_digit_images[0]->h;
+                crocodile_alignment = FV_HUD_ALIGNMENT_RIGHT;
+                break;
+
+        case 2:
+                crocodile_x = screen_width / 2;
+                crocodile_y = screen_height - fv_hud_digit_images[0]->h;
+                crocodile_alignment = FV_HUD_ALIGNMENT_CENTER;
+                break;
+
+        default:
+                crocodile_x = screen_width / 2;
+                crocodile_y = screen_height / 2 - fv_hud_digit_images[0]->h / 2;
+                crocodile_alignment = FV_HUD_ALIGNMENT_CENTER;
+                break;
+        }
+
+        fv_hud_add_number(hud,
+                          &fv_hud_image_crocodile,
+                          n_crocodiles,
+                          crocodile_x, crocodile_y,
+                          crocodile_alignment);
+
+        fv_hud_end_rectangles(hud);
 }
 
 void

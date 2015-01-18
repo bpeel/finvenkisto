@@ -1,4 +1,5 @@
 HUD_SVGS = \
+	hud/crocodile.svg \
 	hud/down.svg \
 	hud/left.svg \
 	hud/player_select.svg \
