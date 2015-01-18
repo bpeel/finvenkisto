@@ -137,6 +137,10 @@ struct fv_logic {
         /* Number of NPCs that have been shouted at. Once this reaches
          * FV_PERSON_N_NPCS the fina venko comes and the game ends */
         int n_esperantified;
+
+        /* Tick time that the state was changed to
+         * FV_LOGIC_STATE_FINA_VENKO */
+        unsigned int fina_venko_time;
 };
 
 static void
@@ -638,8 +642,10 @@ esperantify(struct fv_logic *logic,
         logic->n_esperantified++;
         player->score++;
 
-        if (logic->n_esperantified >= FV_PERSON_N_NPCS)
+        if (logic->n_esperantified >= FV_PERSON_N_NPCS) {
                 logic->state = FV_LOGIC_STATE_FINA_VENKO;
+                logic->fina_venko_time = logic->last_ticks;
+        }
 }
 
 static void
@@ -869,4 +875,10 @@ fv_logic_get_score(struct fv_logic *logic,
                    int player_num)
 {
         return logic->players[player_num].score;
+}
+
+float
+fv_logic_get_time_since_fina_venko(struct fv_logic *logic)
+{
+        return (logic->last_ticks - logic->fina_venko_time) / 1000.0f;
 }

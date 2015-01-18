@@ -107,6 +107,9 @@ int
 fv_logic_get_score(struct fv_logic *logic,
                    int player_num);
 
+float
+fv_logic_get_time_since_fina_venko(struct fv_logic *logic);
+
 void
 fv_logic_free(struct fv_logic *logic);
 
