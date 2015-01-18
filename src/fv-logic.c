@@ -109,6 +109,7 @@ struct fv_logic_npc {
 struct fv_logic_player {
         struct fv_logic_position position;
         float center_x, center_y;
+        int score;
 
         /* The other two shout fields are invalid if this is false */
         bool shouting;
@@ -205,6 +206,8 @@ fv_logic_reset(struct fv_logic *logic,
 
                 player->center_x = player->position.x;
                 player->center_y = player->position.y;
+
+                player->score = 0;
         }
 
         for (i = 0; i < FV_PERSON_N_NPCS; i++)
@@ -627,11 +630,13 @@ shout_in_range(struct fv_logic_player *player,
 
 static void
 esperantify(struct fv_logic *logic,
-            struct fv_logic_npc *npc)
+            struct fv_logic_npc *npc,
+            struct fv_logic_player *player)
 {
         npc->esperantified = true;
 
         logic->n_esperantified++;
+        player->score++;
 
         if (logic->n_esperantified >= FV_PERSON_N_NPCS)
                 logic->state = FV_LOGIC_STATE_FINA_VENKO;
@@ -660,7 +665,7 @@ check_esperantification(struct fv_logic *logic)
                                 continue;
 
                         if (shout_in_range(player, npc)) {
-                                esperantify(logic, npc);
+                                esperantify(logic, npc, player);
                                 break;
                         }
                 }
@@ -857,4 +862,11 @@ int
 fv_logic_get_n_players(struct fv_logic *logic)
 {
         return logic->n_players;
+}
+
+int
+fv_logic_get_score(struct fv_logic *logic,
+                   int player_num)
+{
+        return logic->players[player_num].score;
 }

@@ -103,6 +103,10 @@ void
 fv_logic_shout(struct fv_logic *logic,
                int player_num);
 
+int
+fv_logic_get_score(struct fv_logic *logic,
+                   int player_num);
+
 void
 fv_logic_free(struct fv_logic *logic);
 
