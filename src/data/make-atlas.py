@@ -98,6 +98,13 @@ class Node:
 
         return True
 
+    def get_minimum_size(self):
+        if self.image:
+            return (self.x + self.w, self.y + self.h)
+        if self.children:
+            return tuple(map(max, *map(Node.get_minimum_size, self.children)))
+        return (0, 0)
+
 def try_make_atlas(w, h, images):
     root = Node(0, 0, w, h)
 
@@ -131,7 +138,7 @@ def open_image(filename):
 
 atlas = make_atlas(sorted(map(open_image, sys.argv[3:]), key = sort_by_size))
 
-atlas_image = Image.new('RGBA', (atlas.w, atlas.h))
+atlas_image = Image.new('RGBA', atlas.get_minimum_size())
 
 header = open(sys.argv[2], "w")
 
