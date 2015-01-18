@@ -855,10 +855,11 @@ main(int argc, char **argv)
         data.logic = fv_logic_new();
 
         while (!data.quit) {
-                if (!SDL_PollEvent(&event))
+                if (SDL_PollEvent(&event))
+                        handle_event(&data, &event);
+                else
                         paint(&data);
 
-                handle_event(&data, &event);
         }
 
         fv_logic_free(data.logic);
