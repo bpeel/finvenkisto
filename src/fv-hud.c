@@ -517,24 +517,14 @@ fv_hud_paint_game_state(struct fv_hud *hud,
 
         n_crocodiles = fv_logic_get_n_crocodiles(logic);
 
-        switch (fv_logic_get_n_players(logic)) {
-        case 1:
+        if (fv_logic_get_n_players(logic) == 1) {
                 crocodile_x = screen_width;
                 crocodile_y = screen_height - fv_hud_digit_images[0]->h;
                 crocodile_alignment = FV_HUD_ALIGNMENT_RIGHT;
-                break;
-
-        case 2:
+        } else {
                 crocodile_x = screen_width / 2;
                 crocodile_y = screen_height - fv_hud_digit_images[0]->h;
                 crocodile_alignment = FV_HUD_ALIGNMENT_CENTER;
-                break;
-
-        default:
-                crocodile_x = screen_width / 2;
-                crocodile_y = screen_height / 2 - fv_hud_digit_images[0]->h / 2;
-                crocodile_alignment = FV_HUD_ALIGNMENT_CENTER;
-                break;
         }
 
         fv_hud_add_number(hud,
