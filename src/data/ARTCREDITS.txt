@@ -69,3 +69,5 @@ bed.blend
 
 chalkboard1.png
 chalkboard2.png
+
+barrel.ply

@@ -42,7 +42,8 @@ fv_map_painter_models[] = {
         "toilet.ply",
         "teaset.ply",
         "chair.ply",
-        "bed.ply"
+        "bed.ply",
+        "barrel.ply"
 };
 
 struct fv_map_painter_tile {

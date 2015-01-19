@@ -61,6 +61,7 @@ MODELS = \
 	teaset.ply \
 	chair.ply \
 	bed.ply \
+	barrel.ply \
 	$(NULL)
 
 # The order here must match the order for the image numbers used in
