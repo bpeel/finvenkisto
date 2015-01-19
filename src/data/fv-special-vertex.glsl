@@ -17,16 +17,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-layout(location = 0) in vec3 pos;
-layout(location = 3) in vec3 color_attrib;
-layout(location = 4) in mat4 transform;
+in vec3 position;
+in vec3 color_attrib;
+in mat4 transform;
 
 out vec3 color;
 
 void
 main()
 {
-        gl_Position = transform * vec4(pos, 1.0);
+        gl_Position = transform * vec4(position, 1.0);
         color = color_attrib;
 }
 

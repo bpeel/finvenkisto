@@ -822,7 +822,6 @@ main(int argc, char **argv)
         SDL_GL_MakeCurrent(data.window, data.gl_context);
 
         if (!check_extensions("GL_ARB_instanced_arrays",
-                              "GL_ARB_explicit_attrib_location",
                               NULL)) {
                 ret = EXIT_FAILURE;
                 goto out_context;

@@ -290,6 +290,9 @@ load_models(struct fv_map_painter *painter)
 {
         bool res;
         int i, j;
+        GLint attrib;
+
+        attrib = fv_gl.glGetAttribLocation(painter->model_program, "transform");
 
         for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++) {
                 res = fv_model_load(painter->models + i,
@@ -302,15 +305,15 @@ load_models(struct fv_map_painter *painter)
                 fv_gl.glBindVertexArray(painter->models[i].array);
 
                 for (j = 0; j < 4; j++) {
-                        fv_gl.glEnableVertexAttribArray(4 + j);
-                        fv_gl.glVertexAttribPointer(4 + j,
+                        fv_gl.glEnableVertexAttribArray(attrib + j);
+                        fv_gl.glVertexAttribPointer(attrib + j,
                                                     4, /* size */
                                                     GL_FLOAT,
                                                     GL_FALSE, /* normalized */
                                                     sizeof (float) * 16,
                                                     (GLvoid *) (intptr_t)
                                                     (sizeof (float) * j * 4));
-                        fv_gl.glVertexAttribDivisorARB(4 + j, 1);
+                        fv_gl.glVertexAttribDivisorARB(attrib + j, 1);
                 }
         }
 
@@ -343,15 +346,15 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                            NULL, /* data */
                            GL_DYNAMIC_DRAW);
 
-        if (!load_models(painter))
-                goto error_instance_buffer;
-
         painter->map_program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
         painter->map_transform_uniform =
                 fv_gl.glGetUniformLocation(painter->map_program, "transform");
         painter->model_program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_SPECIAL];
+
+        if (!load_models(painter))
+                goto error_instance_buffer;
 
         tex_data = fv_image_load("map-texture.png",
                                  &tex_width, &tex_height,
@@ -438,8 +441,8 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                               data.indices.length,
                               data.indices.data);
 
-        fv_gl.glEnableVertexAttribArray(0);
-        fv_gl.glVertexAttribPointer(0, /* index */
+        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_POSITION);
+        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_POSITION,
                                     3, /* size */
                                     GL_UNSIGNED_BYTE,
                                     GL_FALSE, /* normalized */
@@ -447,8 +450,8 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                                     (void *) (intptr_t)
                                     offsetof(struct vertex, x));
 
-        fv_gl.glEnableVertexAttribArray(1);
-        fv_gl.glVertexAttribPointer(1, /* index */
+        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_TEX_COORD);
+        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_TEX_COORD,
                                     2, /* size */
                                     GL_UNSIGNED_SHORT,
                                     GL_TRUE, /* normalized */

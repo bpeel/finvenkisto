@@ -103,16 +103,16 @@ make_buffer(struct fv_shout_painter *painter)
                            NULL,
                            GL_DYNAMIC_DRAW);
 
-        fv_gl.glEnableVertexAttribArray(0);
-        fv_gl.glVertexAttribPointer(0, /* index */
+        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_POSITION);
+        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_POSITION,
                                     3, /* size */
                                     GL_FLOAT,
                                     GL_FALSE, /* normalized */
                                     sizeof (vertex),
                                     (void *) (intptr_t)
                                     offsetof(vertex, x));
-        fv_gl.glEnableVertexAttribArray(1);
-        fv_gl.glVertexAttribPointer(1, /* index */
+        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_TEX_COORD);
+        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_TEX_COORD,
                                     2, /* size */
                                     GL_FLOAT,
                                     GL_FALSE, /* normalized */

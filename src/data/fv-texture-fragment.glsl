@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-layout(location = 0) out vec4 frag_color;
+out vec4 frag_color;
 
 in vec2 tex_coord;
 

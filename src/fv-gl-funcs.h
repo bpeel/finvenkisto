@@ -24,6 +24,9 @@
 FV_GL_FUNC(void,
            glAttachShader, (GLuint program, GLuint shader))
 FV_GL_FUNC(void,
+           glBindAttribLocation, (GLuint program, GLuint index,
+                                  const GLchar *name))
+FV_GL_FUNC(void,
            glBindBuffer, (GLenum target, GLuint buffer))
 FV_GL_FUNC(void,
            glBlendFunc, (GLenum sfactor, GLenum dfactor))
@@ -37,6 +40,9 @@ FV_GL_FUNC(void *,
 FV_GL_FUNC(void,
            glFlushMappedBufferRange, (GLenum target, GLintptr offset,
                                       GLsizei length))
+FV_GL_FUNC(void,
+           glBindFragDataLocation, (GLuint program, GLuint color,
+                                    const GLchar *name))
 FV_GL_FUNC(void,
            glBindTexture, (GLenum target, GLuint texture))
 FV_GL_FUNC(void,
@@ -85,6 +91,8 @@ FV_GL_FUNC(void,
            glGenBuffers, (GLsizei n, GLuint *buffers))
 FV_GL_FUNC(void,
            glGenerateMipmap, (GLenum target))
+FV_GL_FUNC(GLint,
+           glGetAttribLocation, (GLuint program, const GLchar *name))
 FV_GL_FUNC(void,
            glGenTextures, (GLsizei n, GLuint *textures))
 FV_GL_FUNC(void,

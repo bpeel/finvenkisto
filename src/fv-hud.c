@@ -170,8 +170,8 @@ fv_hud_new(struct fv_shader_data *shader_data)
                            NULL, /* data */
                            GL_DYNAMIC_DRAW);
 
-        fv_gl.glEnableVertexAttribArray(0);
-        fv_gl.glVertexAttribPointer(0, /* index */
+        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_POSITION);
+        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_POSITION,
                                     2, /* size */
                                     GL_FLOAT,
                                     GL_FALSE, /* normalized */
@@ -179,8 +179,8 @@ fv_hud_new(struct fv_shader_data *shader_data)
                                     (void *) (intptr_t)
                                     offsetof(struct fv_hud_vertex, x));
 
-        fv_gl.glEnableVertexAttribArray(1);
-        fv_gl.glVertexAttribPointer(1, /* index */
+        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_TEX_COORD);
+        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_TEX_COORD,
                                     2, /* size */
                                     GL_FLOAT,
                                     GL_FALSE, /* normalized */

@@ -35,7 +35,6 @@
 static const char
 fv_shader_data_version[] =
         "#version 140\n"
-        "#extension GL_ARB_explicit_attrib_location : require\n"
         "\n";
 
 struct fv_shader_data_shader {
@@ -255,6 +254,20 @@ link_program(struct fv_shader_data *data,
         char *program_name;
 
         program = data->programs[program_num];
+
+        fv_gl.glBindFragDataLocation(program, 0, "frag_color");
+        fv_gl.glBindAttribLocation(program,
+                                   FV_SHADER_DATA_ATTRIB_POSITION,
+                                   "position");
+        fv_gl.glBindAttribLocation(program,
+                                   FV_SHADER_DATA_ATTRIB_TEX_COORD,
+                                   "tex_coord_attrib");
+        fv_gl.glBindAttribLocation(program,
+                                   FV_SHADER_DATA_ATTRIB_NORMAL,
+                                   "normal_attrib");
+        fv_gl.glBindAttribLocation(program,
+                                   FV_SHADER_DATA_ATTRIB_COLOR,
+                                   "color_attrib");
 
         fv_gl.glLinkProgram(program);
 

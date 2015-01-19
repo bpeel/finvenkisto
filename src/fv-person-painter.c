@@ -147,6 +147,7 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
         const size_t matrix_offset = offsetof(struct fv_person_painter_instance,
                                               mvp[0]);
         GLuint tex_uniform;
+        GLint attrib;
         int i;
 
         painter->program =
@@ -165,10 +166,12 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
                            NULL, /* data */
                            GL_STREAM_DRAW);
 
+        attrib = fv_gl.glGetAttribLocation(painter->program, "transform");
+
         fv_gl.glBindVertexArray(painter->model.array);
         for (i = 0; i < 4; i++) {
-                fv_gl.glEnableVertexAttribArray(4 + i);
-                fv_gl.glVertexAttribPointer(4 + i,
+                fv_gl.glEnableVertexAttribArray(attrib + i);
+                fv_gl.glVertexAttribPointer(attrib + i,
                                             4, /* size */
                                             GL_FLOAT,
                                             GL_FALSE, /* normalized */
@@ -176,10 +179,13 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
                                             (GLvoid *) (intptr_t)
                                             (matrix_offset +
                                              sizeof (float) * i * 4));
-                fv_gl.glVertexAttribDivisorARB(4 + i, 1);
+                fv_gl.glVertexAttribDivisorARB(attrib + i, 1);
         }
-        fv_gl.glEnableVertexAttribArray(8);
-        fv_gl.glVertexAttribPointer(8,
+
+        attrib = fv_gl.glGetAttribLocation(painter->program, "tex_layer");
+
+        fv_gl.glEnableVertexAttribArray(attrib);
+        fv_gl.glVertexAttribPointer(attrib,
                                     1, /* size */
                                     GL_UNSIGNED_BYTE,
                                     GL_FALSE, /* normalized */
@@ -187,10 +193,13 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
                                     (GLvoid *) (intptr_t)
                                     offsetof(struct fv_person_painter_instance,
                                              tex_layer));
-        fv_gl.glVertexAttribDivisorARB(8, 1);
+        fv_gl.glVertexAttribDivisorARB(attrib, 1);
 
-        fv_gl.glEnableVertexAttribArray(9);
-        fv_gl.glVertexAttribPointer(9,
+        attrib = fv_gl.glGetAttribLocation(painter->program,
+                                           "green_tint_attrib");
+
+        fv_gl.glEnableVertexAttribArray(attrib);
+        fv_gl.glVertexAttribPointer(attrib,
                                     1, /* size */
                                     GL_UNSIGNED_BYTE,
                                     GL_TRUE, /* normalized */
@@ -198,7 +207,7 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
                                     (GLvoid *) (intptr_t)
                                     offsetof(struct fv_person_painter_instance,
                                              green_tint));
-        fv_gl.glVertexAttribDivisorARB(9, 1);
+        fv_gl.glVertexAttribDivisorARB(attrib, 1);
 
         tex_uniform = fv_gl.glGetUniformLocation(painter->program, "tex");
         fv_gl.glUseProgram(painter->program);

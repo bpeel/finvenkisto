@@ -29,22 +29,28 @@
 #include "fv-data.h"
 #include "fv-buffer.h"
 #include "fv-gl.h"
+#include "fv-shader-data.h"
 #include "fv-error-message.h"
 
 struct property {
         int n_components;
         const char *components[3];
         enum { PROPERTY_FLOAT, PROPERTY_BYTE } type;
+        GLint attrib_location;
 };
 
 static const struct property
 properties[] = {
         /* These should be sorted in descending order of size so that
            it never ends doing an unaligned write */
-        { 3, { "x", "y", "z" }, PROPERTY_FLOAT },
-        { 2, { "s", "t" }, PROPERTY_FLOAT },
-        { 3, { "nx", "ny", "nz" }, PROPERTY_FLOAT },
-        { 3, { "red", "green", "blue" }, PROPERTY_BYTE }
+        { 3, { "x", "y", "z" }, PROPERTY_FLOAT,
+          FV_SHADER_DATA_ATTRIB_POSITION },
+        { 2, { "s", "t" }, PROPERTY_FLOAT,
+          FV_SHADER_DATA_ATTRIB_TEX_COORD },
+        { 3, { "nx", "ny", "nz" }, PROPERTY_FLOAT,
+          FV_SHADER_DATA_ATTRIB_NORMAL },
+        { 3, { "red", "green", "blue" }, PROPERTY_BYTE,
+          FV_SHADER_DATA_ATTRIB_COLOR }
 };
 
 #define N_PROPERTIES (FV_N_ELEMENTS(properties))
@@ -257,6 +263,7 @@ create_buffer(struct data *data)
         struct fv_model *model = data->model;
         GLenum type;
         GLboolean normalized;
+        GLint attrib;
         int i;
 
         model->indices_offset = data->n_vertices * data->vertex_size;
@@ -295,8 +302,10 @@ create_buffer(struct data *data)
                                 break;
                         }
 
-                        fv_gl.glEnableVertexAttribArray(i);
-                        fv_gl.glVertexAttribPointer(i, /* index */
+                        attrib = properties[i].attrib_location;
+
+                        fv_gl.glEnableVertexAttribArray(attrib);
+                        fv_gl.glVertexAttribPointer(attrib, /* index */
                                                     properties[i].n_components,
                                                     type,
                                                     normalized,

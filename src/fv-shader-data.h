@@ -31,6 +31,13 @@ enum fv_shader_data_program {
         FV_SHADER_DATA_N_PROGRAMS
 };
 
+enum fv_shader_data_attrib {
+        FV_SHADER_DATA_ATTRIB_POSITION,
+        FV_SHADER_DATA_ATTRIB_TEX_COORD,
+        FV_SHADER_DATA_ATTRIB_NORMAL,
+        FV_SHADER_DATA_ATTRIB_COLOR
+};
+
 struct fv_shader_data {
         GLuint programs[FV_SHADER_DATA_N_PROGRAMS];
 };
