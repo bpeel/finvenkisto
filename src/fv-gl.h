@@ -21,11 +21,14 @@
 #define FV_GL_H
 
 #include <GL/gl.h>
+#include <stdbool.h>
 
 struct fv_gl {
 #define FV_GL_FUNC(return_type, name, args) return_type (APIENTRYP name) args;
 #include "fv-gl-funcs.h"
 #undef FV_GL_FUNC
+
+        bool have_instanced_arrays;
 };
 
 extern struct fv_gl fv_gl;

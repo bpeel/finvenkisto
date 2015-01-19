@@ -19,9 +19,16 @@
 
 in vec3 position;
 in vec2 tex_coord_attrib;
+
+#ifdef HAVE_INSTANCED_ARRAYS
 in mat4 transform;
 in float tex_layer;
 in float green_tint_attrib;
+#else /* HAVE_INSTANCED_ARRAYS */
+uniform mat4 transform;
+uniform float tex_layer;
+uniform float green_tint_attrib;
+#endif
 
 out vec3 tex_coord;
 flat out float green_tint;

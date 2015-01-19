@@ -37,6 +37,11 @@ fv_shader_data_version[] =
         "#version 140\n"
         "\n";
 
+static const char
+fv_shader_data_have_instanced_arrays[] =
+        "#define HAVE_INSTANCED_ARRAYS 1\n"
+        "\n";
+
 struct fv_shader_data_shader {
         GLenum type;
         const char *filename;
@@ -96,17 +101,26 @@ create_shader(const char *name,
         GLint length, compile_status;
         GLsizei actual_length;
         GLchar *info_log;
-        const char *source_strings[2];
-        GLint lengths[2];
+        const char *source_strings[3];
+        GLint lengths[3];
+        int n_strings = 0;
 
         shader = fv_gl.glCreateShader(type);
 
-        source_strings[0] = fv_shader_data_version;
-        lengths[0] = sizeof fv_shader_data_version - 1;
-        source_strings[1] = source;
-        lengths[1] = source_length;
+        source_strings[n_strings] = fv_shader_data_version;
+        lengths[n_strings++] = sizeof fv_shader_data_version - 1;
+
+        if (fv_gl.have_instanced_arrays) {
+                source_strings[n_strings] =
+                        fv_shader_data_have_instanced_arrays;
+                lengths[n_strings++] =
+                        sizeof fv_shader_data_have_instanced_arrays - 1;
+        }
+
+        source_strings[n_strings] = source;
+        lengths[n_strings++] = source_length;
         fv_gl.glShaderSource(shader,
-                             FV_N_ELEMENTS(source_strings),
+                             n_strings,
                              (const GLchar **) source_strings,
                              lengths);
 

@@ -42,4 +42,7 @@ fv_gl_init(void)
 
         for (i = 0; i < FV_N_ELEMENTS(gl_funcs); i++)
                 ptrs[i] = SDL_GL_GetProcAddress(gl_funcs[i]);
+
+        fv_gl.have_instanced_arrays =
+                SDL_GL_ExtensionSupported("GL_ARB_instanced_arrays");
 }

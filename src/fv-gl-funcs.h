@@ -139,6 +139,8 @@ FV_GL_FUNC(void,
 FV_GL_FUNC(void,
            glUniform1i, (GLint location, GLint v0))
 FV_GL_FUNC(void,
+           glUniform1f, (GLint location, GLfloat v0))
+FV_GL_FUNC(void,
            glUniformMatrix4fv, (GLint location, GLsizei count,
                                 GLboolean transpose, const GLfloat *value))
 FV_GL_FUNC(void,

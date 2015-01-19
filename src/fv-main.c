@@ -721,43 +721,6 @@ process_arguments(struct data *data,
         return true;
 }
 
-FV_NULL_TERMINATED
-static bool
-check_extensions(const char *extension, ...)
-{
-        bool missing_extension = false;
-        va_list ap;
-        struct fv_buffer buffer;
-
-        fv_buffer_init(&buffer);
-
-        va_start(ap, extension);
-
-        do {
-                if (!SDL_GL_ExtensionSupported(extension)) {
-                        if (!missing_extension) {
-                                missing_extension = true;
-                                fv_buffer_append_string(&buffer,
-                                                        "The GL implementation "
-                                                        "does not support the "
-                                                        "following required "
-                                                        "extensions:");
-                        }
-                        fv_buffer_append_c(&buffer, '\n');
-                        fv_buffer_append_string(&buffer, extension);
-                }
-        } while ((extension = va_arg(ap, const char *)));
-
-        va_end(ap);
-
-        if (missing_extension)
-                fv_error_message("%s", (const char *) buffer.data);
-
-        fv_buffer_destroy(&buffer);
-
-        return !missing_extension;
-}
-
 int
 main(int argc, char **argv)
 {
@@ -820,12 +783,6 @@ main(int argc, char **argv)
         }
 
         SDL_GL_MakeCurrent(data.window, data.gl_context);
-
-        if (!check_extensions("GL_ARB_instanced_arrays",
-                              NULL)) {
-                ret = EXIT_FAILURE;
-                goto out_context;
-        }
 
         SDL_ShowCursor(0);
 

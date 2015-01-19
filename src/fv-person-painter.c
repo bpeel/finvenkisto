@@ -41,6 +41,10 @@ struct fv_person_painter {
         GLuint program;
 
         GLuint texture;
+
+        GLuint transform_uniform;
+        GLuint tex_layer_uniform;
+        GLuint green_tint_uniform;
 };
 
 struct fv_person_painter_instance {
@@ -139,32 +143,14 @@ error:
         return false;
 }
 
-struct fv_person_painter *
-fv_person_painter_new(struct fv_shader_data *shader_data)
+static void
+set_up_instanced_arrays(struct fv_person_painter *painter)
 {
-        struct fv_person_painter *painter = fv_calloc(sizeof *painter);
+        GLint attrib;
         const size_t instance_size = sizeof (struct fv_person_painter_instance);
         const size_t matrix_offset = offsetof(struct fv_person_painter_instance,
                                               mvp[0]);
-        GLuint tex_uniform;
-        GLint attrib;
         int i;
-
-        painter->program =
-                shader_data->programs[FV_SHADER_DATA_PROGRAM_PERSON];
-
-        if (!fv_model_load(&painter->model, "person.ply"))
-                goto error;
-
-        if (!load_texture(painter))
-                goto error_model;
-
-        fv_gl.glGenBuffers(1, &painter->instance_buffer);
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
-        fv_gl.glBufferData(GL_ARRAY_BUFFER,
-                           instance_size * FV_PERSON_PAINTER_MAX_INSTANCES,
-                           NULL, /* data */
-                           GL_STREAM_DRAW);
 
         attrib = fv_gl.glGetAttribLocation(painter->program, "transform");
 
@@ -208,6 +194,44 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
                                     offsetof(struct fv_person_painter_instance,
                                              green_tint));
         fv_gl.glVertexAttribDivisorARB(attrib, 1);
+}
+
+struct fv_person_painter *
+fv_person_painter_new(struct fv_shader_data *shader_data)
+{
+        struct fv_person_painter *painter = fv_calloc(sizeof *painter);
+        GLuint tex_uniform;
+
+        painter->program =
+                shader_data->programs[FV_SHADER_DATA_PROGRAM_PERSON];
+
+        if (!fv_model_load(&painter->model, "person.ply"))
+                goto error;
+
+        if (!load_texture(painter))
+                goto error_model;
+
+        if (fv_gl.have_instanced_arrays) {
+                fv_gl.glGenBuffers(1, &painter->instance_buffer);
+                fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
+                fv_gl.glBufferData(GL_ARRAY_BUFFER,
+                                   sizeof (struct fv_person_painter_instance) *
+                                   FV_PERSON_PAINTER_MAX_INSTANCES,
+                                   NULL, /* data */
+                                   GL_STREAM_DRAW);
+
+                set_up_instanced_arrays(painter);
+        } else {
+                painter->transform_uniform =
+                        fv_gl.glGetUniformLocation(painter->program,
+                                                   "transform");
+                painter->tex_layer_uniform =
+                        fv_gl.glGetUniformLocation(painter->program,
+                                                   "tex_layer");
+                painter->green_tint_uniform =
+                        fv_gl.glGetUniformLocation(painter->program,
+                                                   "green_tint_attrib");
+        }
 
         tex_uniform = fv_gl.glGetUniformLocation(painter->program, "tex");
         fv_gl.glUseProgram(painter->program);
@@ -263,6 +287,9 @@ paint_person_cb(const struct fv_logic_person *person,
         const size_t instance_size = sizeof (struct fv_person_painter_instance);
         struct fv_person_painter_instance *instance;
         struct paint_closure *data = user_data;
+        GLsizei buffer_size;
+        GLbitfield flags;
+        float green_tint;
 
         /* Don't paint people that are out of the visible range */
         if (fabsf(person->x - data->paint_state->center_x) - 0.5f >=
@@ -274,17 +301,6 @@ paint_person_cb(const struct fv_logic_person *person,
         if (data->n_instances >= FV_PERSON_PAINTER_MAX_INSTANCES)
                 flush_people(data);
 
-        if (data->n_instances == 0) {
-                data->instance_buffer_map =
-                        fv_gl.glMapBufferRange(GL_ARRAY_BUFFER,
-                                               0, /* offset */
-                                               instance_size *
-                                               FV_PERSON_PAINTER_MAX_INSTANCES,
-                                               GL_MAP_WRITE_BIT |
-                                               GL_MAP_INVALIDATE_BUFFER_BIT |
-                                               GL_MAP_FLUSH_EXPLICIT_BIT);
-        }
-
         data->transform.modelview = data->paint_state->transform.modelview;
         fv_matrix_translate(&data->transform.modelview,
                             person->x, person->y, 0.0f);
@@ -293,12 +309,41 @@ paint_person_cb(const struct fv_logic_person *person,
                          0.0f, 0.0f, 1.0f);
         fv_transform_update_derived_values(&data->transform);
 
-        instance = data->instance_buffer_map + data->n_instances;
-        memcpy(instance->mvp, &data->transform.mvp.xx, sizeof instance->mvp);
-        instance->tex_layer = person->type;
-        instance->green_tint = person->esperantified ? 120 : 0;
+        green_tint = person->esperantified ? 120 : 0;
 
-        data->n_instances++;
+        if (fv_gl.have_instanced_arrays) {
+                if (data->n_instances == 0) {
+                        buffer_size = (instance_size *
+                                       FV_PERSON_PAINTER_MAX_INSTANCES);
+                        flags = GL_MAP_WRITE_BIT |
+                                GL_MAP_INVALIDATE_BUFFER_BIT |
+                                GL_MAP_FLUSH_EXPLICIT_BIT;
+                        data->instance_buffer_map =
+                                fv_gl.glMapBufferRange(GL_ARRAY_BUFFER,
+                                                       0, /* offset */
+                                                       buffer_size,
+                                                       flags);
+                }
+
+                instance = data->instance_buffer_map + data->n_instances;
+                memcpy(instance->mvp,
+                       &data->transform.mvp.xx,
+                       sizeof instance->mvp);
+                instance->tex_layer = person->type;
+                instance->green_tint = green_tint;
+
+                data->n_instances++;
+        } else {
+                fv_gl.glUniformMatrix4fv(data->painter->transform_uniform,
+                                         1, /* count */
+                                         GL_FALSE, /* transpose */
+                                         &data->transform.mvp.xx);
+                fv_gl.glUniform1f(data->painter->tex_layer_uniform,
+                                  person->type);
+                fv_gl.glUniform1f(data->painter->green_tint_uniform,
+                                  green_tint / 255.0f);
+                fv_model_paint(&data->painter->model);
+        }
 }
 
 void
@@ -319,7 +364,8 @@ fv_person_painter_paint(struct fv_person_painter *painter,
 
         fv_gl.glEnable(GL_DEPTH_TEST);
 
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
+        if (fv_gl.have_instanced_arrays)
+                fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
 
         fv_gl.glBindVertexArray(painter->model.array);
 
@@ -333,7 +379,8 @@ fv_person_painter_paint(struct fv_person_painter *painter,
 void
 fv_person_painter_free(struct fv_person_painter *painter)
 {
-        fv_gl.glDeleteBuffers(1, &painter->instance_buffer);
+        if (fv_gl.have_instanced_arrays)
+                fv_gl.glDeleteBuffers(1, &painter->instance_buffer);
         fv_gl.glDeleteTextures(1, &painter->texture);
         fv_model_destroy(&painter->model);
         fv_free(painter);

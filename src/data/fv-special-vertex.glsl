@@ -19,7 +19,12 @@
 
 in vec3 position;
 in vec3 color_attrib;
+
+#ifdef HAVE_INSTANCED_ARRAYS
 in mat4 transform;
+#else /* HAVE_INSTANCED_ARRAYS */
+uniform mat4 transform;
+#endif
 
 out vec3 color;
 

@@ -60,6 +60,7 @@ struct fv_map_painter {
         GLuint map_program;
         GLuint map_transform_uniform;
         GLuint model_program;
+        GLuint model_transform_uniform;
 
         GLuint instance_buffer;
         float *instance_buffer_map;
@@ -300,6 +301,9 @@ load_models(struct fv_map_painter *painter)
                 if (!res)
                         goto error;
 
+                if (!fv_gl.have_instanced_arrays)
+                        continue;
+
                 fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
 
                 fv_gl.glBindVertexArray(painter->models[i].array);
@@ -339,12 +343,14 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
 
         painter = fv_alloc(sizeof *painter);
 
-        fv_gl.glGenBuffers(1, &painter->instance_buffer);
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
-        fv_gl.glBufferData(GL_ARRAY_BUFFER,
-                           sizeof (float) * 16 * FV_MAP_MAX_SPECIALS,
-                           NULL, /* data */
-                           GL_DYNAMIC_DRAW);
+        if (fv_gl.have_instanced_arrays) {
+                fv_gl.glGenBuffers(1, &painter->instance_buffer);
+                fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
+                fv_gl.glBufferData(GL_ARRAY_BUFFER,
+                                   sizeof (float) * 16 * FV_MAP_MAX_SPECIALS,
+                                   NULL, /* data */
+                                   GL_DYNAMIC_DRAW);
+        }
 
         painter->map_program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
@@ -352,6 +358,10 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                 fv_gl.glGetUniformLocation(painter->map_program, "transform");
         painter->model_program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_SPECIAL];
+        if (!fv_gl.have_instanced_arrays)
+                painter->model_transform_uniform =
+                        fv_gl.glGetUniformLocation(painter->model_program,
+                                                   "transform");
 
         if (!load_models(painter))
                 goto error_instance_buffer;
@@ -470,7 +480,8 @@ error_models:
         for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++)
                 fv_model_destroy(painter->models + i);
 error_instance_buffer:
-        fv_gl.glDeleteBuffers(1, &painter->instance_buffer);
+        if (fv_gl.have_instanced_arrays)
+                fv_gl.glDeleteBuffers(1, &painter->instance_buffer);
         fv_free(painter);
 
         return NULL;
@@ -509,22 +520,11 @@ paint_special(struct fv_map_painter *painter,
               const struct fv_transform *transform_in)
 {
         struct fv_transform transform = *transform_in;
+        GLbitfield flags;
 
         if (painter->current_special != special->num ||
             painter->n_instances >= FV_MAP_MAX_SPECIALS)
                 flush_specials(painter);
-
-        if (painter->n_instances == 0) {
-                painter->instance_buffer_map =
-                        fv_gl.glMapBufferRange(GL_ARRAY_BUFFER,
-                                               0, /* offset */
-                                               sizeof (float) * 16 *
-                                               FV_MAP_MAX_SPECIALS,
-                                               GL_MAP_WRITE_BIT |
-                                               GL_MAP_INVALIDATE_BUFFER_BIT |
-                                               GL_MAP_FLUSH_EXPLICIT_BIT);
-                painter->current_special = special->num;
-        }
 
         fv_matrix_translate(&transform.modelview,
                             special->x + 0.5f,
@@ -537,11 +537,32 @@ paint_special(struct fv_map_painter *painter,
                                  0.0f, 0.0f, 1.0f);
         fv_transform_update_derived_values(&transform);
 
-        memcpy(painter->instance_buffer_map + painter->n_instances * 16,
-               &transform.mvp.xx,
-               sizeof (float) * 16);
+        if (fv_gl.have_instanced_arrays) {
+                if (painter->n_instances == 0) {
+                        flags = GL_MAP_WRITE_BIT |
+                                GL_MAP_INVALIDATE_BUFFER_BIT |
+                                GL_MAP_FLUSH_EXPLICIT_BIT;
+                        painter->instance_buffer_map =
+                                fv_gl.glMapBufferRange(GL_ARRAY_BUFFER,
+                                                       0, /* offset */
+                                                       sizeof (float) * 16 *
+                                                       FV_MAP_MAX_SPECIALS,
+                                                       flags);
+                        painter->current_special = special->num;
+                }
 
-        painter->n_instances++;
+                memcpy(painter->instance_buffer_map + painter->n_instances * 16,
+                       &transform.mvp.xx,
+                       sizeof (float) * 16);
+
+                painter->n_instances++;
+        } else {
+                fv_gl.glUniformMatrix4fv(painter->model_transform_uniform,
+                                         1, /* count */
+                                         GL_FALSE, /* transpose */
+                                         &transform.mvp.xx);
+                fv_model_paint(&painter->models[special->num]);
+        }
 }
 
 void
@@ -585,7 +606,8 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         painter->n_instances = 0;
         painter->current_special = 0;
 
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
+        if (fv_gl.have_instanced_arrays)
+                fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
 
         for (y = y_min; y < y_max; y++) {
                 for (x = x_max - 1; x >= x_min; x--) {
@@ -644,7 +666,9 @@ fv_map_painter_free(struct fv_map_painter *painter)
         fv_gl.glDeleteTextures(1, &painter->texture);
         fv_gl.glDeleteVertexArrays(1, &painter->array);
         fv_gl.glDeleteBuffers(1, &painter->buffer);
-        fv_gl.glDeleteBuffers(1, &painter->instance_buffer);
+
+        if (fv_gl.have_instanced_arrays)
+                fv_gl.glDeleteBuffers(1, &painter->instance_buffer);
 
         for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++)
                 fv_model_destroy(painter->models + i);
