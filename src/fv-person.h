@@ -22,7 +22,7 @@
 
 #include <stdint.h>
 
-#define FV_PERSON_N_NPCS 29
+#define FV_PERSON_N_NPCS 30
 
 enum fv_person_type {
         FV_PERSON_TYPE_FINVENKISTO,

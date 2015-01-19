@@ -158,4 +158,7 @@ fv_person_npcs[FV_PERSON_N_NPCS] = {
         { 1.6 * M_PI, 4, 26,
           FV_PERSON_TYPE_GUFUJESTRO,
           FV_PERSON_MOTION_STATIC },
+        { 1.6 * M_PI, 36, 37.5,
+          FV_PERSON_TYPE_BAMBISTO2,
+          FV_PERSON_MOTION_STATIC },
 };
