@@ -152,4 +152,7 @@ fv_person_npcs[FV_PERSON_N_NPCS] = {
           .random = { .center_x = 31, .center_y = 28,
                       .radius = 6.0,
                       .retarget_time = 1050 } },
+        { 1.3 * M_PI, 28, 16,
+          FV_PERSON_TYPE_PYJAMAS,
+          FV_PERSON_MOTION_STATIC }
 };
