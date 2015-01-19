@@ -60,6 +60,7 @@ textures[] = {
         "bambo2.png",
         "bambo3.png",
         "gufujestro.png",
+        "toiletguy.png"
 };
 
 static bool

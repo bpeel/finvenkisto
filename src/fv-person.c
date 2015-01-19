@@ -142,5 +142,8 @@ fv_person_npcs[FV_PERSON_N_NPCS] = {
                       .retarget_time = 1968 } },
         { 2 * M_PI - 0.625 * M_PI, 32.5, 38.75,
           FV_PERSON_TYPE_GUFUJESTRO,
+          FV_PERSON_MOTION_STATIC },
+        { M_PI, 33.5, 14.5,
+          FV_PERSON_TYPE_TOILET_GUY,
           FV_PERSON_MOTION_STATIC }
 };

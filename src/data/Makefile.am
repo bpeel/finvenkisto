@@ -100,6 +100,7 @@ dist_images_DATA = \
 	gufujestro.png \
 	map-texture.png \
 	hud.png \
+	toiletguy.png \
 	$(NULL)
 
 EXTRA_DIST = \
