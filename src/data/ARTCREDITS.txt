@@ -64,3 +64,5 @@ toiletguy.png
  http://opengameart.org/content/lil-chick)
 
 pyjamas.png
+
+bed.blend
