@@ -93,7 +93,7 @@ def peek_color(image, bx, by, x, y):
 
     def make_nibble(v):
         if (v & 0xf) << 4 != (v & 0xf0):
-            sys.stderr.write("Bad colour at " + x + ", " + y + "\n")
+            sys.stderr.write("Bad colour at " + str(x) + ", " + str(y) + "\n")
             sys.exit(1)
         return hex(v >> 4)[2:]
 
