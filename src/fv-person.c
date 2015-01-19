@@ -154,5 +154,8 @@ fv_person_npcs[FV_PERSON_N_NPCS] = {
                       .retarget_time = 1050 } },
         { 1.3 * M_PI, 28, 16,
           FV_PERSON_TYPE_PYJAMAS,
-          FV_PERSON_MOTION_STATIC }
+          FV_PERSON_MOTION_STATIC },
+        { 1.6 * M_PI, 4, 26,
+          FV_PERSON_TYPE_GUFUJESTRO,
+          FV_PERSON_MOTION_STATIC },
 };
