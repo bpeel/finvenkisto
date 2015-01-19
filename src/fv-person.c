@@ -145,5 +145,11 @@ fv_person_npcs[FV_PERSON_N_NPCS] = {
           FV_PERSON_MOTION_STATIC },
         { M_PI, 33.5, 14.5,
           FV_PERSON_TYPE_TOILET_GUY,
-          FV_PERSON_MOTION_STATIC }
+          FV_PERSON_MOTION_STATIC },
+        { 0.0, 31, 28,
+          FV_PERSON_TYPE_PYJAMAS,
+          FV_PERSON_MOTION_RANDOM,
+          .random = { .center_x = 31, .center_y = 28,
+                      .radius = 6.0,
+                      .retarget_time = 1050 } },
 };

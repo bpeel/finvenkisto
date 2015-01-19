@@ -99,6 +99,7 @@ dist_images_DATA = \
 	finvenkisto.png \
 	gufujestro.png \
 	map-texture.png \
+	pyjamas.png \
 	hud.png \
 	toiletguy.png \
 	$(NULL)

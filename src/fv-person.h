@@ -22,7 +22,7 @@
 
 #include <stdint.h>
 
-#define FV_PERSON_N_NPCS 26
+#define FV_PERSON_N_NPCS 27
 
 enum fv_person_type {
         FV_PERSON_TYPE_FINVENKISTO,
@@ -31,6 +31,7 @@ enum fv_person_type {
         FV_PERSON_TYPE_BAMBISTO3,
         FV_PERSON_TYPE_GUFUJESTRO,
         FV_PERSON_TYPE_TOILET_GUY,
+        FV_PERSON_TYPE_PYJAMAS,
 };
 
 enum fv_person_motion {

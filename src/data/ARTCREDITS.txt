@@ -62,3 +62,5 @@ sleeping-bag2.png
 toiletguy.png
 (contains CC-0 lil-chick from here
  http://opengameart.org/content/lil-chick)
+
+pyjamas.png
