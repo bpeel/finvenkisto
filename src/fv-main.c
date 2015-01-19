@@ -37,6 +37,9 @@
 #include "fv-map.h"
 #include "fv-error-message.h"
 
+#define MIN_GL_MAJOR_VERSION 3
+#define MIN_GL_MINOR_VERSION 1
+
 enum key_code {
         KEY_CODE_UP,
         KEY_CODE_DOWN,
@@ -660,6 +663,52 @@ paint(struct data *data)
         SDL_GL_SwapWindow(data->window);
 }
 
+static bool
+check_gl_version(void)
+{
+        const char *version_string =
+                (const char *) fv_gl.glGetString(GL_VERSION);
+        const char *p = version_string;
+        int major_version = 0;
+        int minor_version = 0;
+
+        while (*p >= '0' && *p <= '9') {
+                major_version = major_version * 10 + *p - '0';
+                p++;
+        }
+
+        if (major_version == 0 || *p != '.')
+                goto invalid;
+
+        p++;
+
+        while (*p >= '0' && *p <= '9') {
+                minor_version = minor_version * 10 + *p - '0';
+                p++;
+        }
+
+        if (minor_version == 0)
+                goto invalid;
+
+        if (major_version < MIN_GL_MAJOR_VERSION ||
+            (major_version == MIN_GL_MAJOR_VERSION &&
+             minor_version < MIN_GL_MINOR_VERSION)) {
+                fv_error_message("GL version %i.%i is required but the driver "
+                                 "is reporting %s",
+                                 MIN_GL_MAJOR_VERSION,
+                                 MIN_GL_MINOR_VERSION,
+                                 version_string);
+                return false;
+        }
+
+        return true;
+
+invalid:
+        fv_error_message("Invalid GL version string encountered: %s",
+                         version_string);
+        return false;
+}
+
 static void
 show_help(void)
 {
@@ -752,8 +801,8 @@ main(int argc, char **argv)
         SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MIN_GL_MAJOR_VERSION);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, MIN_GL_MINOR_VERSION);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
                             SDL_GL_CONTEXT_PROFILE_CORE);
 
@@ -784,9 +833,18 @@ main(int argc, char **argv)
 
         SDL_GL_MakeCurrent(data.window, data.gl_context);
 
-        SDL_ShowCursor(0);
-
         fv_gl_init();
+
+        /* SDL seems to happily give you a GL 2 context if you ask for
+         * a 3.x core profile but it can't provide one so we have to
+         * additionally check that we actually got what we asked
+         * for */
+        if (!check_gl_version()) {
+                ret = EXIT_FAILURE;
+                goto out_context;
+        }
+
+        SDL_ShowCursor(0);
 
         /* All of the painting functions expect to have the default
          * OpenGL state plus the following modifications */

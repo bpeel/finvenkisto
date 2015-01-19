@@ -107,6 +107,8 @@ FV_GL_FUNC(void,
                                 GLsizei *length, GLchar *infoLog))
 FV_GL_FUNC(void,
            glGetShaderiv, (GLuint shader, GLenum pname, GLint *params))
+FV_GL_FUNC(const GLubyte *,
+           glGetString, (GLenum name))
 FV_GL_FUNC(GLint,
            glGetUniformLocation, (GLuint program, const GLchar *name))
 FV_GL_FUNC(void,
