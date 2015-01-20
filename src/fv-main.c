@@ -694,10 +694,15 @@ check_gl_version(void)
             (major_version == MIN_GL_MAJOR_VERSION &&
              minor_version < MIN_GL_MINOR_VERSION)) {
                 fv_error_message("GL version %i.%i is required but the driver "
-                                 "is reporting %s",
+                                 "is reporting:\n"
+                                 "Version: %s\n"
+                                 "Vendor: %s\n"
+                                 "Renderer: %s",
                                  MIN_GL_MAJOR_VERSION,
                                  MIN_GL_MINOR_VERSION,
-                                 version_string);
+                                 version_string,
+                                 (const char *) fv_gl.glGetString(GL_VENDOR),
+                                 (const char *) fv_gl.glGetString(GL_RENDERER));
                 return false;
         }
 
