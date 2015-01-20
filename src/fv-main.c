@@ -668,26 +668,31 @@ check_gl_version(void)
 {
         const char *version_string =
                 (const char *) fv_gl.glGetString(GL_VERSION);
+        const char *number_start;
         const char *p = version_string;
         int major_version = 0;
         int minor_version = 0;
+
+        number_start = p;
 
         while (*p >= '0' && *p <= '9') {
                 major_version = major_version * 10 + *p - '0';
                 p++;
         }
 
-        if (major_version == 0 || *p != '.')
+        if (p == number_start || *p != '.')
                 goto invalid;
 
         p++;
+
+        number_start = p;
 
         while (*p >= '0' && *p <= '9') {
                 minor_version = minor_version * 10 + *p - '0';
                 p++;
         }
 
-        if (minor_version == 0)
+        if (number_start == p)
                 goto invalid;
 
         if (major_version < MIN_GL_MAJOR_VERSION ||
