@@ -194,6 +194,7 @@ fv_logic_reset(struct fv_logic *logic,
         logic->last_ticks = 0;
         logic->n_players = n_players;
         logic->n_esperantified = 0;
+        logic->anyone_shouting = false;
 
         for (i = 0; i < n_players; i++) {
                 player = logic->players + i;
