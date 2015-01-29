@@ -143,7 +143,7 @@ fv_hud_new(struct fv_shader_data *shader_data)
         fv_gl.glBindVertexArray(hud->array);
 
         fv_gl.glGenBuffers(1, &hud->element_buffer);
-        fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, hud->array);
+        fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, hud->element_buffer);
         fv_gl.glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                            FV_HUD_MAX_RECTANGLES * 6 * sizeof (GLubyte),
                            NULL, /* data */
