@@ -26,6 +26,7 @@ AC_C_BIGENDIAN([AC_DEFINE([HAVE_BIG_ENDIAN], [1], [System is big-endian])],
 AC_CHECK_SIZEOF([unsigned long])
 
 AC_CHECK_LIB([m], sinf)
+AC_CHECK_FUNCS([ffs ffsl])
 
 ALL_WARNING_CFLAGS="-Wall -Wcast-align -Wuninitialized
                     -Wno-strict-aliasing -Wempty-body -Wformat

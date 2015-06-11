@@ -151,3 +151,43 @@ fv_free(void *ptr)
         if (ptr)
                 free(ptr);
 }
+
+#ifndef HAVE_FFS
+
+int
+fv_util_ffs(int value)
+{
+        int pos = 1;
+
+        if (value == 0)
+                return 0;
+
+        while ((value & 1) == 0) {
+                value >>= 1;
+                pos++;
+        }
+
+        return pos;
+}
+
+#endif
+
+#ifndef HAVE_FFSL
+
+int
+fv_util_ffsl(long int value)
+{
+        int pos = fv_util_ffs(value);
+
+        if (pos)
+                return pos;
+
+        pos = fv_util_ffs(value >> ((sizeof (long int) - sizeof (int)) * 8));
+
+        if (pos)
+                return pos + (sizeof (long int) - sizeof (int)) * 8;
+
+        return 0;
+}
+
+#endif
