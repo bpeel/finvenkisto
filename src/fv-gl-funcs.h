@@ -39,9 +39,6 @@ FV_GL_FUNC(void,
            glFlushMappedBufferRange, (GLenum target, GLintptr offset,
                                       GLsizei length))
 FV_GL_FUNC(void,
-           glBindFragDataLocation, (GLuint program, GLuint color,
-                                    const GLchar *name))
-FV_GL_FUNC(void,
            glBindTexture, (GLenum target, GLuint texture))
 FV_GL_FUNC(void,
            glBindVertexArray, (GLuint array))

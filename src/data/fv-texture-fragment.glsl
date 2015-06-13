@@ -17,14 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-out vec4 frag_color;
-
-in vec2 tex_coord;
+varying vec2 tex_coord;
 
 uniform sampler2D tex;
 
 void
 main()
 {
-        frag_color = texture(tex, tex_coord);
+        gl_FragColor = texture2D(tex, tex_coord);
 }

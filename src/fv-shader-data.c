@@ -34,17 +34,19 @@
 
 static const char
 fv_shader_data_version[] =
-        "#version 140\n"
-        "\n";
-
-static const char
-fv_shader_data_have_instanced_arrays[] =
-        "#define HAVE_INSTANCED_ARRAYS 1\n"
-        "\n";
+        "#version 110\n";
 
 static const char
 fv_shader_data_have_texture_2d_array[] =
-        "#define HAVE_TEXTURE_2D_ARRAY 1\n"
+        "#extension GL_EXT_texture_array : require\n"
+        "#define HAVE_TEXTURE_2D_ARRAY 1\n";
+
+static const char
+fv_shader_data_have_instanced_arrays[] =
+        "#define HAVE_INSTANCED_ARRAYS 1\n";
+
+static const char
+fv_shader_data_newline[] =
         "\n";
 
 struct fv_shader_data_shader {
@@ -106,7 +108,7 @@ create_shader(const char *name,
         GLint length, compile_status;
         GLsizei actual_length;
         GLchar *info_log;
-        const char *source_strings[4];
+        const char *source_strings[5];
         GLint lengths[FV_N_ELEMENTS(source_strings)];
         int n_strings = 0;
 
@@ -115,6 +117,13 @@ create_shader(const char *name,
         source_strings[n_strings] = fv_shader_data_version;
         lengths[n_strings++] = sizeof fv_shader_data_version - 1;
 
+        if (fv_gl.have_texture_2d_array) {
+                source_strings[n_strings] =
+                        fv_shader_data_have_texture_2d_array;
+                lengths[n_strings++] =
+                        sizeof fv_shader_data_have_texture_2d_array - 1;
+        }
+
         if (fv_gl.have_instanced_arrays) {
                 source_strings[n_strings] =
                         fv_shader_data_have_instanced_arrays;
@@ -122,12 +131,8 @@ create_shader(const char *name,
                         sizeof fv_shader_data_have_instanced_arrays - 1;
         }
 
-        if (fv_gl.have_texture_2d_array) {
-                source_strings[n_strings] =
-                        fv_shader_data_have_texture_2d_array;
-                lengths[n_strings++] =
-                        sizeof fv_shader_data_have_texture_2d_array - 1;
-        }
+        source_strings[n_strings] = fv_shader_data_newline;
+        lengths[n_strings++] = sizeof fv_shader_data_newline - 1;
 
         source_strings[n_strings] = source;
         lengths[n_strings++] = source_length;
@@ -281,7 +286,6 @@ link_program(struct fv_shader_data *data,
 
         program = data->programs[program_num];
 
-        fv_gl.glBindFragDataLocation(program, 0, "frag_color");
         fv_gl.glBindAttribLocation(program,
                                    FV_SHADER_DATA_ATTRIB_POSITION,
                                    "position");

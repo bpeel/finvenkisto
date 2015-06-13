@@ -17,12 +17,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-out vec4 frag_color;
-
-in vec3 color;
+varying vec3 color;
 
 void
 main()
 {
-        frag_color = vec4(color, 1.0);
+        gl_FragColor = vec4(color, 1.0);
 }

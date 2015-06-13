@@ -17,22 +17,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-out vec4 frag_color;
-
 #if defined(HAVE_INSTANCED_ARRAYS) && defined(HAVE_TEXTURE_2D_ARRAY)
-in vec3 tex_coord;
+varying vec3 tex_coord;
 uniform sampler2DArray tex;
+#define textureFunc texture2DArray
 #else
-in vec2 tex_coord;
+varying vec2 tex_coord;
 uniform sampler2D tex;
+#define textureFunc texture2D
 #endif
 
-flat in float green_tint;
+varying float green_tint;
 
 void
 main()
 {
-        frag_color = mix(texture(tex, tex_coord),
-                         vec4(0.0, 1.0, 0.0, 1.0),
-                         green_tint);
+        gl_FragColor = mix(textureFunc(tex, tex_coord),
+                           vec4(0.0, 1.0, 0.0, 1.0),
+                           green_tint);
 }

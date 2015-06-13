@@ -17,21 +17,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-in vec3 position;
-in vec2 tex_coord_attrib;
+attribute vec3 position;
+attribute vec2 tex_coord_attrib;
 
 #if defined(HAVE_INSTANCED_ARRAYS) && defined(HAVE_TEXTURE_2D_ARRAY)
-in mat4 transform;
-in float tex_layer;
-in float green_tint_attrib;
-out vec3 tex_coord;
+attribute mat4 transform;
+attribute float tex_layer;
+attribute float green_tint_attrib;
+varying vec3 tex_coord;
 #else
 uniform mat4 transform;
 uniform float green_tint_attrib;
-out vec2 tex_coord;
+varying vec2 tex_coord;
 #endif
 
-flat out float green_tint;
+varying float green_tint;
 
 void
 main()

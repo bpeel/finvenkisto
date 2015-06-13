@@ -17,12 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-in vec3 position;
-in vec2 tex_coord_attrib;
+attribute vec3 position;
+attribute vec2 tex_coord_attrib;
 
 uniform mat4 transform;
 
-out vec2 tex_coord;
+varying vec2 tex_coord;
 
 void
 main()

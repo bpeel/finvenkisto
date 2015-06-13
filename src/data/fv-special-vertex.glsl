@@ -17,16 +17,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-in vec3 position;
-in vec3 color_attrib;
+attribute vec3 position;
+attribute vec3 color_attrib;
 
 #ifdef HAVE_INSTANCED_ARRAYS
-in mat4 transform;
+attribute mat4 transform;
 #else /* HAVE_INSTANCED_ARRAYS */
 uniform mat4 transform;
 #endif
 
-out vec3 color;
+varying vec3 color;
 
 void
 main()
