@@ -37,8 +37,10 @@
 #include "fv-map.h"
 #include "fv-error-message.h"
 
-#define MIN_GL_MAJOR_VERSION 3
-#define MIN_GL_MINOR_VERSION 1
+#define MIN_GL_MAJOR_VERSION 2
+#define MIN_GL_MINOR_VERSION 0
+#define CORE_GL_MAJOR_VERSION 3
+#define CORE_GL_MINOR_VERSION 1
 
 enum key_code {
         KEY_CODE_UP,
@@ -690,6 +692,18 @@ check_gl_version(void)
                 return false;
         }
 
+        if (fv_gl.glGenerateMipmap == NULL) {
+                fv_error_message("glGenerateMipmap is required (from "
+                                 "GL_ARB_framebuffer_object)\n"
+                                 "Version: %s\n"
+                                 "Vendor: %s\n"
+                                 "Renderer: %s",
+                                 (const char *) fv_gl.glGetString(GL_VERSION),
+                                 (const char *) fv_gl.glGetString(GL_VENDOR),
+                                 (const char *) fv_gl.glGetString(GL_RENDERER));
+                return false;
+        }
+
         return true;
 }
 
@@ -754,6 +768,37 @@ process_arguments(struct data *data,
         return true;
 }
 
+static SDL_GLContext
+create_gl_context(SDL_Window *window)
+{
+        SDL_GLContext context;
+
+        /* First try creating a core context because if we get one it
+         * can be more efficient.
+         */
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,
+                            CORE_GL_MAJOR_VERSION);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,
+                            CORE_GL_MINOR_VERSION);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                            SDL_GL_CONTEXT_PROFILE_CORE);
+
+        context = SDL_GL_CreateContext(window);
+
+        if (context != NULL)
+                return context;
+
+        /* Otherwise try a compatibility profile context */
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,
+                            MIN_GL_MAJOR_VERSION);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,
+                            MIN_GL_MINOR_VERSION);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                            SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+
+        return SDL_GL_CreateContext(window);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -785,10 +830,6 @@ main(int argc, char **argv)
         SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MIN_GL_MAJOR_VERSION);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, MIN_GL_MINOR_VERSION);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                            SDL_GL_CONTEXT_PROFILE_CORE);
 
         flags = SDL_WINDOW_OPENGL;
         if (data.is_fullscreen)
@@ -807,7 +848,7 @@ main(int argc, char **argv)
                 goto out_sdl;
         }
 
-        data.gl_context = SDL_GL_CreateContext(data.window);
+        data.gl_context = create_gl_context(data.window);
         if (data.gl_context == NULL) {
                 fv_error_message("Failed to create GL context: %s",
                                  SDL_GetError());

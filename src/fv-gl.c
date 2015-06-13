@@ -149,10 +149,13 @@ fv_gl_init(void)
         for (i = 0; i < FV_N_ELEMENTS(gl_groups); i++)
                 init_group(gl_groups + i);
 
-        fv_gl.have_map_buffer_range = true;
-        fv_gl.have_vertex_array_objects = true;
-        fv_gl.have_texture_2d_array = true;
+        fv_gl.have_map_buffer_range = fv_gl.glMapBufferRange != NULL;
+        fv_gl.have_vertex_array_objects = fv_gl.glGenVertexArrays != NULL;
+
+        fv_gl.have_texture_2d_array =
+                SDL_GL_ExtensionSupported("GL_EXT_texture_array");
 
         fv_gl.have_instanced_arrays =
-                SDL_GL_ExtensionSupported("GL_ARB_instanced_arrays");
+                fv_gl.glVertexAttribDivisor != NULL &&
+                fv_gl.glDrawElementsInstanced != NULL;
 }
