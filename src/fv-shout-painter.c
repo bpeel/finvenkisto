@@ -173,13 +173,11 @@ paint_cb(const struct fv_logic_shout *shout,
                 fv_gl.glBindBuffer(GL_ARRAY_BUFFER,
                                    painter->vertex_buffer);
                 data->buffer_map =
-                        fv_gl.glMapBufferRange(GL_ARRAY_BUFFER,
-                                               0, /* offset */
-                                               FV_LOGIC_MAX_PLAYERS *
-                                               sizeof *vertex * 3,
-                                               GL_MAP_WRITE_BIT |
-                                               GL_MAP_INVALIDATE_BUFFER_BIT |
-                                               GL_MAP_FLUSH_EXPLICIT_BIT);
+                        fv_map_buffer_map(GL_ARRAY_BUFFER,
+                                          0, /* offset */
+                                          FV_LOGIC_MAX_PLAYERS *
+                                          sizeof *vertex * 3,
+                                          true /* flush_explicit */);
         }
 
         cx = cosf(shout->direction - FV_LOGIC_SHOUT_ANGLE / 2.0f);
@@ -228,11 +226,10 @@ fv_shout_painter_paint(struct fv_shout_painter *painter,
         if (data.n_shouts <= 0)
                 return;
 
-        fv_gl.glFlushMappedBufferRange(GL_ARRAY_BUFFER,
-                                       0, /* offset */
-                                       sizeof *data.buffer_map *
-                                       data.n_shouts * 3);
-        fv_gl.glUnmapBuffer(GL_ARRAY_BUFFER);
+        fv_map_buffer_flush(0, /* offset */
+                            sizeof *data.buffer_map *
+                            data.n_shouts * 3);
+        fv_map_buffer_unmap();
 
         fv_gl.glUseProgram(painter->program);
         fv_gl.glUniformMatrix4fv(painter->transform_uniform,

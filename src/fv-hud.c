@@ -30,6 +30,7 @@
 #include "fv-gl.h"
 #include "fv-array-object.h"
 #include "fv-ease.h"
+#include "fv-map-buffer.h"
 
 struct fv_hud_vertex {
         float x, y;
@@ -98,6 +99,7 @@ fv_hud_new(struct fv_shader_data *shader_data)
         uint8_t *image;
         uint8_t *elements;
         GLuint tex_location;
+        size_t element_buffer_size;
         int i;
 
         image = fv_image_load("hud.png", &image_width, &image_height, 4);
@@ -144,12 +146,16 @@ fv_hud_new(struct fv_shader_data *shader_data)
 
         fv_gl.glGenBuffers(1, &hud->element_buffer);
         fv_array_object_set_element_buffer(hud->array, hud->element_buffer);
+        element_buffer_size = FV_HUD_MAX_RECTANGLES * 6 * sizeof (GLubyte);
         fv_gl.glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                           FV_HUD_MAX_RECTANGLES * 6 * sizeof (GLubyte),
+                           element_buffer_size,
                            NULL, /* data */
                            GL_STATIC_DRAW);
 
-        elements = fv_gl.glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
+        elements = fv_map_buffer_map(GL_ELEMENT_ARRAY_BUFFER,
+                                     0, /* offset */
+                                     element_buffer_size,
+                                     false /* flush_explicit */);
 
         for (i = 0; i < FV_HUD_MAX_RECTANGLES; i++) {
                 elements[i * 6 + 0] = i * 4 + 0;
@@ -160,7 +166,7 @@ fv_hud_new(struct fv_shader_data *shader_data)
                 elements[i * 6 + 5] = i * 4 + 2;
         }
 
-        fv_gl.glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+        fv_map_buffer_unmap();
 
         fv_gl.glGenBuffers(1, &hud->vertex_buffer);
         fv_gl.glBindBuffer(GL_ARRAY_BUFFER, hud->vertex_buffer);
@@ -199,13 +205,11 @@ fv_hud_begin_rectangles(struct fv_hud *hud,
                         int screen_height)
 {
         fv_gl.glBindBuffer(GL_ARRAY_BUFFER, hud->vertex_buffer);
-        hud->vertex = fv_gl.glMapBufferRange(GL_ARRAY_BUFFER,
-                                             0, /* offset */
-                                             sizeof (struct fv_hud_vertex) *
-                                             FV_HUD_MAX_RECTANGLES * 4,
-                                             GL_MAP_WRITE_BIT |
-                                             GL_MAP_INVALIDATE_BUFFER_BIT |
-                                             GL_MAP_FLUSH_EXPLICIT_BIT);
+        hud->vertex = fv_map_buffer_map(GL_ARRAY_BUFFER,
+                                        0, /* offset */
+                                        sizeof (struct fv_hud_vertex) *
+                                        FV_HUD_MAX_RECTANGLES * 4,
+                                        true /* flush_explicit */);
         hud->n_rectangles = 0;
         hud->screen_width = screen_width;
         hud->screen_height = screen_height;
@@ -259,11 +263,10 @@ fv_hud_add_rectangle(struct fv_hud *hud,
 static void
 fv_hud_end_rectangles(struct fv_hud *hud)
 {
-        fv_gl.glFlushMappedBufferRange(GL_ARRAY_BUFFER,
-                                       0, /* offset */
-                                       hud->n_rectangles * 4 *
-                                       sizeof (struct fv_hud_vertex));
-        fv_gl.glUnmapBuffer(GL_ARRAY_BUFFER);
+        fv_map_buffer_flush(0, /* offset */
+                            hud->n_rectangles * 4 *
+                            sizeof (struct fv_hud_vertex));
+        fv_map_buffer_unmap();
 
         fv_gl.glEnable(GL_BLEND);
 

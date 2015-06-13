@@ -32,6 +32,7 @@
 #include "fv-gl.h"
 #include "fv-model.h"
 #include "fv-array-object.h"
+#include "fv-map-buffer.h"
 
 #define FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE 64
 
@@ -497,11 +498,10 @@ flush_specials(struct fv_map_painter *painter)
 
         model = painter->models + painter->current_special;
 
-        fv_gl.glFlushMappedBufferRange(GL_ARRAY_BUFFER,
-                                       0, /* offset */
-                                       sizeof (float) * 16 *
-                                       painter->n_instances);
-        fv_gl.glUnmapBuffer(GL_ARRAY_BUFFER);
+        fv_map_buffer_flush(0, /* offset */
+                            sizeof (float) * 16 *
+                            painter->n_instances);
+        fv_map_buffer_unmap();
 
         fv_array_object_bind(model->array);
 
@@ -521,7 +521,6 @@ paint_special(struct fv_map_painter *painter,
               const struct fv_transform *transform_in)
 {
         struct fv_transform transform = *transform_in;
-        GLbitfield flags;
 
         if (painter->current_special != special->num ||
             painter->n_instances >= FV_MAP_MAX_SPECIALS)
@@ -540,17 +539,14 @@ paint_special(struct fv_map_painter *painter,
 
         if (fv_gl.have_instanced_arrays) {
                 if (painter->n_instances == 0) {
-                        flags = GL_MAP_WRITE_BIT |
-                                GL_MAP_INVALIDATE_BUFFER_BIT |
-                                GL_MAP_FLUSH_EXPLICIT_BIT;
                         fv_gl.glBindBuffer(GL_ARRAY_BUFFER,
                                            painter->instance_buffer);
                         painter->instance_buffer_map =
-                                fv_gl.glMapBufferRange(GL_ARRAY_BUFFER,
-                                                       0, /* offset */
-                                                       sizeof (float) * 16 *
-                                                       FV_MAP_MAX_SPECIALS,
-                                                       flags);
+                                fv_map_buffer_map(GL_ARRAY_BUFFER,
+                                                  0, /* offset */
+                                                  sizeof (float) * 16 *
+                                                  FV_MAP_MAX_SPECIALS,
+                                                  true /* flush_explicit */);
                         painter->current_special = special->num;
                 }
 

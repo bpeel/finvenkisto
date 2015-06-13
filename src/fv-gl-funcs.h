@@ -35,8 +35,6 @@ FV_GL_FUNC(GLboolean,
 FV_GL_FUNC(void *,
            glMapBufferRange, (GLenum target, GLintptr offset,
                               GLsizeiptr length, GLbitfield access))
-FV_GL_FUNC(void *,
-           glMapBuffer, (GLenum target, GLenum access))
 FV_GL_FUNC(void,
            glFlushMappedBufferRange, (GLenum target, GLintptr offset,
                                       GLsizei length))

@@ -43,6 +43,7 @@ fv_gl_init(void)
         for (i = 0; i < FV_N_ELEMENTS(gl_funcs); i++)
                 ptrs[i] = SDL_GL_GetProcAddress(gl_funcs[i]);
 
+        fv_gl.have_map_buffer_range = true;
         fv_gl.have_vertex_array_objects = true;
 
         fv_gl.have_instanced_arrays =

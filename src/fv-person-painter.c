@@ -32,6 +32,7 @@
 #include "fv-gl.h"
 #include "fv-image.h"
 #include "fv-error-message.h"
+#include "fv-map-buffer.h"
 
 struct fv_person_painter {
         struct fv_model model;
@@ -266,10 +267,9 @@ flush_people(struct paint_closure *data)
         if (data->n_instances == 0)
                 return;
 
-        fv_gl.glFlushMappedBufferRange(GL_ARRAY_BUFFER,
-                                       0, /* offset */
-                                       instance_size * data->n_instances);
-        fv_gl.glUnmapBuffer(GL_ARRAY_BUFFER);
+        fv_map_buffer_flush(0, /* offset */
+                            instance_size * data->n_instances);
+        fv_map_buffer_unmap();
 
         fv_gl.glDrawElementsInstanced(GL_TRIANGLES,
                                       painter->model.n_indices,
@@ -289,7 +289,6 @@ paint_person_cb(const struct fv_logic_person *person,
         struct fv_person_painter_instance *instance;
         struct paint_closure *data = user_data;
         GLsizei buffer_size;
-        GLbitfield flags;
         float green_tint;
 
         /* Don't paint people that are out of the visible range */
@@ -316,14 +315,11 @@ paint_person_cb(const struct fv_logic_person *person,
                 if (data->n_instances == 0) {
                         buffer_size = (instance_size *
                                        FV_PERSON_PAINTER_MAX_INSTANCES);
-                        flags = GL_MAP_WRITE_BIT |
-                                GL_MAP_INVALIDATE_BUFFER_BIT |
-                                GL_MAP_FLUSH_EXPLICIT_BIT;
                         data->instance_buffer_map =
-                                fv_gl.glMapBufferRange(GL_ARRAY_BUFFER,
-                                                       0, /* offset */
-                                                       buffer_size,
-                                                       flags);
+                                fv_map_buffer_map(GL_ARRAY_BUFFER,
+                                                  0, /* offset */
+                                                  buffer_size,
+                                                  true /* flush_explicit */);
                 }
 
                 instance = data->instance_buffer_map + data->n_instances;

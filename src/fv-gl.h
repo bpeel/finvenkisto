@@ -28,6 +28,8 @@ struct fv_gl {
 #include "fv-gl-funcs.h"
 #undef FV_GL_FUNC
 
+        bool have_map_buffer_range;
+
         bool have_vertex_array_objects;
 
         bool have_instanced_arrays;
