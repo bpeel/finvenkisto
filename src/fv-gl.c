@@ -45,6 +45,7 @@ fv_gl_init(void)
 
         fv_gl.have_map_buffer_range = true;
         fv_gl.have_vertex_array_objects = true;
+        fv_gl.have_texture_2d_array = true;
 
         fv_gl.have_instanced_arrays =
                 SDL_GL_ExtensionSupported("GL_ARB_instanced_arrays");

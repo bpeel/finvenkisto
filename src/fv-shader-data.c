@@ -42,6 +42,11 @@ fv_shader_data_have_instanced_arrays[] =
         "#define HAVE_INSTANCED_ARRAYS 1\n"
         "\n";
 
+static const char
+fv_shader_data_have_texture_2d_array[] =
+        "#define HAVE_TEXTURE_2D_ARRAY 1\n"
+        "\n";
+
 struct fv_shader_data_shader {
         GLenum type;
         const char *filename;
@@ -101,8 +106,8 @@ create_shader(const char *name,
         GLint length, compile_status;
         GLsizei actual_length;
         GLchar *info_log;
-        const char *source_strings[3];
-        GLint lengths[3];
+        const char *source_strings[4];
+        GLint lengths[FV_N_ELEMENTS(source_strings)];
         int n_strings = 0;
 
         shader = fv_gl.glCreateShader(type);
@@ -115,6 +120,13 @@ create_shader(const char *name,
                         fv_shader_data_have_instanced_arrays;
                 lengths[n_strings++] =
                         sizeof fv_shader_data_have_instanced_arrays - 1;
+        }
+
+        if (fv_gl.have_texture_2d_array) {
+                source_strings[n_strings] =
+                        fv_shader_data_have_texture_2d_array;
+                lengths[n_strings++] =
+                        sizeof fv_shader_data_have_texture_2d_array - 1;
         }
 
         source_strings[n_strings] = source;

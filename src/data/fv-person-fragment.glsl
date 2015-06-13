@@ -19,10 +19,15 @@
 
 out vec4 frag_color;
 
+#if defined(HAVE_INSTANCED_ARRAYS) && defined(HAVE_TEXTURE_2D_ARRAY)
 in vec3 tex_coord;
-flat in float green_tint;
-
 uniform sampler2DArray tex;
+#else
+in vec2 tex_coord;
+uniform sampler2D tex;
+#endif
+
+flat in float green_tint;
 
 void
 main()

@@ -34,28 +34,6 @@
 #include "fv-error-message.h"
 #include "fv-map-buffer.h"
 
-struct fv_person_painter {
-        struct fv_model model;
-
-        GLuint instance_buffer;
-
-        GLuint program;
-
-        GLuint texture;
-
-        GLuint transform_uniform;
-        GLuint tex_layer_uniform;
-        GLuint green_tint_uniform;
-};
-
-struct fv_person_painter_instance {
-        float mvp[16];
-        uint8_t tex_layer;
-        uint8_t green_tint;
-};
-
-#define FV_PERSON_PAINTER_MAX_INSTANCES 32
-
 /* Textures to use for the different person types. These must match
  * the order of the enum in fv_person_type */
 static const char *
@@ -69,28 +47,54 @@ textures[] = {
         "pyjamas.png"
 };
 
-static bool
-load_texture(struct fv_person_painter *painter)
+struct fv_person_painter {
+        struct fv_model model;
+
+        GLuint instance_buffer;
+
+        GLuint program;
+
+        GLuint textures[FV_N_ELEMENTS(textures)];
+
+        GLuint transform_uniform;
+        GLuint green_tint_uniform;
+
+        bool use_instancing;
+};
+
+struct fv_person_painter_instance {
+        float mvp[16];
+        uint8_t tex_layer;
+        uint8_t green_tint;
+};
+
+#define FV_PERSON_PAINTER_MAX_INSTANCES 32
+
+static void
+set_texture_properties(GLenum target)
 {
-        int tex_width, tex_height;
-        int layer_width, layer_height;
-        uint8_t *tex_data;
-        int i;
+        fv_gl.glTexParameteri(target,
+                              GL_TEXTURE_MIN_FILTER,
+                              GL_LINEAR_MIPMAP_NEAREST);
+        fv_gl.glTexParameteri(target,
+                              GL_TEXTURE_MAG_FILTER,
+                              GL_LINEAR);
+        fv_gl.glTexParameteri(target,
+                              GL_TEXTURE_WRAP_S,
+                              GL_CLAMP_TO_EDGE);
+        fv_gl.glTexParameteri(target,
+                              GL_TEXTURE_WRAP_T,
+                              GL_CLAMP_TO_EDGE);
+}
 
-        fv_gl.glGenTextures(1, &painter->texture);
-        fv_gl.glBindTexture(GL_TEXTURE_2D_ARRAY, painter->texture);
-
-        for (i = 0; i < FV_N_ELEMENTS(textures); i++) {
-                tex_data = fv_image_load(textures[i],
-                                         &layer_width, &layer_height,
-                                         3 /* components */);
-                if (tex_data == NULL)
-                        goto error;
-
-                if (i == 0) {
-                        tex_width = layer_width;
-                        tex_height = layer_height;
-
+static void
+set_texture(struct fv_person_painter *painter,
+            int tex_num,
+            int tex_width, int tex_height,
+            const void *data)
+{
+        if (painter->use_instancing) {
+                if (tex_num == 0) {
                         fv_gl.glTexImage3D(GL_TEXTURE_2D_ARRAY,
                                            0, /* level */
                                            GL_RGB,
@@ -100,46 +104,85 @@ load_texture(struct fv_person_painter *painter)
                                            GL_RGB,
                                            GL_UNSIGNED_BYTE,
                                            NULL);
-                } else if (layer_width != tex_width ||
-                           layer_height != tex_height) {
+                }
+                fv_gl.glTexSubImage3D(GL_TEXTURE_2D_ARRAY,
+                                      0, /* level */
+                                      0, 0, /* x/y offset */
+                                      tex_num, /* z offset */
+                                      tex_width, tex_height,
+                                      1, /* depth */
+                                      GL_RGB,
+                                      GL_UNSIGNED_BYTE,
+                                      data);
+        } else {
+                fv_gl.glBindTexture(GL_TEXTURE_2D, painter->textures[tex_num]);
+                fv_gl.glTexImage2D(GL_TEXTURE_2D,
+                                   0, /* level */
+                                   GL_RGB,
+                                   tex_width, tex_height,
+                                   0, /* border */
+                                   GL_RGB,
+                                   GL_UNSIGNED_BYTE,
+                                   data);
+                set_texture_properties(GL_TEXTURE_2D);
+                fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
+        }
+}
+
+static bool
+load_textures(struct fv_person_painter *painter)
+{
+        int tex_width, tex_height;
+        int layer_width, layer_height;
+        uint8_t *tex_data;
+        int i;
+
+        if (painter->use_instancing) {
+                fv_gl.glGenTextures(1, painter->textures);
+                fv_gl.glBindTexture(GL_TEXTURE_2D_ARRAY, painter->textures[0]);
+        } else {
+                fv_gl.glGenTextures(FV_N_ELEMENTS(textures), painter->textures);
+        }
+
+        for (i = 0; i < FV_N_ELEMENTS(textures); i++) {
+                tex_data = fv_image_load(textures[i],
+                                         &layer_width, &layer_height,
+                                         3 /* components */);
+                if (tex_data == NULL)
+                        goto error;
+
+                if (i > 0 &&
+                    (layer_width != tex_width ||
+                     layer_height != tex_height)) {
                         fv_error_message("Size of %s does not match that of %s",
                                          textures[i],
                                          textures[0]);
                         fv_free(tex_data);
                         goto error;
+                } else {
+                        tex_width = layer_width;
+                        tex_height = layer_height;
                 }
 
-                fv_gl.glTexSubImage3D(GL_TEXTURE_2D_ARRAY,
-                                      0, /* level */
-                                      0, 0, /* x/y offset */
-                                      i, /* z offset */
-                                      tex_width, tex_height,
-                                      1, /* depth */
-                                      GL_RGB,
-                                      GL_UNSIGNED_BYTE,
-                                      tex_data);
+                set_texture(painter,
+                            i,
+                            tex_width, tex_height,
+                            tex_data);
 
                 fv_free(tex_data);
         }
 
-        fv_gl.glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D_ARRAY,
-                              GL_TEXTURE_MIN_FILTER,
-                              GL_LINEAR_MIPMAP_NEAREST);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D_ARRAY,
-                              GL_TEXTURE_MAG_FILTER,
-                              GL_LINEAR);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D_ARRAY,
-                              GL_TEXTURE_WRAP_S,
-                              GL_CLAMP_TO_EDGE);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D_ARRAY,
-                              GL_TEXTURE_WRAP_T,
-                              GL_CLAMP_TO_EDGE);
+        if (painter->use_instancing) {
+                set_texture_properties(GL_TEXTURE_2D_ARRAY);
+                fv_gl.glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+        }
 
         return true;
 
 error:
-        fv_gl.glDeleteTextures(1, &painter->texture);
+        fv_gl.glDeleteTextures(painter->use_instancing
+                               ? 1 : FV_N_ELEMENTS(textures),
+                               painter->textures);
 
         return false;
 }
@@ -204,16 +247,20 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
         struct fv_person_painter *painter = fv_calloc(sizeof *painter);
         GLuint tex_uniform;
 
+        painter->use_instancing =
+                fv_gl.have_instanced_arrays &&
+                fv_gl.have_texture_2d_array;
+
         painter->program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_PERSON];
 
         if (!fv_model_load(&painter->model, "person.ply"))
                 goto error;
 
-        if (!load_texture(painter))
+        if (!load_textures(painter))
                 goto error_model;
 
-        if (fv_gl.have_instanced_arrays) {
+        if (painter->use_instancing) {
                 fv_gl.glGenBuffers(1, &painter->instance_buffer);
                 fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
                 fv_gl.glBufferData(GL_ARRAY_BUFFER,
@@ -227,9 +274,6 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
                 painter->transform_uniform =
                         fv_gl.glGetUniformLocation(painter->program,
                                                    "transform");
-                painter->tex_layer_uniform =
-                        fv_gl.glGetUniformLocation(painter->program,
-                                                   "tex_layer");
                 painter->green_tint_uniform =
                         fv_gl.glGetUniformLocation(painter->program,
                                                    "green_tint_attrib");
@@ -311,7 +355,7 @@ paint_person_cb(const struct fv_logic_person *person,
 
         green_tint = person->esperantified ? 120 : 0;
 
-        if (fv_gl.have_instanced_arrays) {
+        if (data->painter->use_instancing) {
                 if (data->n_instances == 0) {
                         buffer_size = (instance_size *
                                        FV_PERSON_PAINTER_MAX_INSTANCES);
@@ -331,12 +375,12 @@ paint_person_cb(const struct fv_logic_person *person,
 
                 data->n_instances++;
         } else {
+                fv_gl.glBindTexture(GL_TEXTURE_2D,
+                                    data->painter->textures[person->type]);
                 fv_gl.glUniformMatrix4fv(data->painter->transform_uniform,
                                          1, /* count */
                                          GL_FALSE, /* transpose */
                                          &data->transform.mvp.xx);
-                fv_gl.glUniform1f(data->painter->tex_layer_uniform,
-                                  person->type);
                 fv_gl.glUniform1f(data->painter->green_tint_uniform,
                                   green_tint / 255.0f);
                 fv_model_paint(&data->painter->model);
@@ -357,11 +401,10 @@ fv_person_painter_paint(struct fv_person_painter *painter,
 
         fv_gl.glUseProgram(painter->program);
 
-        fv_gl.glBindTexture(GL_TEXTURE_2D_ARRAY, painter->texture);
-
         fv_gl.glEnable(GL_DEPTH_TEST);
 
-        if (fv_gl.have_instanced_arrays) {
+        if (painter->use_instancing) {
+                fv_gl.glBindTexture(GL_TEXTURE_2D_ARRAY, painter->textures[0]);
                 fv_array_object_bind(painter->model.array);
                 fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
         }
@@ -376,9 +419,11 @@ fv_person_painter_paint(struct fv_person_painter *painter,
 void
 fv_person_painter_free(struct fv_person_painter *painter)
 {
-        if (fv_gl.have_instanced_arrays)
+        if (painter->use_instancing)
                 fv_gl.glDeleteBuffers(1, &painter->instance_buffer);
-        fv_gl.glDeleteTextures(1, &painter->texture);
+        fv_gl.glDeleteTextures(painter->use_instancing
+                               ? 1 : FV_N_ELEMENTS(textures),
+                               painter->textures);
         fv_model_destroy(&painter->model);
         fv_free(painter);
 }

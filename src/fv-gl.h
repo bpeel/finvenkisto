@@ -29,9 +29,8 @@ struct fv_gl {
 #undef FV_GL_FUNC
 
         bool have_map_buffer_range;
-
         bool have_vertex_array_objects;
-
+        bool have_texture_2d_array;
         bool have_instanced_arrays;
 };
 
