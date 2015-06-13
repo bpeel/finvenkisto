@@ -148,52 +148,53 @@ set_up_instanced_arrays(struct fv_person_painter *painter)
 {
         GLint attrib;
         const size_t instance_size = sizeof (struct fv_person_painter_instance);
-        const size_t matrix_offset = offsetof(struct fv_person_painter_instance,
-                                              mvp[0]);
+        const size_t matrix_offset =
+                offsetof(struct fv_person_painter_instance, mvp[0]);
+        const size_t tex_layer_offset =
+                offsetof(struct fv_person_painter_instance, tex_layer);
+        const size_t green_tint_offset =
+                offsetof(struct fv_person_painter_instance, green_tint);
         int i;
 
         attrib = fv_gl.glGetAttribLocation(painter->program, "transform");
 
-        fv_gl.glBindVertexArray(painter->model.array);
         for (i = 0; i < 4; i++) {
-                fv_gl.glEnableVertexAttribArray(attrib + i);
-                fv_gl.glVertexAttribPointer(attrib + i,
-                                            4, /* size */
-                                            GL_FLOAT,
-                                            GL_FALSE, /* normalized */
-                                            instance_size,
-                                            (GLvoid *) (intptr_t)
-                                            (matrix_offset +
-                                             sizeof (float) * i * 4));
-                fv_gl.glVertexAttribDivisorARB(attrib + i, 1);
+                fv_array_object_set_attribute(painter->model.array,
+                                              attrib + i,
+                                              4, /* size */
+                                              GL_FLOAT,
+                                              GL_FALSE, /* normalized */
+                                              instance_size,
+                                              1, /* divisor */
+                                              painter->instance_buffer,
+                                              (matrix_offset +
+                                               sizeof (float) * i * 4));
         }
 
         attrib = fv_gl.glGetAttribLocation(painter->program, "tex_layer");
 
-        fv_gl.glEnableVertexAttribArray(attrib);
-        fv_gl.glVertexAttribPointer(attrib,
-                                    1, /* size */
-                                    GL_UNSIGNED_BYTE,
-                                    GL_FALSE, /* normalized */
-                                    instance_size,
-                                    (GLvoid *) (intptr_t)
-                                    offsetof(struct fv_person_painter_instance,
-                                             tex_layer));
-        fv_gl.glVertexAttribDivisorARB(attrib, 1);
+        fv_array_object_set_attribute(painter->model.array,
+                                      attrib,
+                                      1, /* size */
+                                      GL_UNSIGNED_BYTE,
+                                      GL_FALSE, /* normalized */
+                                      instance_size,
+                                      1, /* divisor */
+                                      painter->instance_buffer,
+                                      tex_layer_offset);
 
         attrib = fv_gl.glGetAttribLocation(painter->program,
                                            "green_tint_attrib");
 
-        fv_gl.glEnableVertexAttribArray(attrib);
-        fv_gl.glVertexAttribPointer(attrib,
-                                    1, /* size */
-                                    GL_UNSIGNED_BYTE,
-                                    GL_TRUE, /* normalized */
-                                    instance_size,
-                                    (GLvoid *) (intptr_t)
-                                    offsetof(struct fv_person_painter_instance,
-                                             green_tint));
-        fv_gl.glVertexAttribDivisorARB(attrib, 1);
+        fv_array_object_set_attribute(painter->model.array,
+                                      attrib,
+                                      1, /* size */
+                                      GL_UNSIGNED_BYTE,
+                                      GL_TRUE, /* normalized */
+                                      instance_size,
+                                      1, /* divisor */
+                                      painter->instance_buffer,
+                                      green_tint_offset);
 }
 
 struct fv_person_painter *
@@ -364,10 +365,10 @@ fv_person_painter_paint(struct fv_person_painter *painter,
 
         fv_gl.glEnable(GL_DEPTH_TEST);
 
-        if (fv_gl.have_instanced_arrays)
+        if (fv_gl.have_instanced_arrays) {
+                fv_array_object_bind(painter->model.array);
                 fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
-
-        fv_gl.glBindVertexArray(painter->model.array);
+        }
 
         fv_logic_for_each_person(logic, paint_person_cb, &data);
 

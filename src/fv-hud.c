@@ -28,6 +28,7 @@
 #include "fv-image.h"
 #include "fv-logic.h"
 #include "fv-gl.h"
+#include "fv-array-object.h"
 #include "fv-ease.h"
 
 struct fv_hud_vertex {
@@ -43,7 +44,7 @@ struct fv_hud {
 
         GLuint vertex_buffer;
         GLuint element_buffer;
-        GLuint array;
+        struct fv_array_object *array;
 
         int n_rectangles;
         struct fv_hud_vertex *vertex;
@@ -139,11 +140,10 @@ fv_hud_new(struct fv_shader_data *shader_data)
 
         fv_free(image);
 
-        fv_gl.glGenVertexArrays(1, &hud->array);
-        fv_gl.glBindVertexArray(hud->array);
+        hud->array = fv_array_object_new();
 
         fv_gl.glGenBuffers(1, &hud->element_buffer);
-        fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, hud->element_buffer);
+        fv_array_object_set_element_buffer(hud->array, hud->element_buffer);
         fv_gl.glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                            FV_HUD_MAX_RECTANGLES * 6 * sizeof (GLubyte),
                            NULL, /* data */
@@ -170,23 +170,25 @@ fv_hud_new(struct fv_shader_data *shader_data)
                            NULL, /* data */
                            GL_DYNAMIC_DRAW);
 
-        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_POSITION);
-        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_POSITION,
-                                    2, /* size */
-                                    GL_FLOAT,
-                                    GL_FALSE, /* normalized */
-                                    sizeof (struct fv_hud_vertex),
-                                    (void *) (intptr_t)
-                                    offsetof(struct fv_hud_vertex, x));
+        fv_array_object_set_attribute(hud->array,
+                                      FV_SHADER_DATA_ATTRIB_POSITION,
+                                      2, /* size */
+                                      GL_FLOAT,
+                                      GL_FALSE, /* normalized */
+                                      sizeof (struct fv_hud_vertex),
+                                      0, /* divisor */
+                                      hud->vertex_buffer,
+                                      offsetof(struct fv_hud_vertex, x));
 
-        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_TEX_COORD);
-        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_TEX_COORD,
-                                    2, /* size */
-                                    GL_FLOAT,
-                                    GL_FALSE, /* normalized */
-                                    sizeof (struct fv_hud_vertex),
-                                    (void *) (intptr_t)
-                                    offsetof(struct fv_hud_vertex, s));
+        fv_array_object_set_attribute(hud->array,
+                                      FV_SHADER_DATA_ATTRIB_TEX_COORD,
+                                      2, /* size */
+                                      GL_FLOAT,
+                                      GL_FALSE, /* normalized */
+                                      sizeof (struct fv_hud_vertex),
+                                      0, /* divisor */
+                                      hud->vertex_buffer,
+                                      offsetof(struct fv_hud_vertex, s));
 
         return hud;
 }
@@ -269,7 +271,7 @@ fv_hud_end_rectangles(struct fv_hud *hud)
 
         fv_gl.glBindTexture(GL_TEXTURE_2D, hud->tex);
 
-        fv_gl.glBindVertexArray(hud->array);
+        fv_array_object_bind(hud->array);
 
         fv_gl.glDrawRangeElements(GL_TRIANGLES,
                                   0, /* start */
@@ -554,7 +556,7 @@ fv_hud_free(struct fv_hud *hud)
 {
         fv_gl.glDeleteBuffers(1, &hud->vertex_buffer);
         fv_gl.glDeleteBuffers(1, &hud->element_buffer);
-        fv_gl.glDeleteVertexArrays(1, &hud->array);
+        fv_array_object_free(hud->array);
         fv_gl.glDeleteTextures(1, &hud->tex);
         fv_free(hud);
 }

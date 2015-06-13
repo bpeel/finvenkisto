@@ -30,6 +30,8 @@
 #include "fv-transform.h"
 #include "fv-gl.h"
 #include "fv-image.h"
+#include "fv-array-object.h"
+#include "fv-map-buffer.h"
 
 struct fv_shout_painter_vertex {
         float x, y, z;
@@ -41,7 +43,7 @@ struct fv_shout_painter {
         GLuint transform_uniform;
 
         GLuint texture;
-        GLuint array;
+        struct fv_array_object *array;
         GLuint vertex_buffer;
 };
 
@@ -93,8 +95,7 @@ make_buffer(struct fv_shout_painter *painter)
 {
         typedef struct fv_shout_painter_vertex vertex;
 
-        fv_gl.glGenVertexArrays(1, &painter->array);
-        fv_gl.glBindVertexArray(painter->array);
+        painter->array = fv_array_object_new();
 
         fv_gl.glGenBuffers(1, &painter->vertex_buffer);
         fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->vertex_buffer);
@@ -103,22 +104,25 @@ make_buffer(struct fv_shout_painter *painter)
                            NULL,
                            GL_DYNAMIC_DRAW);
 
-        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_POSITION);
-        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_POSITION,
-                                    3, /* size */
-                                    GL_FLOAT,
-                                    GL_FALSE, /* normalized */
-                                    sizeof (vertex),
-                                    (void *) (intptr_t)
-                                    offsetof(vertex, x));
-        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_TEX_COORD);
-        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_TEX_COORD,
-                                    2, /* size */
-                                    GL_FLOAT,
-                                    GL_FALSE, /* normalized */
-                                    sizeof (vertex),
-                                    (void *) (intptr_t)
-                                    offsetof(vertex, s));
+        fv_array_object_set_attribute(painter->array,
+                                      FV_SHADER_DATA_ATTRIB_POSITION,
+                                      3, /* size */
+                                      GL_FLOAT,
+                                      GL_FALSE, /* normalized */
+                                      sizeof (vertex),
+                                      0, /* divisor */
+                                      painter->vertex_buffer,
+                                      offsetof(vertex, x));
+
+        fv_array_object_set_attribute(painter->array,
+                                      FV_SHADER_DATA_ATTRIB_TEX_COORD,
+                                      2, /* size */
+                                      GL_FLOAT,
+                                      GL_FALSE, /* normalized */
+                                      sizeof (vertex),
+                                      0, /* divisor */
+                                      painter->vertex_buffer,
+                                      offsetof(vertex, s));
 }
 
 struct fv_shout_painter *
@@ -235,7 +239,7 @@ fv_shout_painter_paint(struct fv_shout_painter *painter,
                                  1, /* count */
                                  GL_FALSE, /* transpose */
                                  &paint_state->transform.mvp.xx);
-        fv_gl.glBindVertexArray(painter->array);
+        fv_array_object_bind(painter->array);
         fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
         fv_gl.glEnable(GL_BLEND);
         fv_gl.glDrawArrays(GL_TRIANGLES, 0, data.n_shouts * 3);
@@ -245,7 +249,7 @@ fv_shout_painter_paint(struct fv_shout_painter *painter,
 void
 fv_shout_painter_free(struct fv_shout_painter *painter)
 {
-        fv_gl.glDeleteVertexArrays(1, &painter->array);
+        fv_array_object_free(painter->array);
         fv_gl.glDeleteBuffers(1, &painter->vertex_buffer);
         fv_gl.glDeleteTextures(1, &painter->texture);
 

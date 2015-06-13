@@ -270,8 +270,7 @@ create_buffer(struct data *data)
         model->n_vertices = data->n_vertices;
         model->n_indices = data->indices.length / sizeof (uint16_t);
 
-        fv_gl.glGenVertexArrays(1, &model->array);
-        fv_gl.glBindVertexArray(model->array);
+        model->array = fv_array_object_new();
 
         fv_gl.glGenBuffers(1, &model->buffer);
         fv_gl.glBindBuffer(GL_ARRAY_BUFFER, model->buffer);
@@ -290,32 +289,34 @@ create_buffer(struct data *data)
                               data->indices.data);
 
         for (i = 0; i < N_PROPERTIES; i++) {
-                if (data->available_props & (1 << i)) {
-                        switch (properties[i].type) {
-                        case PROPERTY_FLOAT:
-                                type = GL_FLOAT;
-                                normalized = GL_FALSE;
-                                break;
-                        case PROPERTY_BYTE:
-                                type = GL_UNSIGNED_BYTE;
-                                normalized = GL_TRUE;
-                                break;
-                        }
+                if (!(data->available_props & (1 << i)))
+                        continue;
 
-                        attrib = properties[i].attrib_location;
-
-                        fv_gl.glEnableVertexAttribArray(attrib);
-                        fv_gl.glVertexAttribPointer(attrib, /* index */
-                                                    properties[i].n_components,
-                                                    type,
-                                                    normalized,
-                                                    data->vertex_size,
-                                                    (void *) (intptr_t)
-                                                    data->property_offsets[i]);
+                switch (properties[i].type) {
+                case PROPERTY_FLOAT:
+                        type = GL_FLOAT;
+                        normalized = GL_FALSE;
+                        break;
+                case PROPERTY_BYTE:
+                        type = GL_UNSIGNED_BYTE;
+                        normalized = GL_TRUE;
+                        break;
                 }
+
+                attrib = properties[i].attrib_location;
+
+                fv_array_object_set_attribute(model->array,
+                                              attrib, /* index */
+                                              properties[i].n_components,
+                                              type,
+                                              normalized,
+                                              data->vertex_size,
+                                              0, /* divisor */
+                                              model->buffer,
+                                              data->property_offsets[i]);
         }
 
-        fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->buffer);
+        fv_array_object_set_element_buffer(model->array, model->buffer);
 }
 
 bool
@@ -371,7 +372,7 @@ fv_model_load(struct fv_model *model,
 void
 fv_model_paint(const struct fv_model *model)
 {
-        fv_gl.glBindVertexArray(model->array);
+        fv_array_object_bind(model->array);
 
         fv_gl.glDrawRangeElements(GL_TRIANGLES,
                                   0, model->n_vertices - 1,
@@ -384,6 +385,6 @@ fv_model_paint(const struct fv_model *model)
 void
 fv_model_destroy(struct fv_model *model)
 {
-        fv_gl.glDeleteVertexArrays(1, &model->array);
+        fv_array_object_free(model->array);
         fv_gl.glDeleteBuffers(1, &model->buffer);
 }

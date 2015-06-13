@@ -31,6 +31,7 @@
 #include "fv-image.h"
 #include "fv-gl.h"
 #include "fv-model.h"
+#include "fv-array-object.h"
 
 #define FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE 64
 
@@ -54,7 +55,7 @@ struct fv_map_painter_tile {
 
 struct fv_map_painter {
         GLuint buffer;
-        GLuint array;
+        struct fv_array_object *array;
         struct fv_map_painter_tile tiles[FV_MAP_TILES_X *
                                          FV_MAP_TILES_Y];
         GLuint map_program;
@@ -289,6 +290,7 @@ generate_tile(struct fv_map_painter *painter,
 static bool
 load_models(struct fv_map_painter *painter)
 {
+        struct fv_model *model;
         bool res;
         int i, j;
         GLint attrib;
@@ -296,28 +298,25 @@ load_models(struct fv_map_painter *painter)
         attrib = fv_gl.glGetAttribLocation(painter->model_program, "transform");
 
         for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++) {
-                res = fv_model_load(painter->models + i,
-                                    fv_map_painter_models[i]);
+                model = painter->models + i;
+
+                res = fv_model_load(model, fv_map_painter_models[i]);
                 if (!res)
                         goto error;
 
                 if (!fv_gl.have_instanced_arrays)
                         continue;
 
-                fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
-
-                fv_gl.glBindVertexArray(painter->models[i].array);
-
                 for (j = 0; j < 4; j++) {
-                        fv_gl.glEnableVertexAttribArray(attrib + j);
-                        fv_gl.glVertexAttribPointer(attrib + j,
-                                                    4, /* size */
-                                                    GL_FLOAT,
-                                                    GL_FALSE, /* normalized */
-                                                    sizeof (float) * 16,
-                                                    (GLvoid *) (intptr_t)
-                                                    (sizeof (float) * j * 4));
-                        fv_gl.glVertexAttribDivisorARB(attrib + j, 1);
+                        fv_array_object_set_attribute(model->array,
+                                                      attrib + j,
+                                                      4, /* size */
+                                                      GL_FLOAT,
+                                                      GL_FALSE, /* normalized */
+                                                      sizeof (float) * 16,
+                                                      1, /* divisor */
+                                                      painter->instance_buffer,
+                                                      (sizeof (float) * j * 4));
                 }
         }
 
@@ -432,8 +431,7 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
 
         assert(data.vertices.length / sizeof (struct vertex) < 65536);
 
-        fv_gl.glGenVertexArrays(1, &painter->array);
-        fv_gl.glBindVertexArray(painter->array);
+        painter->array = fv_array_object_new();
 
         fv_gl.glGenBuffers(1, &painter->buffer);
         fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->buffer);
@@ -451,25 +449,27 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                               data.indices.length,
                               data.indices.data);
 
-        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_POSITION);
-        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_POSITION,
-                                    3, /* size */
-                                    GL_UNSIGNED_BYTE,
-                                    GL_FALSE, /* normalized */
-                                    sizeof (struct vertex),
-                                    (void *) (intptr_t)
-                                    offsetof(struct vertex, x));
+        fv_array_object_set_attribute(painter->array,
+                                      FV_SHADER_DATA_ATTRIB_POSITION,
+                                      3, /* size */
+                                      GL_UNSIGNED_BYTE,
+                                      GL_FALSE, /* normalized */
+                                      sizeof (struct vertex),
+                                      0, /* divisor */
+                                      painter->buffer,
+                                      offsetof(struct vertex, x));
 
-        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_TEX_COORD);
-        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_TEX_COORD,
-                                    2, /* size */
-                                    GL_UNSIGNED_SHORT,
-                                    GL_TRUE, /* normalized */
-                                    sizeof (struct vertex),
-                                    (void *) (intptr_t)
-                                    offsetof(struct vertex, s));
+        fv_array_object_set_attribute(painter->array,
+                                      FV_SHADER_DATA_ATTRIB_TEX_COORD,
+                                      2, /* size */
+                                      GL_UNSIGNED_SHORT,
+                                      GL_TRUE, /* normalized */
+                                      sizeof (struct vertex),
+                                      0, /* divisor */
+                                      painter->buffer,
+                                      offsetof(struct vertex, s));
 
-        fv_gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, painter->buffer);
+        fv_array_object_set_element_buffer(painter->array, painter->buffer);
 
         fv_buffer_destroy(&data.indices);
         fv_buffer_destroy(&data.vertices);
@@ -503,7 +503,8 @@ flush_specials(struct fv_map_painter *painter)
                                        painter->n_instances);
         fv_gl.glUnmapBuffer(GL_ARRAY_BUFFER);
 
-        fv_gl.glBindVertexArray(model->array);
+        fv_array_object_bind(model->array);
+
         fv_gl.glDrawElementsInstanced(GL_TRIANGLES,
                                       model->n_indices,
                                       GL_UNSIGNED_SHORT,
@@ -542,6 +543,8 @@ paint_special(struct fv_map_painter *painter,
                         flags = GL_MAP_WRITE_BIT |
                                 GL_MAP_INVALIDATE_BUFFER_BIT |
                                 GL_MAP_FLUSH_EXPLICIT_BIT;
+                        fv_gl.glBindBuffer(GL_ARRAY_BUFFER,
+                                           painter->instance_buffer);
                         painter->instance_buffer_map =
                                 fv_gl.glMapBufferRange(GL_ARRAY_BUFFER,
                                                        0, /* offset */
@@ -606,9 +609,6 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         painter->n_instances = 0;
         painter->current_special = 0;
 
-        if (fv_gl.have_instanced_arrays)
-                fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
-
         for (y = y_min; y < y_max; y++) {
                 for (x = x_max - 1; x >= x_min; x--) {
                         map_tile = fv_map_tiles + y * FV_MAP_TILES_X + x;
@@ -630,7 +630,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 
         fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
 
-        fv_gl.glBindVertexArray(painter->array);
+        fv_array_object_bind(painter->array);
 
         for (y = y_min; y < y_max; y++) {
                 count = 0;
@@ -664,7 +664,7 @@ fv_map_painter_free(struct fv_map_painter *painter)
         int i;
 
         fv_gl.glDeleteTextures(1, &painter->texture);
-        fv_gl.glDeleteVertexArrays(1, &painter->array);
+        fv_array_object_free(painter->array);
         fv_gl.glDeleteBuffers(1, &painter->buffer);
 
         if (fv_gl.have_instanced_arrays)

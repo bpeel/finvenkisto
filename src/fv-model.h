@@ -23,9 +23,11 @@
 #include <stdbool.h>
 #include <GL/gl.h>
 
+#include "fv-array-object.h"
+
 struct fv_model {
+        struct fv_array_object *array;
         GLuint buffer;
-        GLuint array;
         size_t indices_offset;
         int n_vertices;
         int n_indices;

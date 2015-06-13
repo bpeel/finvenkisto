@@ -9,6 +9,8 @@ AM_CFLAGS = \
 	$(NULL)
 
 finvenkisto_SOURCES = \
+	fv-array-object.c \
+	fv-array-object.h \
 	fv-buffer.c \
 	fv-buffer.h \
 	fv-data.c \
