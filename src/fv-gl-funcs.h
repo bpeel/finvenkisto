@@ -21,6 +21,22 @@
  * of the FV_GL_FUNC macro
  */
 
+/* The FV_GL_BEGIN_GROUP macro looks like this:
+ * FV_GL_BEGIN_GROUP(minimum GL version,
+ *                   extension,
+ *                   extension function suffix)
+ * If the GL version if at least the minimum then the function is
+ * assumed to be available with no suffix. Otherwise it will check for
+ * the extension and append the function suffix to all function names.
+ *
+ * The GL version is given as the real GL version multiplied by 10 and
+ * converted to an integer. Eg, 2.1 would be 21.
+ */
+
+/* Core functions that we can't do without */
+FV_GL_BEGIN_GROUP(00,
+                  NULL,
+                  NULL)
 FV_GL_FUNC(void,
            glAttachShader, (GLuint program, GLuint shader))
 FV_GL_FUNC(void,
@@ -29,19 +45,9 @@ FV_GL_FUNC(void,
 FV_GL_FUNC(void,
            glBindBuffer, (GLenum target, GLuint buffer))
 FV_GL_FUNC(void,
-           glBlendFunc, (GLenum sfactor, GLenum dfactor))
-FV_GL_FUNC(GLboolean,
-           glUnmapBuffer, (GLenum target))
-FV_GL_FUNC(void *,
-           glMapBufferRange, (GLenum target, GLintptr offset,
-                              GLsizeiptr length, GLbitfield access))
-FV_GL_FUNC(void,
-           glFlushMappedBufferRange, (GLenum target, GLintptr offset,
-                                      GLsizei length))
-FV_GL_FUNC(void,
            glBindTexture, (GLenum target, GLuint texture))
 FV_GL_FUNC(void,
-           glBindVertexArray, (GLuint array))
+           glBlendFunc, (GLenum sfactor, GLenum dfactor))
 FV_GL_FUNC(void,
            glBufferData, (GLenum target, GLsizeiptr size,
                           const void *data, GLenum usage))
@@ -65,8 +71,6 @@ FV_GL_FUNC(void,
 FV_GL_FUNC(void,
            glDeleteTextures, (GLsizei n, const GLuint *textures))
 FV_GL_FUNC(void,
-           glDeleteVertexArrays, (GLsizei n, const GLuint *arrays))
-FV_GL_FUNC(void,
            glDisable, (GLenum cap))
 FV_GL_FUNC(void,
            glDisableVertexAttribArray, (GLuint index))
@@ -77,23 +81,15 @@ FV_GL_FUNC(void,
                                  GLuint end, GLsizei count, GLenum type,
                                  const GLvoid *indices))
 FV_GL_FUNC(void,
-           glDrawElementsInstanced, (GLenum mode, GLsizei count, GLenum type,
-                                     const void *indices,
-                                     GLsizei instancecount))
-FV_GL_FUNC(void,
            glEnable, (GLenum cap))
 FV_GL_FUNC(void,
            glEnableVertexAttribArray, (GLuint index))
 FV_GL_FUNC(void,
            glGenBuffers, (GLsizei n, GLuint *buffers))
-FV_GL_FUNC(void,
-           glGenerateMipmap, (GLenum target))
 FV_GL_FUNC(GLint,
            glGetAttribLocation, (GLuint program, const GLchar *name))
 FV_GL_FUNC(void,
            glGenTextures, (GLsizei n, GLuint *textures))
-FV_GL_FUNC(void,
-           glGenVertexArrays, (GLsizei n, GLuint *arrays))
 FV_GL_FUNC(void,
            glGetProgramInfoLog, (GLuint program, GLsizei bufSize,
                                  GLsizei *length, GLchar *infoLog))
@@ -149,7 +145,57 @@ FV_GL_FUNC(void,
                                    GLenum type, GLboolean normalized,
                                    GLsizei stride, const void *pointer))
 FV_GL_FUNC(void,
-           glVertexAttribDivisorARB, (GLuint index, GLuint divisor))
-FV_GL_FUNC(void,
            glViewport, (GLint x, GLint y,
                                GLsizei width, GLsizei height))
+FV_GL_END_GROUP()
+
+/* Map buffer range */
+FV_GL_BEGIN_GROUP(30,
+                  "GL_ARB_map_buffer_range",
+                  "")
+FV_GL_FUNC(void,
+           glFlushMappedBufferRange, (GLenum target, GLintptr offset,
+                                      GLsizei length))
+FV_GL_FUNC(void *,
+           glMapBufferRange, (GLenum target, GLintptr offset,
+                              GLsizeiptr length, GLbitfield access))
+FV_GL_FUNC(GLboolean,
+           glUnmapBuffer, (GLenum target))
+FV_GL_END_GROUP()
+
+/* Vertex array objects */
+FV_GL_BEGIN_GROUP(30,
+                  "GL_ARB_vertex_array_object",
+                  "")
+FV_GL_FUNC(void,
+           glBindVertexArray, (GLuint array))
+FV_GL_FUNC(void,
+           glDeleteVertexArrays, (GLsizei n, const GLuint *arrays))
+FV_GL_FUNC(void,
+           glGenVertexArrays, (GLsizei n, GLuint *arrays))
+FV_GL_END_GROUP()
+
+FV_GL_BEGIN_GROUP(31,
+                  "GL_ARB_draw_instanced",
+                  "ARB")
+FV_GL_FUNC(void,
+           glDrawElementsInstanced, (GLenum mode, GLsizei count, GLenum type,
+                                     const void *indices,
+                                     GLsizei instancecount))
+FV_GL_END_GROUP()
+
+/* FBOs. This is only used for generating mipmaps */
+FV_GL_BEGIN_GROUP(30,
+                  "GL_ARB_framebuffer_object",
+                  "")
+FV_GL_FUNC(void,
+           glGenerateMipmap, (GLenum target))
+FV_GL_END_GROUP()
+
+/* Instanced arrays */
+FV_GL_BEGIN_GROUP(33,
+                  "GL_ARB_instanced_arrays",
+                  "ARB")
+FV_GL_FUNC(void,
+           glVertexAttribDivisor, (GLuint index, GLuint divisor))
+FV_GL_END_GROUP()

@@ -24,14 +24,38 @@
 
 #include "fv-gl.h"
 #include "fv-util.h"
+#include "fv-buffer.h"
 
 struct fv_gl fv_gl;
 
-static const char *
-gl_funcs[] = {
-#define FV_GL_FUNC(return_type, name, args) #name,
+struct fv_gl_func {
+        const char *name;
+        size_t offset;
+};
+
+struct fv_gl_group {
+        int minimum_gl_version;
+        const char *extension;
+        const char *extension_suffix;
+        const struct fv_gl_func *funcs;
+};
+
+static const struct fv_gl_group
+gl_groups[] = {
+#define FV_GL_BEGIN_GROUP(min_gl_version, ext, suffix)  \
+        { .minimum_gl_version = min_gl_version,         \
+        .extension = ext,                               \
+        .extension_suffix = suffix,                     \
+        .funcs = (const struct fv_gl_func[]) {
+#define FV_GL_FUNC(return_type, func_name, args)                        \
+        { .name = #func_name, .offset = offsetof(struct fv_gl, func_name) },
+#define FV_GL_END_GROUP()                       \
+        { .name = NULL }                        \
+} },
 #include "fv-gl-funcs.h"
+#undef FV_GL_BEGIN_GROUP
 #undef FV_GL_FUNC
+#undef FV_GL_END_GROUP
 };
 
 static void
@@ -76,16 +100,54 @@ invalid:
         fv_gl.minor_version = -1;
 }
 
+static void
+init_group(const struct fv_gl_group *group)
+{
+        int minor_gl_version = fv_gl.minor_version;
+        const char *suffix;
+        struct fv_buffer buffer;
+        void *func;
+        int gl_version;
+        int i;
+
+        if (minor_gl_version >= 10)
+                minor_gl_version = 9;
+        gl_version = fv_gl.major_version * 10 + minor_gl_version;
+
+        if (gl_version >= group->minimum_gl_version)
+                suffix = "";
+        else if (group->extension &&
+                 SDL_GL_ExtensionSupported(group->extension))
+                suffix = group->extension_suffix;
+        else
+                return;
+
+        fv_buffer_init(&buffer);
+
+        for (i = 0; group->funcs[i].name; i++) {
+                fv_buffer_set_length(&buffer, 0);
+                fv_buffer_append_string(&buffer, group->funcs[i].name);
+                fv_buffer_append_string(&buffer, suffix);
+                func = SDL_GL_GetProcAddress((char *) buffer.data);
+                *(void **) ((char *) &fv_gl + group->funcs[i].offset) = func;
+        }
+
+        fv_buffer_destroy(&buffer);
+}
+
 void
 fv_gl_init(void)
 {
-        void **ptrs = (void **) &fv_gl;
         int i;
 
-        for (i = 0; i < FV_N_ELEMENTS(gl_funcs); i++)
-                ptrs[i] = SDL_GL_GetProcAddress(gl_funcs[i]);
+        memset(&fv_gl, 0, sizeof fv_gl);
+
+        fv_gl.glGetString = SDL_GL_GetProcAddress("glGetString");
 
         get_gl_version();
+
+        for (i = 0; i < FV_N_ELEMENTS(gl_groups); i++)
+                init_group(gl_groups + i);
 
         fv_gl.have_map_buffer_range = true;
         fv_gl.have_vertex_array_objects = true;

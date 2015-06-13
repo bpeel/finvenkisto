@@ -96,7 +96,7 @@ fv_array_object_set_attribute(struct fv_array_object *array,
                                             stride,
                                             (void *) (intptr_t) buffer_offset);
                 if (divisor)
-                        fv_gl.glVertexAttribDivisorARB(index, divisor);
+                        fv_gl.glVertexAttribDivisor(index, divisor);
                 fv_gl.glEnableVertexAttribArray(index);
         } else {
                 array->enabled_attribs |= 1 << index;
@@ -162,7 +162,7 @@ fv_array_object_bind(struct fv_array_object *array)
                                             attrib->buffer_offset);
 
                 if (fv_gl.have_instanced_arrays)
-                        fv_gl.glVertexAttribDivisorARB(index, attrib->divisor);
+                        fv_gl.glVertexAttribDivisor(index, attrib->divisor);
         }
 
         attribs = array->enabled_attribs ^ enabled_attribs;

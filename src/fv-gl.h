@@ -24,9 +24,13 @@
 #include <stdbool.h>
 
 struct fv_gl {
+#define FV_GL_BEGIN_GROUP(a, b, c)
 #define FV_GL_FUNC(return_type, name, args) return_type (APIENTRYP name) args;
+#define FV_GL_END_GROUP()
 #include "fv-gl-funcs.h"
+#undef FV_GL_BEGIN_GROUP
 #undef FV_GL_FUNC
+#undef FV_GL_END_GROUP
 
         int major_version;
         int minor_version;
