@@ -666,38 +666,17 @@ paint(struct data *data)
 static bool
 check_gl_version(void)
 {
-        const char *version_string =
-                (const char *) fv_gl.glGetString(GL_VERSION);
-        const char *number_start;
-        const char *p = version_string;
-        int major_version = 0;
-        int minor_version = 0;
+        if (fv_gl.major_version < 0 ||
+            fv_gl.minor_version < 0) {
+                fv_error_message("Invalid GL version string encountered: %s",
+                                 (const char *) fv_gl.glGetString(GL_VERSION));
 
-        number_start = p;
-
-        while (*p >= '0' && *p <= '9') {
-                major_version = major_version * 10 + *p - '0';
-                p++;
+                return false;
         }
 
-        if (p == number_start || *p != '.')
-                goto invalid;
-
-        p++;
-
-        number_start = p;
-
-        while (*p >= '0' && *p <= '9') {
-                minor_version = minor_version * 10 + *p - '0';
-                p++;
-        }
-
-        if (number_start == p)
-                goto invalid;
-
-        if (major_version < MIN_GL_MAJOR_VERSION ||
-            (major_version == MIN_GL_MAJOR_VERSION &&
-             minor_version < MIN_GL_MINOR_VERSION)) {
+        if (fv_gl.major_version < MIN_GL_MAJOR_VERSION ||
+                   (fv_gl.major_version == MIN_GL_MAJOR_VERSION &&
+                    fv_gl.minor_version < MIN_GL_MINOR_VERSION)) {
                 fv_error_message("GL version %i.%i is required but the driver "
                                  "is reporting:\n"
                                  "Version: %s\n"
@@ -705,18 +684,13 @@ check_gl_version(void)
                                  "Renderer: %s",
                                  MIN_GL_MAJOR_VERSION,
                                  MIN_GL_MINOR_VERSION,
-                                 version_string,
+                                 (const char *) fv_gl.glGetString(GL_VERSION),
                                  (const char *) fv_gl.glGetString(GL_VENDOR),
                                  (const char *) fv_gl.glGetString(GL_RENDERER));
                 return false;
         }
 
         return true;
-
-invalid:
-        fv_error_message("Invalid GL version string encountered: %s",
-                         version_string);
-        return false;
 }
 
 static void

@@ -34,6 +34,48 @@ gl_funcs[] = {
 #undef FV_GL_FUNC
 };
 
+static void
+get_gl_version(void)
+{
+        const char *version_string =
+                (const char *) fv_gl.glGetString(GL_VERSION);
+        const char *number_start;
+        const char *p = version_string;
+        int major_version = 0;
+        int minor_version = 0;
+
+        number_start = p;
+
+        while (*p >= '0' && *p <= '9') {
+                major_version = major_version * 10 + *p - '0';
+                p++;
+        }
+
+        if (p == number_start || *p != '.')
+                goto invalid;
+
+        p++;
+
+        number_start = p;
+
+        while (*p >= '0' && *p <= '9') {
+                minor_version = minor_version * 10 + *p - '0';
+                p++;
+        }
+
+        if (number_start == p)
+                goto invalid;
+
+        fv_gl.major_version = major_version;
+        fv_gl.minor_version = minor_version;
+
+        return;
+
+invalid:
+        fv_gl.major_version = -1;
+        fv_gl.minor_version = -1;
+}
+
 void
 fv_gl_init(void)
 {
@@ -42,6 +84,8 @@ fv_gl_init(void)
 
         for (i = 0; i < FV_N_ELEMENTS(gl_funcs); i++)
                 ptrs[i] = SDL_GL_GetProcAddress(gl_funcs[i]);
+
+        get_gl_version();
 
         fv_gl.have_map_buffer_range = true;
         fv_gl.have_vertex_array_objects = true;

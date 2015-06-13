@@ -28,6 +28,9 @@ struct fv_gl {
 #include "fv-gl-funcs.h"
 #undef FV_GL_FUNC
 
+        int major_version;
+        int minor_version;
+
         bool have_map_buffer_range;
         bool have_vertex_array_objects;
         bool have_texture_2d_array;
