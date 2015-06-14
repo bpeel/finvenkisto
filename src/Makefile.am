@@ -82,6 +82,7 @@ finvenkisto_html_SOURCES = $(sources)
 finvenkisto_html_LDFLAGS = \
 	--pre-js $(srcdir)/configure-emscripten.js \
 	--pre-js $(builddir)/data/finvenkisto-data.js \
+	--shell-file $(srcdir)/finvenkisto-shell.html \
 	$(NULL)
 finvenkisto_html_LDADD = \
 	$(ldadd) \
