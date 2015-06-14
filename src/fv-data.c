@@ -37,7 +37,7 @@ fv_data_get_filename(const char *name)
         char *full_path;
 
         if (data_path == NULL)
-                NULL;
+                return NULL;
 
         full_path = fv_strconcat(data_path,
                                  FV_DATA_SEPARATOR "data"
