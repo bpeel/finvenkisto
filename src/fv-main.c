@@ -824,7 +824,7 @@ main(int argc, char **argv)
         SDL_Event event;
         Uint32 flags;
         int res;
-        int ret;
+        int ret = EXIT_SUCCESS;
 
         data.is_fullscreen = true;
 
