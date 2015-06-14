@@ -875,7 +875,7 @@ main(int argc, char **argv)
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-        flags = SDL_WINDOW_OPENGL;
+        flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
         if (data.is_fullscreen)
                 flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 

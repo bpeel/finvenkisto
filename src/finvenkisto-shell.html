@@ -5,20 +5,23 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Finvenkisto</title>
     <style>
-      .emscripten { padding-right: 0; margin-left: auto;
-                    margin-right: auto; display: block; }
-      div.emscripten { text-align: center; }
-      /* the canvas *must not* have any border or padding,
-         or mouse coords will be wrong */
-      canvas.emscripten { border: 0px none; }
+      canvas.emscripten {
+       border: 0px none;
+       position: absolute;
+       width: 100%;
+       height: 100%;
+       margin: 0;
+       padding: 0;
+      }
 
+      html, body { margin: 0; padding: 0; height: 100%; }
+
+      #status { text-align: center; padding: 1em; }
     </style>
   </head>
   <body>
-    <div class="emscripten" id="status">Downloading...</div>
-    <div class="emscripten">
-      <canvas class="emscripten" id="canvas"></canvas>
-    </div>
+    <canvas class="emscripten" id="canvas"></canvas>
+    <div id="status">Downloading...</div>
     <script type='text/javascript'>
       var statusElement = document.getElementById('status');
 
