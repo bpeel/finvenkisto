@@ -77,10 +77,18 @@ ldadd = \
 
 finvenkisto_SOURCES = $(sources)
 finvenkisto_LDADD = $(ldadd)
+
 finvenkisto_html_SOURCES = $(sources)
-finvenkisto_html_LDADD = $(ldadd)
+finvenkisto_html_LDFLAGS = \
+	--pre-js $(srcdir)/configure-emscripten.js \
+	--pre-js $(builddir)/data/finvenkisto-data.js \
+	$(NULL)
+finvenkisto_html_LDADD = \
+	$(ldadd) \
+	$(NULL)
 
 EXTRA_DIST = \
+	configure-emscripten.js \
 	fv-map.png \
 	make-map.py \
 	$(NULL)

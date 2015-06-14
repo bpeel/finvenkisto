@@ -144,3 +144,11 @@ DISTCLEANFILES = \
 	hud/digits-stamp \
 	hud-stamp \
 	$(NULL)
+
+if IS_EMSCRIPTEN
+all : finvenkisto-data.js
+
+finvenkisto-data.js : $(dist_images_DATA)
+	$(AM_V_GEN)python $$EMSCRIPTEN/tools/file_packager.py \
+	finvenkisto.data --js-output=$@ --preload $^
+endif
