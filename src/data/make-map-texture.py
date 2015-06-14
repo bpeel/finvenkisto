@@ -57,6 +57,14 @@ for image in images:
     if y > image_height:
         image_height = y
 
+# If the image width is not a power of two then expand it enough so
+# that some padding will be added. If the GL driver doesn't support
+# NPOT textures then the map painter will then expand it to a power of
+# two with empty space at the side. The little bit of padding is
+# needed to avoid hitting the empty space when generating the mipmap.
+if (image_width & (image_width - 1)):
+    image_width += PADDING_SIZE
+
 final_image = Image.new('RGB', (image_width, image_height))
 
 for image in images:
