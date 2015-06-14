@@ -37,8 +37,8 @@
 #include "fv-map.h"
 #include "fv-error-message.h"
 
-
 #ifdef EMSCRIPTEN
+#include <emscripten.h>
 /* On Emscripten you have to request 2.0 to get a 2.0 ES context but
  * the version is reports in GL_VERSION is 1.0 because that is the
  * WebGL version.
@@ -817,11 +817,29 @@ create_gl_context(SDL_Window *window)
         return SDL_GL_CreateContext(window);
 }
 
+static void
+iterate_main_loop(struct data *data)
+{
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event))
+                handle_event(data, &event);
+
+        paint(data);
+}
+
+#ifdef EMSCRIPTEN
+static void
+emscripten_loop_cb(void *data)
+{
+        iterate_main_loop(data);
+}
+#endif /* EMSCRIPTEN */
+
 int
 main(int argc, char **argv)
 {
         struct data data;
-        SDL_Event event;
         Uint32 flags;
         int res;
         int ret = EXIT_SUCCESS;
@@ -924,13 +942,15 @@ main(int argc, char **argv)
 
         reset_menu_state(&data);
 
-        while (!data.quit) {
-                if (SDL_PollEvent(&event))
-                        handle_event(&data, &event);
-                else
-                        paint(&data);
-
-        }
+#ifdef EMSCRIPTEN
+        emscripten_set_main_loop_arg(emscripten_loop_cb,
+                                     &data,
+                                     0, /* fps (use browser's choice) */
+                                     true /* simulate infinite loop */);
+#else
+        while (!data.quit)
+                iterate_main_loop(&data);
+#endif
 
         fv_logic_free(data.logic);
 
