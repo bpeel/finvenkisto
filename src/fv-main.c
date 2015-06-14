@@ -144,6 +144,7 @@ reset_menu_state(struct data *data)
         fv_logic_reset(data->logic, 0);
 }
 
+#ifndef EMSCRIPTEN
 static void
 toggle_fullscreen(struct data *data)
 {
@@ -164,6 +165,7 @@ toggle_fullscreen(struct data *data)
 
         SDL_SetWindowFullscreen(data->window, data->is_fullscreen);
 }
+#endif /* EMSCRIPTEN */
 
 static void
 update_direction(struct data *data,
@@ -377,10 +379,12 @@ handle_key_event(struct data *data,
                 }
                 break;
 
+#ifndef EMSCRIPTEN
         case SDLK_F11:
                 if (event->state == SDL_PRESSED)
                         toggle_fullscreen(data);
                 break;
+#endif
 
         default:
                 handle_other_key(data, event);
