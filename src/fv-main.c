@@ -844,7 +844,11 @@ main(int argc, char **argv)
         int res;
         int ret = EXIT_SUCCESS;
 
+#ifdef EMSCRIPTEN
+        data.is_fullscreen = false;
+#else
         data.is_fullscreen = true;
+#endif
 
         if (!process_arguments(&data, argc, argv)) {
                 ret = EXIT_FAILURE;
