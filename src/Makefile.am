@@ -1,6 +1,12 @@
 SUBDIRS = data rply
 
-bin_PROGRAMS = finvenkisto
+bin_PROGRAMS =
+
+if IS_EMSCRIPTEN
+bin_PROGRAMS += finvenkisto.html
+else
+bin_PROGRAMS += finvenkisto
+endif
 
 AM_CFLAGS = \
 	$(GL_CFLAGS) \
@@ -8,7 +14,7 @@ AM_CFLAGS = \
 	$(WARNING_CFLAGS) \
 	$(NULL)
 
-finvenkisto_SOURCES = \
+sources = \
 	fv-array-object.c \
 	fv-array-object.h \
 	fv-buffer.c \
@@ -64,10 +70,15 @@ BUILT_SOURCES = \
 fv-map.c : fv-map.png make-map.py
 	$(AM_V_GEN)python3 $(srcdir)/make-map.py $(srcdir)/fv-map.png > $@
 
-finvenkisto_LDADD = \
+ldadd = \
 	$(SDL_LIBS) \
 	rply/librply.a \
 	$(NULL)
+
+finvenkisto_SOURCES = $(sources)
+finvenkisto_LDADD = $(ldadd)
+finvenkisto_html_SOURCES = $(sources)
+finvenkisto_html_LDADD = $(ldadd)
 
 EXTRA_DIST = \
 	fv-map.png \

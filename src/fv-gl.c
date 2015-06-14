@@ -58,17 +58,34 @@ gl_groups[] = {
 #undef FV_GL_END_GROUP
 };
 
+static const char
+version_string_prefix[] =
+#ifdef EMSCRIPTEN
+        "WebGL "
+#else
+        ""
+#endif
+        ;
+
 static void
 get_gl_version(void)
 {
         const char *version_string =
                 (const char *) fv_gl.glGetString(GL_VERSION);
-        const char *number_start;
-        const char *p = version_string;
+        const char *number_start, *p;
         int major_version = 0;
         int minor_version = 0;
+        int version_string_len;
 
-        number_start = p;
+        version_string_len = strlen(version_string);
+        if (version_string_len < sizeof version_string_prefix ||
+            memcmp(version_string,
+                   version_string_prefix,
+                   sizeof version_string_prefix - 1))
+                goto invalid;
+        version_string += sizeof version_string_prefix - 1;
+
+        number_start = p = version_string;
 
         while (*p >= '0' && *p <= '9') {
                 major_version = major_version * 10 + *p - '0';
@@ -114,7 +131,8 @@ init_group(const struct fv_gl_group *group)
                 minor_gl_version = 9;
         gl_version = fv_gl.major_version * 10 + minor_gl_version;
 
-        if (gl_version >= group->minimum_gl_version)
+        if (group->minimum_gl_version >= 0 &&
+            gl_version >= group->minimum_gl_version)
                 suffix = "";
         else if (group->extension &&
                  SDL_GL_ExtensionSupported(group->extension))

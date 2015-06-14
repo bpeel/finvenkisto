@@ -34,7 +34,12 @@
 
 static const char
 fv_shader_data_version[] =
-        "#version 110\n";
+#ifdef EMSCRIPTEN
+        "#version 100\n"
+#else
+        "#version 110\n"
+#endif
+        ;
 
 static const char
 fv_shader_data_have_texture_2d_array[] =
@@ -44,6 +49,12 @@ fv_shader_data_have_texture_2d_array[] =
 static const char
 fv_shader_data_have_instanced_arrays[] =
         "#define HAVE_INSTANCED_ARRAYS 1\n";
+
+#ifdef EMSCRIPTEN
+static const char
+fv_shader_data_precision[] =
+        "precision mediump float;\n";
+#endif
 
 static const char
 fv_shader_data_newline[] =
@@ -108,7 +119,7 @@ create_shader(const char *name,
         GLint length, compile_status;
         GLsizei actual_length;
         GLchar *info_log;
-        const char *source_strings[5];
+        const char *source_strings[6];
         GLint lengths[FV_N_ELEMENTS(source_strings)];
         int n_strings = 0;
 
@@ -130,6 +141,13 @@ create_shader(const char *name,
                 lengths[n_strings++] =
                         sizeof fv_shader_data_have_instanced_arrays - 1;
         }
+
+#ifdef EMSCRIPTEN
+        source_strings[n_strings] =
+                fv_shader_data_precision;
+        lengths[n_strings++] =
+                sizeof fv_shader_data_precision - 1;
+#endif
 
         source_strings[n_strings] = fv_shader_data_newline;
         lengths[n_strings++] = sizeof fv_shader_data_newline - 1;

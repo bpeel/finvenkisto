@@ -19,6 +19,9 @@ AM_PROG_CC_C_O
 AC_ISC_POSIX
 AC_C_CONST
 
+AC_CHECK_DECL([EMSCRIPTEN], [IS_EMSCRIPTEN=yes], [IS_EMSCRIPTEN=no])
+AM_CONDITIONAL([IS_EMSCRIPTEN], [test "x$IS_EMSCRIPTEN" = xyes])
+
 AC_C_BIGENDIAN([AC_DEFINE([HAVE_BIG_ENDIAN], [1], [System is big-endian])],
                [AC_DEFINE([HAVE_LITTLE_ENDIAN], [1],
                           [System is little-endian])])
@@ -37,11 +40,14 @@ AS_COMPILER_FLAGS([WARNING_CFLAGS],
                   [$ALL_WARNING_CFLAGS])
 AC_SUBST([WARNING_CFLAGS])
 
-AS_CASE([$host_os],
-        [mingw*],
-        [GL_CFLAGS=""],
-        [PKG_CHECK_MODULES([GL], [gl])])
-PKG_CHECK_MODULES([SDL], [sdl2])
+AS_IF([test "x$IS_EMSCRIPTEN" = "xyes"],
+      [SDL_CFLAGS="-s USE_SDL=2"
+       AC_SUBST([SDL_CFLAGS])],
+      [AS_CASE([$host_os],
+               [mingw*],
+               [GL_CFLAGS=""],
+               [PKG_CHECK_MODULES([GL], [gl])])
+      PKG_CHECK_MODULES([SDL], [sdl2])])
 
 AC_OUTPUT(
 Makefile

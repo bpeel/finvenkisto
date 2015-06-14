@@ -37,10 +37,26 @@
 #include "fv-map.h"
 #include "fv-error-message.h"
 
+
+#ifdef EMSCRIPTEN
+/* On Emscripten you have to request 2.0 to get a 2.0 ES context but
+ * the version is reports in GL_VERSION is 1.0 because that is the
+ * WebGL version.
+ */
+#define MIN_GL_MAJOR_VERSION 1
+#define MIN_GL_MINOR_VERSION 0
+#define REQUEST_GL_MAJOR_VERSION 2
+#define REQUEST_GL_MINOR_VERSION 0
+#define FV_GL_PROFILE SDL_GL_CONTEXT_PROFILE_ES
+#else
 #define MIN_GL_MAJOR_VERSION 2
 #define MIN_GL_MINOR_VERSION 0
+#define REQUEST_GL_MAJOR_VERSION MIN_GL_MAJOR_VERSION
+#define REQUEST_GL_MINOR_VERSION MIN_GL_MINOR_VERSION
 #define CORE_GL_MAJOR_VERSION 3
 #define CORE_GL_MINOR_VERSION 1
+#define FV_GL_PROFILE SDL_GL_CONTEXT_PROFILE_COMPATIBILITY
+#endif
 
 enum key_code {
         KEY_CODE_UP,
@@ -771,6 +787,7 @@ process_arguments(struct data *data,
 static SDL_GLContext
 create_gl_context(SDL_Window *window)
 {
+#ifndef EMSCRIPTEN
         SDL_GLContext context;
 
         /* First try creating a core context because if we get one it
@@ -787,14 +804,15 @@ create_gl_context(SDL_Window *window)
 
         if (context != NULL)
                 return context;
+#endif /* EMSCRIPTEN */
 
         /* Otherwise try a compatibility profile context */
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,
-                            MIN_GL_MAJOR_VERSION);
+                            REQUEST_GL_MAJOR_VERSION);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,
-                            MIN_GL_MINOR_VERSION);
+                            REQUEST_GL_MINOR_VERSION);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                            SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+                            FV_GL_PROFILE);
 
         return SDL_GL_CreateContext(window);
 }
