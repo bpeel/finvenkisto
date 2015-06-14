@@ -737,7 +737,7 @@ fv_logic_update(struct fv_logic *logic, unsigned int ticks)
 
         /* If we've skipped over half a second then we'll assume something
          * has gone wrong and we won't do anything */
-        if (progress >= 500 || progress < 0)
+        if (progress >= 500)
                 return;
 
         if (logic->state != FV_LOGIC_STATE_RUNNING)
