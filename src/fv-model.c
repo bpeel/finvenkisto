@@ -261,8 +261,8 @@ static void
 create_buffer(struct data *data)
 {
         struct fv_model *model = data->model;
-        GLenum type;
-        GLboolean normalized;
+        GLenum type = GL_FLOAT;
+        GLboolean normalized = GL_FALSE;
         GLint attrib;
         int i;
 

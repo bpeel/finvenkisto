@@ -132,7 +132,7 @@ set_texture(struct fv_person_painter *painter,
 static bool
 load_textures(struct fv_person_painter *painter)
 {
-        int tex_width, tex_height;
+        int tex_width = -1, tex_height = -1;
         int layer_width, layer_height;
         uint8_t *tex_data;
         int i;
