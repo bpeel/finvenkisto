@@ -331,6 +331,17 @@ error:
         return false;
 }
 
+static int
+smallest_pot(int x)
+{
+        int y = 1;
+
+        while (y < x)
+                y *= 2;
+
+        return y;
+}
+
 struct fv_map_painter *
 fv_map_painter_new(struct fv_shader_data *shader_data)
 {
@@ -373,16 +384,31 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
         if (tex_data == NULL)
                 goto error_models;
 
+        if (!fv_gl.have_npot_mipmaps) {
+                painter->texture_width = smallest_pot(tex_width);
+                painter->texture_height = smallest_pot(tex_height);
+        } else {
+                painter->texture_width = tex_width;
+                painter->texture_height = tex_height;
+        }
+
         fv_gl.glGenTextures(1, &painter->texture);
         fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
         fv_gl.glTexImage2D(GL_TEXTURE_2D,
                            0, /* level */
                            GL_RGB,
-                           tex_width, tex_height,
+                           painter->texture_width, painter->texture_height,
                            0, /* border */
                            GL_RGB,
                            GL_UNSIGNED_BYTE,
-                           tex_data);
+                           NULL);
+        fv_gl.glTexSubImage2D(GL_TEXTURE_2D,
+                              0, /* level */
+                              0, 0, /* x/y offset */
+                              tex_width, tex_height,
+                              GL_RGB,
+                              GL_UNSIGNED_BYTE,
+                              tex_data);
 
         fv_free(tex_data);
 
@@ -399,9 +425,6 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
         fv_gl.glTexParameteri(GL_TEXTURE_2D,
                               GL_TEXTURE_WRAP_T,
                               GL_CLAMP_TO_EDGE);
-
-        painter->texture_width = tex_width;
-        painter->texture_height = tex_height;
 
         tex_uniform = fv_gl.glGetUniformLocation(painter->map_program, "tex");
         fv_gl.glUseProgram(painter->map_program);

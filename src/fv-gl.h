@@ -39,6 +39,7 @@ struct fv_gl {
         bool have_vertex_array_objects;
         bool have_texture_2d_array;
         bool have_instanced_arrays;
+        bool have_npot_mipmaps;
 };
 
 extern struct fv_gl fv_gl;

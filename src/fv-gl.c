@@ -170,6 +170,16 @@ fv_gl_init(void)
         fv_gl.have_map_buffer_range = fv_gl.glMapBufferRange != NULL;
         fv_gl.have_vertex_array_objects = fv_gl.glGenVertexArrays != NULL;
 
+        /* On GLES2 (and thus WebGL) non-power-of-two textures are
+         * only supported if no mipmaps are used and the repeat mode
+         * is CLAMP_TO_EDGE.
+         */
+#ifdef EMSCRIPTEN
+        fv_gl.have_npot_mipmaps = false;
+#else
+        fv_gl.have_npot_mipmaps = true;
+#endif
+
         fv_gl.have_texture_2d_array =
                 SDL_GL_ExtensionSupported("GL_EXT_texture_array");
 
