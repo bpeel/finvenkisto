@@ -318,8 +318,7 @@ flush_people(struct paint_closure *data)
         fv_gl.glDrawElementsInstanced(GL_TRIANGLES,
                                       painter->model.n_indices,
                                       GL_UNSIGNED_SHORT,
-                                      (void *) (intptr_t)
-                                      painter->model.indices_offset,
+                                      NULL, /* offset */
                                       data->n_instances);
 
         data->n_instances = 0;

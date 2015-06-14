@@ -27,8 +27,8 @@
 
 struct fv_model {
         struct fv_array_object *array;
-        GLuint buffer;
-        size_t indices_offset;
+        GLuint vertices_buffer;
+        GLuint indices_buffer;
         int n_vertices;
         int n_indices;
 };

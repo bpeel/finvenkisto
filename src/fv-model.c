@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2014 Neil Roberts
+ * Copyright (C) 2014, 2015 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -266,27 +266,17 @@ create_buffer(struct data *data)
         GLint attrib;
         int i;
 
-        model->indices_offset = data->n_vertices * data->vertex_size;
         model->n_vertices = data->n_vertices;
         model->n_indices = data->indices.length / sizeof (uint16_t);
 
         model->array = fv_array_object_new();
 
-        fv_gl.glGenBuffers(1, &model->buffer);
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, model->buffer);
+        fv_gl.glGenBuffers(1, &model->vertices_buffer);
+        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, model->vertices_buffer);
         fv_gl.glBufferData(GL_ARRAY_BUFFER,
-                           model->indices_offset +
-                           data->indices.length,
-                           NULL, /* data */
+                           data->n_vertices * data->vertex_size,
+                           data->vertices,
                            GL_STATIC_DRAW);
-        fv_gl.glBufferSubData(GL_ARRAY_BUFFER,
-                              0, /* offset */
-                              model->indices_offset, /* length */
-                              data->vertices);
-        fv_gl.glBufferSubData(GL_ARRAY_BUFFER,
-                              model->indices_offset,
-                              data->indices.length,
-                              data->indices.data);
 
         for (i = 0; i < N_PROPERTIES; i++) {
                 if (!(data->available_props & (1 << i)))
@@ -312,11 +302,19 @@ create_buffer(struct data *data)
                                               normalized,
                                               data->vertex_size,
                                               0, /* divisor */
-                                              model->buffer,
+                                              model->vertices_buffer,
                                               data->property_offsets[i]);
         }
 
-        fv_array_object_set_element_buffer(model->array, model->buffer);
+        fv_gl.glGenBuffers(1, &model->indices_buffer);
+
+        fv_array_object_set_element_buffer(model->array,
+                                           model->indices_buffer);
+
+        fv_gl.glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                           data->indices.length,
+                           data->indices.data,
+                           GL_STATIC_DRAW);
 }
 
 bool
@@ -378,13 +376,13 @@ fv_model_paint(const struct fv_model *model)
                                   0, model->n_vertices - 1,
                                   model->n_indices,
                                   GL_UNSIGNED_SHORT,
-                                  (void *) (intptr_t)
-                                  model->indices_offset);
+                                  NULL /* offset */);
 }
 
 void
 fv_model_destroy(struct fv_model *model)
 {
         fv_array_object_free(model->array);
-        fv_gl.glDeleteBuffers(1, &model->buffer);
+        fv_gl.glDeleteBuffers(1, &model->vertices_buffer);
+        fv_gl.glDeleteBuffers(1, &model->indices_buffer);
 }
