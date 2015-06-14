@@ -374,7 +374,7 @@ fv_model_paint(const struct fv_model *model)
 {
         fv_array_object_bind(model->array);
 
-        fv_gl.glDrawRangeElements(GL_TRIANGLES,
+        fv_gl_draw_range_elements(GL_TRIANGLES,
                                   0, model->n_vertices - 1,
                                   model->n_indices,
                                   GL_UNSIGNED_SHORT,

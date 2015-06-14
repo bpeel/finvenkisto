@@ -93,9 +93,8 @@ FV_GL_FUNC(void,
 FV_GL_FUNC(void,
            glDrawArrays, (GLenum mode, GLint first, GLsizei count))
 FV_GL_FUNC(void,
-           glDrawRangeElements, (GLenum mode, GLuint start,
-                                 GLuint end, GLsizei count, GLenum type,
-                                 const GLvoid *indices))
+           glDrawElements, (GLenum mode, GLsizei count, GLenum type,
+                            const GLvoid *indices))
 FV_GL_FUNC(void,
            glEnable, (GLenum cap))
 FV_GL_FUNC(void,
@@ -223,6 +222,16 @@ FV_GL_FUNC(void,
                              GLsizei height, GLsizei depth,
                              GLenum format,
                              GLenum type, const GLvoid *pixels))
+FV_GL_END_GROUP()
+
+/* Draw range elements is not available in GLES 2 */
+FV_GL_BEGIN_GROUP(FV_GL_ALT_VERSION(00, -1),
+                  NULL,
+                  NULL)
+FV_GL_FUNC(void,
+           glDrawRangeElements, (GLenum mode, GLuint start,
+                                 GLuint end, GLsizei count, GLenum type,
+                                 const GLvoid *indices))
 FV_GL_END_GROUP()
 
 #undef FV_GL_ALT_VERSION

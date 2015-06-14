@@ -46,4 +46,24 @@ extern struct fv_gl fv_gl;
 void
 fv_gl_init(void);
 
+static inline void
+fv_gl_draw_range_elements(GLenum mode,
+                          GLuint start, GLuint end,
+                          GLsizei count,
+                          GLenum type,
+                          const GLvoid *indices)
+{
+        if (fv_gl.glDrawRangeElements)
+                fv_gl.glDrawRangeElements(mode,
+                                          start, end,
+                                          count,
+                                          type,
+                                          indices);
+        else
+                fv_gl.glDrawElements(mode,
+                                     count,
+                                     type,
+                                     indices);
+}
+
 #endif /* FV_GL_H */

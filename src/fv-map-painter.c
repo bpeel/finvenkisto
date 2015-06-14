@@ -643,7 +643,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                                 idx_max = tile->max;
                 }
 
-                fv_gl.glDrawRangeElements(GL_TRIANGLES,
+                fv_gl_draw_range_elements(GL_TRIANGLES,
                                           idx_min, idx_max,
                                           count,
                                           GL_UNSIGNED_SHORT,

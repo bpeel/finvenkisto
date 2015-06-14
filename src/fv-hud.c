@@ -276,7 +276,7 @@ fv_hud_end_rectangles(struct fv_hud *hud)
 
         fv_array_object_bind(hud->array);
 
-        fv_gl.glDrawRangeElements(GL_TRIANGLES,
+        fv_gl_draw_range_elements(GL_TRIANGLES,
                                   0, /* start */
                                   hud->n_rectangles * 4 - 1, /* end */
                                   hud->n_rectangles * 6, /* count */
