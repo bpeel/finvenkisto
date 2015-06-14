@@ -31,8 +31,7 @@ AC_CHECK_SIZEOF([unsigned long])
 AC_CHECK_LIB([m], sinf)
 AC_CHECK_FUNCS([ffs ffsl])
 
-ALL_WARNING_CFLAGS="-Wall -Wcast-align -Wuninitialized
-                    -Wno-strict-aliasing -Wempty-body -Wformat
+ALL_WARNING_CFLAGS="-Wall -Wuninitialized -Wempty-body -Wformat
                     -Wformat-security -Winit-self -Wundef
                     -Wdeclaration-after-statement -Wvla
                     -Wpointer-arith -Wmissing-declarations"
