@@ -185,7 +185,7 @@ FV_GL_END_GROUP()
 
 FV_GL_BEGIN_GROUP(FV_GL_ALT_VERSION(31, -1),
                   FV_GL_ALT_EXT("GL_ARB_draw_instanced",
-                                "GL_ANGLE_intanced_arrays"),
+                                "GL_ANGLE_instanced_arrays"),
                   FV_GL_ALT_SUFFIX("ARB", "ANGLE"))
 FV_GL_FUNC(void,
            glDrawElementsInstanced, (GLenum mode, GLsizei count, GLenum type,
@@ -204,7 +204,7 @@ FV_GL_END_GROUP()
 /* Instanced arrays */
 FV_GL_BEGIN_GROUP(FV_GL_ALT_VERSION(33, -1),
                   FV_GL_ALT_EXT("GL_ARB_instanced_arrays",
-                                "GL_ANGLE_intanced_arrays"),
+                                "GL_ANGLE_instanced_arrays"),
                   FV_GL_ALT_SUFFIX("ARB", "ANGLE"))
 FV_GL_FUNC(void,
            glVertexAttribDivisor, (GLuint index, GLuint divisor))
