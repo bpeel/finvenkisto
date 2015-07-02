@@ -847,6 +847,7 @@ main(int argc, char **argv)
         Uint32 flags;
         int res;
         int ret = EXIT_SUCCESS;
+        int i;
 
 #ifdef EMSCRIPTEN
         data.is_fullscreen = false;
@@ -879,17 +880,29 @@ main(int argc, char **argv)
         if (data.is_fullscreen)
                 flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 
-        data.window = SDL_CreateWindow("Finvenkisto",
-                                       SDL_WINDOWPOS_UNDEFINED,
-                                       SDL_WINDOWPOS_UNDEFINED,
-                                       800, 600,
-                                       flags);
+        /* First try creating a window with multisampling */
+        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
+        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 2);
 
-        if (data.window == NULL) {
-                fv_error_message("Failed to create SDL window: %s",
-                                 SDL_GetError());
-                ret = EXIT_FAILURE;
-                goto out_sdl;
+        for (i = 0; ; i++) {
+                data.window = SDL_CreateWindow("Finvenkisto",
+                                               SDL_WINDOWPOS_UNDEFINED,
+                                               SDL_WINDOWPOS_UNDEFINED,
+                                               800, 600,
+                                               flags);
+                if (data.window)
+                        break;
+
+                if (i == 0) {
+                        /* Try again without multisampling */
+                        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
+                        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
+                } else {
+                        fv_error_message("Failed to create SDL window: %s",
+                                         SDL_GetError());
+                        ret = EXIT_FAILURE;
+                        goto out_sdl;
+                }
         }
 
         data.gl_context = create_gl_context(data.window);

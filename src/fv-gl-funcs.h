@@ -104,6 +104,8 @@ FV_GL_FUNC(void,
 FV_GL_FUNC(GLint,
            glGetAttribLocation, (GLuint program, const GLchar *name))
 FV_GL_FUNC(void,
+           glGetIntegerv, (GLenum pname, GLint *params))
+FV_GL_FUNC(void,
            glGenTextures, (GLsizei n, GLuint *textures))
 FV_GL_FUNC(void,
            glGetProgramInfoLog, (GLuint program, GLsizei bufSize,

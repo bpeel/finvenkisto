@@ -156,6 +156,7 @@ init_group(const struct fv_gl_group *group)
 void
 fv_gl_init(void)
 {
+        int sample_buffers = 0;
         int i;
 
         memset(&fv_gl, 0, sizeof fv_gl);
@@ -186,4 +187,10 @@ fv_gl_init(void)
         fv_gl.have_instanced_arrays =
                 fv_gl.glVertexAttribDivisor != NULL &&
                 fv_gl.glDrawElementsInstanced != NULL;
+
+#ifndef EMSCRIPTEN
+        fv_gl.glGetIntegerv(GL_SAMPLE_BUFFERS_ARB, &sample_buffers);
+#endif
+
+        fv_gl.have_multisampling = sample_buffers != 0;
 }

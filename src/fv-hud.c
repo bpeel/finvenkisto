@@ -268,6 +268,11 @@ fv_hud_end_rectangles(struct fv_hud *hud)
                             sizeof (struct fv_hud_vertex));
         fv_map_buffer_unmap();
 
+        /* There's no benefit to using multisampling for the HUD
+         * because it is only drawing screen-aligned rectangles */
+        if (fv_gl.have_multisampling)
+                fv_gl.glDisable(GL_MULTISAMPLE);
+
         fv_gl.glEnable(GL_BLEND);
 
         fv_gl.glUseProgram(hud->program);
@@ -282,6 +287,9 @@ fv_hud_end_rectangles(struct fv_hud *hud)
                                   hud->n_rectangles * 6, /* count */
                                   GL_UNSIGNED_BYTE,
                                   NULL);
+
+        if (fv_gl.have_multisampling)
+                fv_gl.glEnable(GL_MULTISAMPLE);
 
         fv_gl.glDisable(GL_BLEND);
 }
