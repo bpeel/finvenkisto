@@ -17,11 +17,13 @@
       html, body { margin: 0; padding: 0; height: 100%; }
 
       #status { text-align: center; padding: 1em; }
+      #error-message { text-align: center; display: none; }
     </style>
   </head>
   <body>
     <canvas class="emscripten" id="canvas"></canvas>
     <div id="status">Downloading...</div>
+    <div id="error-message">An error occured</div>
     <script type='text/javascript'>
       var statusElement = document.getElementById('status');
 

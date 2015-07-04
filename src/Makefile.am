@@ -23,7 +23,6 @@ sources = \
 	fv-data.h \
 	fv-ease.c \
 	fv-ease.h \
-	fv-error-message.c \
 	fv-error-message.h \
 	fv-game.c \
 	fv-game.h \
@@ -75,10 +74,16 @@ ldadd = \
 	rply/librply.a \
 	$(NULL)
 
-finvenkisto_SOURCES = $(sources)
+finvenkisto_SOURCES = \
+	$(sources) \
+	fv-error-message-native.c \
+	$(NULL)
 finvenkisto_LDADD = $(ldadd)
 
-finvenkisto_html_SOURCES = $(sources)
+finvenkisto_html_SOURCES = \
+	$(sources) \
+	fv-error-message-emscripten.c \
+	$(NULL)
 finvenkisto_html_LDFLAGS = \
 	--pre-js $(srcdir)/configure-emscripten.js \
 	--pre-js $(builddir)/data/finvenkisto-data.js \
