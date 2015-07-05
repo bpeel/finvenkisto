@@ -21,10 +21,12 @@
 #define FV_HUD_H
 
 #include "fv-logic.h"
+#include "fv-image-data.h"
 #include "fv-shader-data.h"
 
 struct fv_hud *
-fv_hud_new(struct fv_shader_data *shader_data);
+fv_hud_new(struct fv_image_data *image_data,
+           struct fv_shader_data *shader_data);
 
 void
 fv_hud_paint_player_select(struct fv_hud *hud,

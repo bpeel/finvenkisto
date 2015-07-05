@@ -25,7 +25,6 @@
 #include "fv-hud.h"
 #include "fv-shader-data.h"
 #include "fv-util.h"
-#include "fv-image.h"
 #include "fv-logic.h"
 #include "fv-gl.h"
 #include "fv-array-object.h"
@@ -92,26 +91,23 @@ fv_hud_digit_images[] = {
 #define FV_HUD_FINA_VENKO_SLIDE_TIME 1.0f
 
 struct fv_hud *
-fv_hud_new(struct fv_shader_data *shader_data)
+fv_hud_new(struct fv_image_data *image_data,
+           struct fv_shader_data *shader_data)
 {
         struct fv_hud *hud;
-        int image_width, image_height;
-        uint8_t *image;
         uint8_t *elements;
         GLuint tex_location;
         size_t element_buffer_size;
         int i;
 
-        image = fv_image_load("hud.png", &image_width, &image_height, 4);
-
-        if (image == NULL)
-                return NULL;
-
         hud = fv_alloc(sizeof *hud);
 
+        fv_image_data_get_size(image_data,
+                               FV_IMAGE_DATA_HUD,
+                               &hud->tex_width,
+                               &hud->tex_height);
+
         hud->program = shader_data->programs[FV_SHADER_DATA_PROGRAM_HUD];
-        hud->tex_width = image_width;
-        hud->tex_height = image_height;
 
         fv_gl.glUseProgram(hud->program);
         tex_location = fv_gl.glGetUniformLocation(hud->program, "tex");
@@ -119,14 +115,11 @@ fv_hud_new(struct fv_shader_data *shader_data)
 
         fv_gl.glGenTextures(1, &hud->tex);
         fv_gl.glBindTexture(GL_TEXTURE_2D, hud->tex);
-        fv_gl.glTexImage2D(GL_TEXTURE_2D,
-                           0, /* level */
-                           GL_RGBA,
-                           image_width, image_height,
-                           0, /* border */
-                           GL_RGBA,
-                           GL_UNSIGNED_BYTE,
-                           image);
+        fv_image_data_set_2d(image_data,
+                             GL_TEXTURE_2D,
+                             0, /* level */
+                             GL_RGBA,
+                             FV_IMAGE_DATA_HUD);
         fv_gl.glTexParameteri(GL_TEXTURE_2D,
                               GL_TEXTURE_MIN_FILTER,
                               GL_NEAREST);
@@ -139,8 +132,6 @@ fv_hud_new(struct fv_shader_data *shader_data)
         fv_gl.glTexParameteri(GL_TEXTURE_2D,
                               GL_TEXTURE_WRAP_T,
                               GL_CLAMP_TO_EDGE);
-
-        fv_free(image);
 
         hud->array = fv_array_object_new();
 

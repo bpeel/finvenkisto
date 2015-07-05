@@ -29,6 +29,7 @@
 
 #include "fv-game.h"
 #include "fv-logic.h"
+#include "fv-image-data.h"
 #include "fv-shader-data.h"
 #include "fv-gl.h"
 #include "fv-util.h"
@@ -97,14 +98,21 @@ enum menu_state {
 };
 
 struct data {
-        struct fv_shader_data shader_data;
-        struct fv_game *game;
-        struct fv_logic *logic;
-        struct fv_hud *hud;
+        struct fv_image_data *image_data;
+        Uint32 image_data_event;
 
         SDL_Window *window;
         int last_fb_width, last_fb_height;
         SDL_GLContext gl_context;
+
+        struct {
+                struct fv_shader_data shader_data;
+                struct fv_game *game;
+                struct fv_hud *hud;
+                bool shader_data_loaded;
+        } graphics;
+
+        struct fv_logic *logic;
 
         bool quit;
         bool is_fullscreen;
@@ -468,6 +476,85 @@ handle_mouse_button(struct data *data,
 }
 
 static void
+destroy_graphics(struct data *data)
+{
+        if (data->graphics.game) {
+                fv_game_free(data->graphics.game);
+                data->graphics.game = NULL;
+        }
+
+        if (data->graphics.shader_data_loaded) {
+                fv_shader_data_destroy(&data->graphics.shader_data);
+                data->graphics.shader_data_loaded = false;
+        }
+
+        if (data->graphics.hud) {
+                fv_hud_free(data->graphics.hud);
+                data->graphics.hud = NULL;
+        }
+}
+
+static void
+create_graphics(struct data *data)
+{
+        /* All of the painting functions expect to have the default
+         * OpenGL state plus the following modifications */
+
+        fv_gl.glEnable(GL_CULL_FACE);
+        fv_gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        /* The current program, vertex array, array buffer and bound
+         * textures are not expected to be reset back to zero */
+
+        data->last_fb_width = data->last_fb_height = 0;
+
+        if (!fv_shader_data_init(&data->graphics.shader_data))
+                goto error;
+
+        data->graphics.shader_data_loaded = true;
+
+        data->graphics.hud = fv_hud_new(data->image_data,
+                                        &data->graphics.shader_data);
+
+        if (data->graphics.hud == NULL)
+                goto error;
+
+        data->graphics.game = fv_game_new(data->image_data,
+                                          &data->graphics.shader_data);
+
+        if (data->graphics.game == NULL)
+                goto error;
+
+#ifdef EMSCRIPTEN
+        emscripten_resume_main_loop();
+#endif
+
+        return;
+
+error:
+        destroy_graphics(data);
+        data->quit = true;
+}
+
+static void
+handle_image_data_event(struct data *data,
+                        const SDL_UserEvent *event)
+{
+        switch ((enum fv_image_data_result) event->code) {
+        case FV_IMAGE_DATA_SUCCESS:
+                create_graphics(data);
+                break;
+
+        case FV_IMAGE_DATA_FAIL:
+                data->quit = true;
+                break;
+        }
+
+        fv_image_data_free(data->image_data);
+        data->image_data = NULL;
+}
+
+static void
 handle_event(struct data *data,
              const SDL_Event *event)
 {
@@ -478,35 +565,43 @@ handle_event(struct data *data,
                         data->quit = true;
                         break;
                 }
-                break;
+                goto handled;
 
         case SDL_KEYDOWN:
         case SDL_KEYUP:
                 handle_key_event(data, &event->key);
-                break;
+                goto handled;
 
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
                 handle_mouse_button(data, &event->button);
-                break;
+                goto handled;
 
         case SDL_JOYBUTTONDOWN:
         case SDL_JOYBUTTONUP:
                 handle_joystick_button(data, &event->jbutton);
-                break;
+                goto handled;
 
         case SDL_JOYDEVICEADDED:
                 handle_joystick_added(data, &event->jdevice);
-                break;
+                goto handled;
 
         case SDL_JOYDEVICEREMOVED:
                 handle_joystick_removed(data, &event->jdevice);
-                break;
+                goto handled;
 
         case SDL_QUIT:
                 data->quit = true;
-                break;
+                goto handled;
         }
+
+        if (event->type == data->image_data_event) {
+                handle_image_data_event(data, &event->user);
+                goto handled;
+        }
+
+handled:
+        (void) 0;
 }
 
 static void
@@ -515,17 +610,17 @@ paint_hud(struct data *data,
 {
         switch (data->menu_state) {
         case MENU_STATE_CHOOSING_N_PLAYERS:
-                fv_hud_paint_player_select(data->hud, w, h);
+                fv_hud_paint_player_select(data->graphics.hud, w, h);
                 break;
         case MENU_STATE_CHOOSING_KEYS:
-                fv_hud_paint_key_select(data->hud,
+                fv_hud_paint_key_select(data->graphics.hud,
                                         w, h,
                                         data->next_player,
                                         data->next_key,
                                         data->n_players);
                 break;
         case MENU_STATE_PLAYING:
-                fv_hud_paint_game_state(data->hud,
+                fv_hud_paint_game_state(data->graphics.hud,
                                         w, h,
                                         data->logic);
                 break;
@@ -626,7 +721,7 @@ need_clear(struct data *data)
          * their visible area */
         for (i = 0; i < data->n_viewports; i++) {
                 player = data->players + i;
-                if (!fv_game_covers_framebuffer(data->game,
+                if (!fv_game_covers_framebuffer(data->graphics.game,
                                                 player->center_x,
                                                 player->center_y,
                                                 player->viewport_width,
@@ -669,7 +764,7 @@ paint(struct data *data)
                                          data->players[i].viewport_y,
                                          data->players[i].viewport_width,
                                          data->players[i].viewport_height);
-                fv_game_paint(data->game,
+                fv_game_paint(data->graphics.game,
                               data->players[i].center_x,
                               data->players[i].center_y,
                               data->players[i].viewport_width,
@@ -848,8 +943,17 @@ iterate_main_loop(struct data *data)
 {
         SDL_Event event;
 
-        while (SDL_PollEvent(&event))
+        if (data->graphics.game == NULL) {
+                SDL_WaitEvent(&event);
+                data->start_time = SDL_GetTicks();
                 handle_event(data, &event);
+                return;
+        }
+
+        if (SDL_PollEvent(&event)) {
+                handle_event(data, &event);
+                return;
+        }
 
         paint(data);
 }
@@ -870,6 +974,8 @@ main(int argc, char **argv)
 #else
         data.is_fullscreen = true;
 #endif
+
+        memset(&data.graphics, 0, sizeof data.graphics);
 
         if (!process_arguments(&data, argc, argv)) {
                 ret = EXIT_FAILURE;
@@ -944,38 +1050,13 @@ main(int argc, char **argv)
 
         SDL_ShowCursor(0);
 
-        /* All of the painting functions expect to have the default
-         * OpenGL state plus the following modifications */
-
-        fv_gl.glEnable(GL_CULL_FACE);
-        fv_gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        /* The current program, vertex array, array buffer and bound
-         * textures are not expected to be reset back to zero */
+        data.image_data_event = SDL_RegisterEvents(1);
 
         data.quit = false;
-        data.last_fb_width = data.last_fb_height = 0;
-
-        if (!fv_shader_data_init(&data.shader_data)) {
-                ret = EXIT_FAILURE;
-                goto out_context;
-        }
-
-        data.hud = fv_hud_new(&data.shader_data);
-
-        if (data.hud == NULL) {
-                ret = EXIT_FAILURE;
-                goto out_shader_data;
-        }
-
-        data.game = fv_game_new(&data.shader_data);
-
-        if (data.game == NULL) {
-                ret = EXIT_FAILURE;
-                goto out_hud;
-        }
 
         data.logic = fv_logic_new();
+
+        data.image_data = fv_image_data_new(data.image_data_event);
 
         reset_menu_state(&data);
 
@@ -986,7 +1067,10 @@ main(int argc, char **argv)
         emscripten_set_main_loop_arg(emscripten_loop_cb,
                                      &data,
                                      0, /* fps (use browser's choice) */
-                                     true /* simulate infinite loop */);
+                                     false /* simulate infinite loop */);
+        emscripten_pause_main_loop();
+        emscripten_exit_with_live_runtime();
+
 #else
         while (!data.quit)
                 iterate_main_loop(&data);
@@ -994,11 +1078,11 @@ main(int argc, char **argv)
 
         fv_logic_free(data.logic);
 
-        fv_game_free(data.game);
- out_hud:
-        fv_hud_free(data.hud);
- out_shader_data:
-        fv_shader_data_destroy(&data.shader_data);
+        destroy_graphics(&data);
+
+        if (data.image_data)
+                fv_image_data_free(data.image_data);
+
  out_context:
         SDL_GL_MakeCurrent(NULL, NULL);
         SDL_GL_DeleteContext(data.gl_context);

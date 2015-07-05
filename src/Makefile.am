@@ -31,8 +31,8 @@ sources = \
 	fv-gl-funcs.h \
 	fv-hud.c \
 	fv-hud.h \
-	fv-image.c \
-	fv-image.h \
+	fv-image-data.c \
+	fv-image-data.h \
 	fv-logic.c \
 	fv-logic.h \
 	fv-main.c \

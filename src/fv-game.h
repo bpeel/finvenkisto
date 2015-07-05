@@ -24,9 +24,11 @@
 
 #include "fv-logic.h"
 #include "fv-shader-data.h"
+#include "fv-image-data.h"
 
 struct fv_game *
-fv_game_new(struct fv_shader_data *shader_data);
+fv_game_new(struct fv_image_data *image_data,
+            struct fv_shader_data *shader_data);
 
 void
 fv_game_paint(struct fv_game *game,

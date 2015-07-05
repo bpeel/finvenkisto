@@ -91,11 +91,7 @@ map-texture.png : make-map-texture.py $(BLOCK_IMAGES)
 	$(AM_V_GEN)python3 $(srcdir)/make-map-texture.py $@ \
 	$(BLOCK_IMAGES:%=$(srcdir)/%)
 
-imagesdir = $(datadir)/finvenkisto
-dist_images_DATA = \
-	ARTCREDITS.txt \
-	$(SHADERS) \
-	$(MODELS) \
+IMAGES = \
 	$(OTHER_PNGS) \
 	bambo1.png \
 	bambo2.png \
@@ -108,11 +104,26 @@ dist_images_DATA = \
 	toiletguy.png \
 	$(NULL)
 
+NON_IMAGES = \
+	ARTCREDITS.txt \
+	$(SHADERS) \
+	$(MODELS) \
+	$(NULL)
+
+imagesdir = $(datadir)/finvenkisto
+dist_images_DATA = \
+	$(IMAGES) \
+	$(NON_IMAGES) \
+	$(NULL)
+
 EXTRA_DIST = \
 	$(HUD_SVGS) \
 	$(HUD_PNGS) \
 	$(OTHER_SVGS) \
 	$(OTHER_PNGS) \
+	fv-image-data-enum.h \
+	fv-image-data-files.h \
+	fv-image-data-stamp \
 	hud.png \
 	hud-layout.h \
 	make-atlas.py \
@@ -137,18 +148,36 @@ hud-stamp : $(HUD_PNGS) make-atlas.py
 	hud.png hud-layout.h $(filter %.png,$^)
 	$(AM_V_at)touch $@
 
+fv-image-data-stamp : $(IMAGES)
+	$(AM_V_GEN)for x in $(IMAGES); do \
+	echo "$$x" | \
+	sed -e 's/\..*$$/,/' -e 's/^/fv_image_data_/' -e 's/-/_/g' \
+	| tr '[a-z]' '[A-Z]'; \
+	done > fv-image-data-enum.h
+	$(AM_V_at)for x in $(IMAGES); \
+	do echo "\"$$x\"," ; \
+	done > fv-image-data-files.h
+	$(AM_V_at)touch $@
+
 DISTCLEANFILES = \
 	$(HUD_PNGS) \
 	hud-layout.h \
+	fv-image-data-enum.h \
+	fv-image-data-files.h \
+	fv-image-data-stamp \
 	hud.png \
 	hud/digits-stamp \
 	hud-stamp \
 	$(NULL)
 
+EXTRA_TARGETS = fv-image-data-stamp
+
 if IS_EMSCRIPTEN
-all : finvenkisto-data.js
+EXTRA_TARGETS += finvenkisto-data.js
 
 finvenkisto-data.js : $(dist_images_DATA)
 	$(AM_V_GEN)python $$EMSCRIPTEN/tools/file_packager.py \
 	finvenkisto.data --js-output=$@ --preload $^
 endif
+
+all-local : $(EXTRA_TARGETS)

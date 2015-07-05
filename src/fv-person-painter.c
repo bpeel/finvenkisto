@@ -30,21 +30,20 @@
 #include "fv-transform.h"
 #include "fv-model.h"
 #include "fv-gl.h"
-#include "fv-image.h"
 #include "fv-error-message.h"
 #include "fv-map-buffer.h"
 
 /* Textures to use for the different person types. These must match
  * the order of the enum in fv_person_type */
-static const char *
+enum fv_image_data_image
 textures[] = {
-        "finvenkisto.png",
-        "bambo1.png",
-        "bambo2.png",
-        "bambo3.png",
-        "gufujestro.png",
-        "toiletguy.png",
-        "pyjamas.png"
+        FV_IMAGE_DATA_FINVENKISTO,
+        FV_IMAGE_DATA_BAMBO1,
+        FV_IMAGE_DATA_BAMBO2,
+        FV_IMAGE_DATA_BAMBO3,
+        FV_IMAGE_DATA_GUFUJESTRO,
+        FV_IMAGE_DATA_TOILETGUY,
+        FV_IMAGE_DATA_PYJAMAS,
 };
 
 struct fv_person_painter {
@@ -89,9 +88,9 @@ set_texture_properties(GLenum target)
 
 static void
 set_texture(struct fv_person_painter *painter,
+            struct fv_image_data *image_data,
             int tex_num,
-            int tex_width, int tex_height,
-            const void *data)
+            int tex_width, int tex_height)
 {
         if (painter->use_instancing) {
                 if (tex_num == 0) {
@@ -105,36 +104,30 @@ set_texture(struct fv_person_painter *painter,
                                            GL_UNSIGNED_BYTE,
                                            NULL);
                 }
-                fv_gl.glTexSubImage3D(GL_TEXTURE_2D_ARRAY,
-                                      0, /* level */
-                                      0, 0, /* x/y offset */
-                                      tex_num, /* z offset */
-                                      tex_width, tex_height,
-                                      1, /* depth */
-                                      GL_RGB,
-                                      GL_UNSIGNED_BYTE,
-                                      data);
+                fv_image_data_set_sub_3d(image_data,
+                                         GL_TEXTURE_2D_ARRAY,
+                                         0, /* level */
+                                         0, 0, /* x/y offset */
+                                         tex_num, /* z offset */
+                                         textures[tex_num]);
         } else {
                 fv_gl.glBindTexture(GL_TEXTURE_2D, painter->textures[tex_num]);
-                fv_gl.glTexImage2D(GL_TEXTURE_2D,
-                                   0, /* level */
-                                   GL_RGB,
-                                   tex_width, tex_height,
-                                   0, /* border */
-                                   GL_RGB,
-                                   GL_UNSIGNED_BYTE,
-                                   data);
+                fv_image_data_set_2d(image_data,
+                                     GL_TEXTURE_2D,
+                                     0, /* level */
+                                     GL_RGB,
+                                     textures[tex_num]);
                 set_texture_properties(GL_TEXTURE_2D);
                 fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
         }
 }
 
 static bool
-load_textures(struct fv_person_painter *painter)
+load_textures(struct fv_person_painter *painter,
+              struct fv_image_data *image_data)
 {
         int tex_width = -1, tex_height = -1;
         int layer_width, layer_height;
-        uint8_t *tex_data;
         int i;
 
         if (painter->use_instancing) {
@@ -145,19 +138,15 @@ load_textures(struct fv_person_painter *painter)
         }
 
         for (i = 0; i < FV_N_ELEMENTS(textures); i++) {
-                tex_data = fv_image_load(textures[i],
-                                         &layer_width, &layer_height,
-                                         3 /* components */);
-                if (tex_data == NULL)
-                        goto error;
+                fv_image_data_get_size(image_data,
+                                       textures[i],
+                                       &layer_width, &layer_height);
 
                 if (i > 0 &&
                     (layer_width != tex_width ||
                      layer_height != tex_height)) {
-                        fv_error_message("Size of %s does not match that of %s",
-                                         textures[i],
-                                         textures[0]);
-                        fv_free(tex_data);
+                        fv_error_message("Person textures are not all "
+                                         "the same size");
                         goto error;
                 } else {
                         tex_width = layer_width;
@@ -165,11 +154,9 @@ load_textures(struct fv_person_painter *painter)
                 }
 
                 set_texture(painter,
+                            image_data,
                             i,
-                            tex_width, tex_height,
-                            tex_data);
-
-                fv_free(tex_data);
+                            tex_width, tex_height);
         }
 
         if (painter->use_instancing) {
@@ -242,7 +229,8 @@ set_up_instanced_arrays(struct fv_person_painter *painter)
 }
 
 struct fv_person_painter *
-fv_person_painter_new(struct fv_shader_data *shader_data)
+fv_person_painter_new(struct fv_image_data *image_data,
+                      struct fv_shader_data *shader_data)
 {
         struct fv_person_painter *painter = fv_calloc(sizeof *painter);
         GLuint tex_uniform;
@@ -257,7 +245,7 @@ fv_person_painter_new(struct fv_shader_data *shader_data)
         if (!fv_model_load(&painter->model, "person.ply"))
                 goto error;
 
-        if (!load_textures(painter))
+        if (!load_textures(painter, image_data))
                 goto error_model;
 
         if (painter->use_instancing) {

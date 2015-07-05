@@ -21,11 +21,13 @@
 #define FV_PERSON_PAINTER_H
 
 #include "fv-logic.h"
+#include "fv-image-data.h"
 #include "fv-shader-data.h"
 #include "fv-paint-state.h"
 
 struct fv_person_painter *
-fv_person_painter_new(struct fv_shader_data *shader_data);
+fv_person_painter_new(struct fv_image_data *image_data,
+                      struct fv_shader_data *shader_data);
 
 void
 fv_person_painter_paint(struct fv_person_painter *painter,

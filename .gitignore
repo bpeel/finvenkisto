@@ -26,6 +26,9 @@
 /src/rply/Makefile.in
 /src/rply/convert
 /src/rply/librply.a
+/src/data/fv-image-data-enum.h
+/src/data/fv-image-data-files.h
+/src/data/fv-image-data-stamp
 /src/data/Makefile.in
 /src/data/Makefile
 /src/data/map-texture.png

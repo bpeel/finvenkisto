@@ -28,7 +28,6 @@
 #include "fv-map.h"
 #include "fv-util.h"
 #include "fv-buffer.h"
-#include "fv-image.h"
 #include "fv-gl.h"
 #include "fv-model.h"
 #include "fv-array-object.h"
@@ -343,13 +342,13 @@ smallest_pot(int x)
 }
 
 struct fv_map_painter *
-fv_map_painter_new(struct fv_shader_data *shader_data)
+fv_map_painter_new(struct fv_image_data *image_data,
+                   struct fv_shader_data *shader_data)
 {
         struct fv_map_painter *painter;
         struct tile_data data;
         struct fv_map_painter_tile *tile;
-        int first, tx, ty, i;
-        uint8_t *tex_data;
+        int first, tx, ty;
         int tex_width, tex_height;
         GLuint tex_uniform;
 
@@ -378,11 +377,9 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
         if (!load_models(painter))
                 goto error_instance_buffer;
 
-        tex_data = fv_image_load("map-texture.png",
-                                 &tex_width, &tex_height,
-                                 3 /* components */);
-        if (tex_data == NULL)
-                goto error_models;
+        fv_image_data_get_size(image_data,
+                               FV_IMAGE_DATA_MAP_TEXTURE,
+                               &tex_width, &tex_height);
 
         if (!fv_gl.have_npot_mipmaps) {
                 painter->texture_width = smallest_pot(tex_width);
@@ -402,15 +399,11 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
                            GL_RGB,
                            GL_UNSIGNED_BYTE,
                            NULL);
-        fv_gl.glTexSubImage2D(GL_TEXTURE_2D,
-                              0, /* level */
-                              0, 0, /* x/y offset */
-                              tex_width, tex_height,
-                              GL_RGB,
-                              GL_UNSIGNED_BYTE,
-                              tex_data);
-
-        fv_free(tex_data);
+        fv_image_data_set_sub_2d(image_data,
+                                 GL_TEXTURE_2D,
+                                 0, /* level */
+                                 0, 0, /* x/y offset */
+                                 FV_IMAGE_DATA_MAP_TEXTURE);
 
         fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
         fv_gl.glTexParameteri(GL_TEXTURE_2D,
@@ -495,9 +488,6 @@ fv_map_painter_new(struct fv_shader_data *shader_data)
 
         return painter;
 
-error_models:
-        for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++)
-                fv_model_destroy(painter->models + i);
 error_instance_buffer:
         if (fv_gl.have_instanced_arrays)
                 fv_gl.glDeleteBuffers(1, &painter->instance_buffer);

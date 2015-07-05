@@ -29,7 +29,6 @@
 #include "fv-matrix.h"
 #include "fv-transform.h"
 #include "fv-gl.h"
-#include "fv-image.h"
 #include "fv-array-object.h"
 #include "fv-map-buffer.h"
 
@@ -47,31 +46,18 @@ struct fv_shout_painter {
         GLuint vertex_buffer;
 };
 
-static bool
-load_texture(struct fv_shout_painter *painter)
+static void
+load_texture(struct fv_shout_painter *painter,
+             struct fv_image_data *image_data)
 {
-        int tex_width, tex_height;
-        uint8_t *tex_data;
-
-        tex_data = fv_image_load("nekrokodilu.png",
-                                 &tex_width, &tex_height,
-                                 4 /* components */);
-        if (tex_data == NULL)
-                return false;
-
         fv_gl.glGenTextures(1, &painter->texture);
         fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
 
-        fv_gl.glTexImage2D(GL_TEXTURE_2D,
-                           0, /* level */
-                           GL_RGBA,
-                           tex_width, tex_height,
-                           0, /* border */
-                           GL_RGBA,
-                           GL_UNSIGNED_BYTE,
-                           tex_data);
-
-        fv_free(tex_data);
+        fv_image_data_set_2d(image_data,
+                             GL_TEXTURE_2D,
+                             0, /* level */
+                             GL_RGBA,
+                             FV_IMAGE_DATA_NEKROKODILU);
 
         fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
         fv_gl.glTexParameteri(GL_TEXTURE_2D,
@@ -86,8 +72,6 @@ load_texture(struct fv_shout_painter *painter)
         fv_gl.glTexParameteri(GL_TEXTURE_2D,
                               GL_TEXTURE_WRAP_T,
                               GL_CLAMP_TO_EDGE);
-
-        return true;
 }
 
 static void
@@ -126,7 +110,8 @@ make_buffer(struct fv_shout_painter *painter)
 }
 
 struct fv_shout_painter *
-fv_shout_painter_new(struct fv_shader_data *shader_data)
+fv_shout_painter_new(struct fv_image_data *image_data,
+                     struct fv_shader_data *shader_data)
 {
         struct fv_shout_painter *painter = fv_calloc(sizeof *painter);
         GLuint tex_uniform;
@@ -134,8 +119,7 @@ fv_shout_painter_new(struct fv_shader_data *shader_data)
         painter->program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
 
-        if (!load_texture(painter))
-                goto error;
+        load_texture(painter, image_data);
 
         make_buffer(painter);
 
@@ -147,11 +131,6 @@ fv_shout_painter_new(struct fv_shader_data *shader_data)
                 fv_gl.glGetUniformLocation(painter->program, "transform");
 
         return painter;
-
-error:
-        fv_free(painter);
-
-        return NULL;
 }
 
 struct paint_closure {
