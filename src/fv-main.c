@@ -821,6 +821,28 @@ create_gl_context(SDL_Window *window)
         return SDL_GL_CreateContext(window);
 }
 
+#ifdef EMSCRIPTEN
+
+static void
+emscripten_loop_cb(void *user_data)
+{
+        struct data *data = user_data;
+
+        paint(data);
+}
+
+static int
+emscripten_event_filter(void *userdata,
+                        SDL_Event *event)
+{
+        handle_event(userdata, event);
+
+        /* Filter the event */
+        return 0;
+}
+
+#else  /* EMSCRIPTEN */
+
 static void
 iterate_main_loop(struct data *data)
 {
@@ -832,12 +854,6 @@ iterate_main_loop(struct data *data)
         paint(data);
 }
 
-#ifdef EMSCRIPTEN
-static void
-emscripten_loop_cb(void *data)
-{
-        iterate_main_loop(data);
-}
 #endif /* EMSCRIPTEN */
 
 int
@@ -964,6 +980,9 @@ main(int argc, char **argv)
         reset_menu_state(&data);
 
 #ifdef EMSCRIPTEN
+
+        SDL_SetEventFilter(emscripten_event_filter, &data);
+
         emscripten_set_main_loop_arg(emscripten_loop_cb,
                                      &data,
                                      0, /* fps (use browser's choice) */
