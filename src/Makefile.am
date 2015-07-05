@@ -31,7 +31,6 @@ sources = \
 	fv-gl-funcs.h \
 	fv-hud.c \
 	fv-hud.h \
-	fv-image-data.c \
 	fv-image-data.h \
 	fv-logic.c \
 	fv-logic.h \
@@ -77,12 +76,14 @@ ldadd = \
 finvenkisto_SOURCES = \
 	$(sources) \
 	fv-error-message-native.c \
+	fv-image-data-native.c \
 	$(NULL)
 finvenkisto_LDADD = $(ldadd)
 
 finvenkisto_html_SOURCES = \
 	$(sources) \
 	fv-error-message-emscripten.c \
+	fv-image-data-emscripten.c \
 	$(NULL)
 finvenkisto_html_LDFLAGS = \
 	--pre-js $(srcdir)/configure-emscripten.js \

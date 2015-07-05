@@ -20,9 +20,6 @@
 #include "config.h"
 
 #include <SDL.h>
-#ifdef EMSCRIPTEN
-#include <emscripten.h>
-#endif
 
 #include "fv-image-data.h"
 #include "fv-data.h"
@@ -97,15 +94,7 @@ load_image(const char *name,
         return data;
 }
 
-#ifdef EMSCRIPTEN
-void
-send_result(uint32_t loaded_event,
-            enum fv_image_data_result result);
-
-EMSCRIPTEN_KEEPALIVE void
-#else
 static void
-#endif
 send_result(uint32_t loaded_event,
             enum fv_image_data_result result)
 {
@@ -148,14 +137,7 @@ fv_image_data_new(uint32_t loaded_event)
         result = FV_IMAGE_DATA_SUCCESS;
 
 done:
-#ifdef EMSCRIPTEN
-        EM_ASM_({
-                        var cb = function() { _send_result($0, $1) };
-                        window.setTimeout(cb, 0);
-                }, loaded_event, result);
-#else
         send_result(loaded_event, result);
-#endif
 
         return data;
 }
