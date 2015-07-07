@@ -40,6 +40,7 @@
 
 #ifdef EMSCRIPTEN
 #include <emscripten.h>
+#include <emscripten/html5.h>
 /* On Emscripten you have to request 2.0 to get a 2.0 ES context but
  * the version is reports in GL_VERSION is 1.0 because that is the
  * WebGL version.
@@ -936,6 +937,53 @@ emscripten_event_filter(void *userdata,
         return 0;
 }
 
+static EM_BOOL
+context_lost_cb(int event_type,
+                const void *reserved,
+                void *user_data)
+{
+        struct data *data = user_data;
+
+        destroy_graphics(data);
+
+        /* Cancel loading the images */
+        if (data->image_data) {
+                fv_image_data_free(data->image_data);
+                data->image_data = NULL;
+        } else {
+                emscripten_pause_main_loop();
+        }
+
+        return true;
+}
+
+static EM_BOOL
+context_restored_cb(int event_type,
+                    const void *reserved,
+                    void *user_data)
+{
+        struct data *data = user_data;
+
+        /* When the context is lost all of the extension objects that
+         * Emscripten created become invalid so it needs to query them
+         * again. Ideally it would handle this itself internally. This
+         * is probably poking into its internals a bit.
+         */
+        EM_ASM({
+                        var context = GL.currentContext;
+                        context.initExtensionsDone = false;
+                        GL.initExtensions(context);
+                });
+
+        /* Reload the images. This will also reload the graphics when
+         * it has finished.
+         */
+        if (data->image_data == NULL)
+                data->image_data = fv_image_data_new(data->image_data_event);
+
+        return true;
+}
+
 #else  /* EMSCRIPTEN */
 
 static void
@@ -1061,6 +1109,15 @@ main(int argc, char **argv)
         reset_menu_state(&data);
 
 #ifdef EMSCRIPTEN
+
+        emscripten_set_webglcontextlost_callback("canvas",
+                                                 &data,
+                                                 false /* useCapture */,
+                                                 context_lost_cb);
+        emscripten_set_webglcontextrestored_callback("canvas",
+                                                     &data,
+                                                     false /* useCapture */,
+                                                     context_restored_cb);
 
         SDL_SetEventFilter(emscripten_event_filter, &data);
 
