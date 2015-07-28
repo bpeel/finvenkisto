@@ -74,8 +74,9 @@ fv_shader_data_shaders[] = {
                 GL_FRAGMENT_SHADER,
                 "fv-texture-fragment.glsl",
                 {
-                        FV_SHADER_DATA_PROGRAM_TEXTURE,
                         FV_SHADER_DATA_PROGRAM_HUD,
+                        FV_SHADER_DATA_PROGRAM_TEXTURE,
+                        FV_SHADER_DATA_PROGRAM_SPECIAL_TEXTURE,
                         PROGRAMS_END
                 }
         },
@@ -86,13 +87,18 @@ fv_shader_data_shaders[] = {
         },
         {
                 GL_FRAGMENT_SHADER,
-                "fv-special-fragment.glsl",
-                { FV_SHADER_DATA_PROGRAM_SPECIAL, PROGRAMS_END }
+                "fv-color-fragment.glsl",
+                { FV_SHADER_DATA_PROGRAM_SPECIAL_COLOR, PROGRAMS_END }
         },
         {
                 GL_VERTEX_SHADER,
-                "fv-special-vertex.glsl",
-                { FV_SHADER_DATA_PROGRAM_SPECIAL, PROGRAMS_END }
+                "fv-special-color-vertex.glsl",
+                { FV_SHADER_DATA_PROGRAM_SPECIAL_COLOR, PROGRAMS_END }
+        },
+        {
+                GL_VERTEX_SHADER,
+                "fv-special-texture-vertex.glsl",
+                { FV_SHADER_DATA_PROGRAM_SPECIAL_TEXTURE, PROGRAMS_END }
         },
         {
                 GL_FRAGMENT_SHADER,

@@ -46,8 +46,9 @@ OTHER_PNGS = $(OTHER_SVGS:.svg=.png)
 
 SHADERS = \
 	fv-hud-vertex.glsl \
-	fv-special-fragment.glsl \
-	fv-special-vertex.glsl \
+	fv-color-fragment.glsl \
+	fv-special-color-vertex.glsl \
+	fv-special-texture-vertex.glsl \
 	fv-texture-fragment.glsl \
 	fv-texture-vertex.glsl \
 	fv-person-fragment.glsl \

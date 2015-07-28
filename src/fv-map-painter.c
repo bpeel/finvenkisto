@@ -37,14 +37,24 @@
 
 #define FV_MAP_PAINTER_N_MODELS FV_N_ELEMENTS(fv_map_painter_models)
 
-static const char *
+struct fv_map_painter_model {
+        const char *filename;
+        enum fv_image_data_image texture;
+};
+
+static struct fv_map_painter_model
 fv_map_painter_models[] = {
-        "table.ply",
-        "toilet.ply",
-        "teaset.ply",
-        "chair.ply",
-        "bed.ply",
-        "barrel.ply"
+        { "table.ply", 0 },
+        { "toilet.ply", 0 },
+        { "teaset.ply", 0 },
+        { "chair.ply", 0 },
+        { "bed.ply", 0 },
+        { "barrel.ply", 0 },
+};
+
+struct fv_map_painter_program {
+        GLuint id;
+        GLuint transform;
 };
 
 struct fv_map_painter_tile {
@@ -53,23 +63,28 @@ struct fv_map_painter_tile {
         int min, max;
 };
 
+struct fv_map_painter_special {
+        GLuint texture;
+        struct fv_model model;
+};
+
 struct fv_map_painter {
         GLuint vertices_buffer;
         GLuint indices_buffer;
         struct fv_array_object *array;
         struct fv_map_painter_tile tiles[FV_MAP_TILES_X *
                                          FV_MAP_TILES_Y];
-        GLuint map_program;
-        GLuint map_transform_uniform;
-        GLuint model_program;
-        GLuint model_transform_uniform;
+
+        struct fv_map_painter_program map_program;
+        struct fv_map_painter_program color_program;
+        struct fv_map_painter_program texture_program;
 
         GLuint instance_buffer;
         float *instance_buffer_map;
         int n_instances;
         int current_special;
 
-        struct fv_model models[FV_MAP_PAINTER_N_MODELS];
+        struct fv_map_painter_special specials[FV_MAP_PAINTER_N_MODELS];
 
         GLuint texture;
         int texture_width, texture_height;
@@ -289,28 +304,58 @@ generate_tile(struct fv_map_painter *painter,
 }
 
 static bool
-load_models(struct fv_map_painter *painter)
+load_models(struct fv_map_painter *painter,
+            struct fv_image_data *image_data)
 {
-        struct fv_model *model;
+        struct fv_map_painter_special *special;
+        struct fv_map_painter_program *program;
         bool res;
         int i, j;
-        GLint attrib;
-
-        attrib = fv_gl.glGetAttribLocation(painter->model_program, "transform");
 
         for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++) {
-                model = painter->models + i;
+                special = painter->specials + i;
 
-                res = fv_model_load(model, fv_map_painter_models[i]);
+                res = fv_model_load(&special->model,
+                                    fv_map_painter_models[i].filename);
                 if (!res)
                         goto error;
+
+                if (fv_map_painter_models[i].texture) {
+                        fv_gl.glGenTextures(1, &painter->specials[i].texture);
+                        fv_gl.glBindTexture(GL_TEXTURE_2D,
+                                            painter->specials[i].texture);
+                        fv_image_data_set_2d(image_data,
+                                             GL_TEXTURE_2D,
+                                             0, /* level */
+                                             GL_RGB,
+                                             fv_map_painter_models[i].texture);
+                        fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
+                        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                                              GL_TEXTURE_MIN_FILTER,
+                                              GL_LINEAR_MIPMAP_NEAREST);
+                        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                                              GL_TEXTURE_MAG_FILTER,
+                                              GL_LINEAR);
+                        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                                              GL_TEXTURE_WRAP_S,
+                                              GL_CLAMP_TO_EDGE);
+                        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                                              GL_TEXTURE_WRAP_T,
+                                              GL_CLAMP_TO_EDGE);
+
+                        program = &painter->texture_program;
+                } else {
+                        painter->specials[i].texture = 0;
+
+                        program = &painter->color_program;
+                }
 
                 if (!fv_gl.have_instanced_arrays)
                         continue;
 
                 for (j = 0; j < 4; j++) {
-                        fv_array_object_set_attribute(model->array,
-                                                      attrib + j,
+                        fv_array_object_set_attribute(special->model.array,
+                                                      program->transform + j,
                                                       4, /* size */
                                                       GL_FLOAT,
                                                       GL_FALSE, /* normalized */
@@ -324,8 +369,13 @@ load_models(struct fv_map_painter *painter)
         return true;
 
 error:
-        while (--i >= 0)
-                fv_model_destroy(painter->models + i);
+        while (--i >= 0) {
+                fv_model_destroy(&painter->specials[i].model);
+                if (painter->specials[i].texture) {
+                        fv_gl.glDeleteTextures(1,
+                                               &painter->specials[i].texture);
+                }
+        }
 
         return false;
 }
@@ -339,6 +389,41 @@ smallest_pot(int x)
                 y *= 2;
 
         return y;
+}
+
+static void
+init_programs(struct fv_map_painter *painter,
+              struct fv_shader_data *shader_data)
+{
+        painter->map_program.id =
+                shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
+        painter->map_program.transform =
+                fv_gl.glGetUniformLocation(painter->map_program.id,
+                                           "transform");
+        painter->color_program.id =
+                shader_data->programs[FV_SHADER_DATA_PROGRAM_SPECIAL_COLOR];
+
+        if (fv_gl.have_instanced_arrays) {
+                painter->color_program.transform =
+                        fv_gl.glGetAttribLocation(painter->color_program.id,
+                                                  "transform");
+                painter->texture_program.id =
+                        shader_data->programs
+                        [FV_SHADER_DATA_PROGRAM_SPECIAL_TEXTURE];
+                painter->texture_program.transform =
+                        fv_gl.glGetAttribLocation(painter->texture_program.id,
+                                                  "transform");
+        } else {
+                painter->color_program.transform =
+                        fv_gl.glGetUniformLocation(painter->color_program.id,
+                                                   "transform");
+
+                /* If we're not using instanced arrays then the
+                 * special texture program and the map program are
+                 * identical.
+                 */
+                painter->texture_program = painter->map_program;
+        }
 }
 
 struct fv_map_painter *
@@ -363,18 +448,9 @@ fv_map_painter_new(struct fv_image_data *image_data,
                                    GL_DYNAMIC_DRAW);
         }
 
-        painter->map_program =
-                shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
-        painter->map_transform_uniform =
-                fv_gl.glGetUniformLocation(painter->map_program, "transform");
-        painter->model_program =
-                shader_data->programs[FV_SHADER_DATA_PROGRAM_SPECIAL];
-        if (!fv_gl.have_instanced_arrays)
-                painter->model_transform_uniform =
-                        fv_gl.glGetUniformLocation(painter->model_program,
-                                                   "transform");
+        init_programs(painter, shader_data);
 
-        if (!load_models(painter))
+        if (!load_models(painter, image_data))
                 goto error_instance_buffer;
 
         fv_image_data_get_size(image_data,
@@ -419,8 +495,14 @@ fv_map_painter_new(struct fv_image_data *image_data,
                               GL_TEXTURE_WRAP_T,
                               GL_CLAMP_TO_EDGE);
 
-        tex_uniform = fv_gl.glGetUniformLocation(painter->map_program, "tex");
-        fv_gl.glUseProgram(painter->map_program);
+        tex_uniform = fv_gl.glGetUniformLocation(painter->map_program.id,
+                                                 "tex");
+        fv_gl.glUseProgram(painter->map_program.id);
+        fv_gl.glUniform1i(tex_uniform, 0);
+
+        tex_uniform = fv_gl.glGetUniformLocation(painter->texture_program.id,
+                                                 "tex");
+        fv_gl.glUseProgram(painter->texture_program.id);
         fv_gl.glUniform1i(tex_uniform, 0);
 
         fv_buffer_init(&data.vertices);
@@ -499,22 +581,31 @@ error_instance_buffer:
 static void
 flush_specials(struct fv_map_painter *painter)
 {
-        const struct fv_model *model;
+        const struct fv_map_painter_special *special;
+        struct fv_map_painter_program *program;
 
         if (painter->n_instances == 0)
                 return;
 
-        model = painter->models + painter->current_special;
+        special = painter->specials + painter->current_special;
 
         fv_map_buffer_flush(0, /* offset */
                             sizeof (float) * 16 *
                             painter->n_instances);
         fv_map_buffer_unmap();
 
-        fv_array_object_bind(model->array);
+        if (special->texture) {
+                fv_gl.glBindTexture(GL_TEXTURE_2D, special->texture);
+                program = &painter->texture_program;
+        } else {
+                program = &painter->color_program;
+        }
+        fv_gl.glUseProgram(program->id);
+
+        fv_array_object_bind(special->model.array);
 
         fv_gl.glDrawElementsInstanced(GL_TRIANGLES,
-                                      model->n_indices,
+                                      special->model.n_indices,
                                       GL_UNSIGNED_SHORT,
                                       NULL, /* offset */
                                       painter->n_instances);
@@ -528,6 +619,8 @@ paint_special(struct fv_map_painter *painter,
               const struct fv_transform *transform_in)
 {
         struct fv_transform transform = *transform_in;
+        struct fv_map_painter_program *program;
+        GLuint texture;
 
         if (painter->current_special != special->num ||
             painter->n_instances >= FV_MAP_MAX_SPECIALS)
@@ -563,11 +656,19 @@ paint_special(struct fv_map_painter *painter,
 
                 painter->n_instances++;
         } else {
-                fv_gl.glUniformMatrix4fv(painter->model_transform_uniform,
+                texture = painter->specials[special->num].texture;
+                if (texture) {
+                        fv_gl.glBindTexture(GL_TEXTURE_2D, texture);
+                        program = &painter->texture_program;
+                } else {
+                        program = &painter->color_program;
+                }
+                fv_gl.glUseProgram(program->id);
+                fv_gl.glUniformMatrix4fv(program->transform,
                                          1, /* count */
                                          GL_FALSE, /* transpose */
                                          &transform.mvp.xx);
-                fv_model_paint(&painter->models[special->num]);
+                fv_model_paint(&painter->specials[special->num].model);
         }
 }
 
@@ -605,8 +706,6 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         if (y_min >= y_max || x_min >= x_max)
                 return;
 
-        fv_gl.glUseProgram(painter->model_program);
-
         fv_gl.glEnable(GL_DEPTH_TEST);
 
         painter->n_instances = 0;
@@ -625,8 +724,8 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 
         flush_specials(painter);
 
-        fv_gl.glUseProgram(painter->map_program);
-        fv_gl.glUniformMatrix4fv(painter->map_transform_uniform,
+        fv_gl.glUseProgram(painter->map_program.id);
+        fv_gl.glUniformMatrix4fv(painter->map_program.transform,
                                  1, /* count */
                                  GL_FALSE, /* transpose */
                                  &paint_state->transform.mvp.xx);
@@ -674,8 +773,13 @@ fv_map_painter_free(struct fv_map_painter *painter)
         if (fv_gl.have_instanced_arrays)
                 fv_gl.glDeleteBuffers(1, &painter->instance_buffer);
 
-        for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++)
-                fv_model_destroy(painter->models + i);
+        for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++) {
+                fv_model_destroy(&painter->specials[i].model);
+                if (painter->specials[i].texture) {
+                        fv_gl.glDeleteTextures(1,
+                                               &painter->specials[i].texture);
+                }
+        }
 
         fv_free(painter);
 }
