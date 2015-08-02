@@ -349,7 +349,8 @@ paint_person_cb(const struct fv_logic_person *person,
                         data->instance_buffer_map =
                                 fv_map_buffer_map(GL_ARRAY_BUFFER,
                                                   buffer_size,
-                                                  true /* flush_explicit */);
+                                                  true /* flush_explicit */,
+                                                  GL_STREAM_DRAW);
                 }
 
                 instance = data->instance_buffer_map + data->n_instances;

@@ -552,7 +552,8 @@ paint_special(struct fv_map_painter *painter,
                                 fv_map_buffer_map(GL_ARRAY_BUFFER,
                                                   sizeof (float) * 16 *
                                                   FV_MAP_MAX_SPECIALS,
-                                                  true /* flush_explicit */);
+                                                  true /* flush_explicit */,
+                                                  GL_DYNAMIC_DRAW);
                         painter->current_special = special->num;
                 }
 

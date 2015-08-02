@@ -35,7 +35,8 @@
 void *
 fv_map_buffer_map(GLenum target,
                   GLsizeiptr length,
-                  bool flush_explicit);
+                  bool flush_explicit,
+                  GLenum usage);
 
 void
 fv_map_buffer_flush(GLintptr offset,
