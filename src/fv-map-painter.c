@@ -54,7 +54,8 @@ fv_map_painter_models[] = {
 
 struct fv_map_painter_program {
         GLuint id;
-        GLuint transform;
+        GLuint modelview_transform;
+        GLuint normal_transform;
 };
 
 struct fv_map_painter_tile {
@@ -80,7 +81,7 @@ struct fv_map_painter {
         struct fv_map_painter_program texture_program;
 
         GLuint instance_buffer;
-        float *instance_buffer_map;
+        struct instance *instance_buffer_map;
         int n_instances;
         int current_special;
 
@@ -93,6 +94,11 @@ struct fv_map_painter {
 struct vertex {
         uint8_t x, y, z;
         uint16_t s, t;
+};
+
+struct instance {
+        float modelview[4 * 4];
+        float normal_transform[3 * 3];
 };
 
 struct tile_data {
@@ -310,6 +316,8 @@ load_models(struct fv_map_painter *painter,
         struct fv_map_painter_special *special;
         struct fv_map_painter_program *program;
         bool res;
+        GLint transform;
+        size_t offset;
         int i, j;
 
         for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++) {
@@ -353,16 +361,35 @@ load_models(struct fv_map_painter *painter,
                 if (!fv_gl.have_instanced_arrays)
                         continue;
 
+                transform = program->modelview_transform;
+
                 for (j = 0; j < 4; j++) {
+                        offset = offsetof(struct instance, modelview[j * 4]);
                         fv_array_object_set_attribute(special->model.array,
-                                                      program->transform + j,
+                                                      transform + j,
                                                       4, /* size */
                                                       GL_FLOAT,
                                                       GL_FALSE, /* normalized */
-                                                      sizeof (float) * 16,
+                                                      sizeof (struct instance),
                                                       1, /* divisor */
                                                       painter->instance_buffer,
-                                                      (sizeof (float) * j * 4));
+                                                      offset);
+                }
+
+                transform = program->normal_transform;
+
+                for (j = 0; j < 3; j++) {
+                        offset = offsetof(struct instance,
+                                          normal_transform[j * 3]);
+                        fv_array_object_set_attribute(special->model.array,
+                                                      transform + j,
+                                                      3, /* size */
+                                                      GL_FLOAT,
+                                                      GL_FALSE, /* normalized */
+                                                      sizeof (struct instance),
+                                                      1, /* divisor */
+                                                      painter->instance_buffer,
+                                                      offset);
                 }
         }
 
@@ -397,32 +424,40 @@ init_programs(struct fv_map_painter *painter,
 {
         painter->map_program.id =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
-        painter->map_program.transform =
+        painter->map_program.modelview_transform =
                 fv_gl.glGetUniformLocation(painter->map_program.id,
                                            "transform");
         painter->color_program.id =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_SPECIAL_COLOR];
+        painter->texture_program.id =
+                shader_data->programs[FV_SHADER_DATA_PROGRAM_SPECIAL_TEXTURE];
 
         if (fv_gl.have_instanced_arrays) {
-                painter->color_program.transform =
+                painter->color_program.modelview_transform =
                         fv_gl.glGetAttribLocation(painter->color_program.id,
                                                   "transform");
-                painter->texture_program.id =
-                        shader_data->programs
-                        [FV_SHADER_DATA_PROGRAM_SPECIAL_TEXTURE];
-                painter->texture_program.transform =
+                painter->color_program.normal_transform =
+                        fv_gl.glGetAttribLocation(painter->color_program.id,
+                                                  "normal_transform");
+                painter->texture_program.modelview_transform =
                         fv_gl.glGetAttribLocation(painter->texture_program.id,
                                                   "transform");
+                painter->texture_program.normal_transform =
+                        fv_gl.glGetAttribLocation(painter->texture_program.id,
+                                                  "normal_transform");
         } else {
-                painter->color_program.transform =
+                painter->color_program.modelview_transform =
                         fv_gl.glGetUniformLocation(painter->color_program.id,
                                                    "transform");
-
-                /* If we're not using instanced arrays then the
-                 * special texture program and the map program are
-                 * identical.
-                 */
-                painter->texture_program = painter->map_program;
+                painter->color_program.normal_transform =
+                        fv_gl.glGetUniformLocation(painter->color_program.id,
+                                                   "normal_transform");
+                painter->texture_program.modelview_transform =
+                        fv_gl.glGetUniformLocation(painter->texture_program.id,
+                                                   "transform");
+                painter->texture_program.normal_transform =
+                        fv_gl.glGetUniformLocation(painter->texture_program.id,
+                                                   "normal_transform");
         }
 }
 
@@ -443,7 +478,8 @@ fv_map_painter_new(struct fv_image_data *image_data,
                 fv_gl.glGenBuffers(1, &painter->instance_buffer);
                 fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
                 fv_gl.glBufferData(GL_ARRAY_BUFFER,
-                                   sizeof (float) * 16 * FV_MAP_MAX_SPECIALS,
+                                   sizeof (struct instance) *
+                                   FV_MAP_MAX_SPECIALS,
                                    NULL, /* data */
                                    GL_DYNAMIC_DRAW);
         }
@@ -590,7 +626,7 @@ flush_specials(struct fv_map_painter *painter)
         special = painter->specials + painter->current_special;
 
         fv_map_buffer_flush(0, /* offset */
-                            sizeof (float) * 16 *
+                            sizeof (struct instance) *
                             painter->n_instances);
         fv_map_buffer_unmap();
 
@@ -620,6 +656,7 @@ paint_special(struct fv_map_painter *painter,
 {
         struct fv_transform transform = *transform_in;
         struct fv_map_painter_program *program;
+        struct instance *instance;
         GLuint texture;
 
         if (painter->current_special != special->num ||
@@ -643,16 +680,20 @@ paint_special(struct fv_map_painter *painter,
                                            painter->instance_buffer);
                         painter->instance_buffer_map =
                                 fv_map_buffer_map(GL_ARRAY_BUFFER,
-                                                  sizeof (float) * 16 *
+                                                  sizeof (struct instance) *
                                                   FV_MAP_MAX_SPECIALS,
                                                   true /* flush_explicit */,
                                                   GL_DYNAMIC_DRAW);
                         painter->current_special = special->num;
                 }
 
-                memcpy(painter->instance_buffer_map + painter->n_instances * 16,
+                instance = painter->instance_buffer_map + painter->n_instances;
+                memcpy(instance->modelview,
                        &transform.mvp.xx,
-                       sizeof (float) * 16);
+                       sizeof instance->modelview);
+                memcpy(instance->normal_transform,
+                       transform.normal_transform,
+                       sizeof instance->normal_transform);
 
                 painter->n_instances++;
         } else {
@@ -664,10 +705,14 @@ paint_special(struct fv_map_painter *painter,
                         program = &painter->color_program;
                 }
                 fv_gl.glUseProgram(program->id);
-                fv_gl.glUniformMatrix4fv(program->transform,
+                fv_gl.glUniformMatrix4fv(program->modelview_transform,
                                          1, /* count */
                                          GL_FALSE, /* transpose */
                                          &transform.mvp.xx);
+                fv_gl.glUniformMatrix3fv(program->normal_transform,
+                                         1, /* count */
+                                         GL_FALSE, /* transpose */
+                                         transform.normal_transform);
                 fv_model_paint(&painter->specials[special->num].model);
         }
 }
@@ -725,7 +770,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         flush_specials(painter);
 
         fv_gl.glUseProgram(painter->map_program.id);
-        fv_gl.glUniformMatrix4fv(painter->map_program.transform,
+        fv_gl.glUniformMatrix4fv(painter->map_program.modelview_transform,
                                  1, /* count */
                                  GL_FALSE, /* transpose */
                                  &paint_state->transform.mvp.xx);
