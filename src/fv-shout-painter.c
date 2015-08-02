@@ -153,7 +153,6 @@ paint_cb(const struct fv_logic_shout *shout,
                                    painter->vertex_buffer);
                 data->buffer_map =
                         fv_map_buffer_map(GL_ARRAY_BUFFER,
-                                          0, /* offset */
                                           FV_LOGIC_MAX_PLAYERS *
                                           sizeof *vertex * 3,
                                           true /* flush_explicit */);

@@ -26,7 +26,6 @@
 static struct
 {
         GLenum target;
-        GLintptr offset;
         GLsizeiptr length;
         bool flush_explicit;
         bool using_buffer;
@@ -37,7 +36,6 @@ static struct
 
 void *
 fv_map_buffer_map(GLenum target,
-                  GLintptr offset,
                   GLsizeiptr length,
                   bool flush_explicit)
 {
@@ -45,7 +43,6 @@ fv_map_buffer_map(GLenum target,
         void *ret = NULL;
 
         fv_map_buffer_state.target = target;
-        fv_map_buffer_state.offset = offset;
         fv_map_buffer_state.length = length;
         fv_map_buffer_state.flush_explicit = flush_explicit;
 
@@ -55,7 +52,7 @@ fv_map_buffer_map(GLenum target,
                 if (flush_explicit)
                         flags |= GL_MAP_FLUSH_EXPLICIT_BIT;
                 ret = fv_gl.glMapBufferRange(target,
-                                             offset,
+                                             0, /* offset */
                                              length,
                                              flags);
                 if (ret) {
@@ -77,7 +74,7 @@ fv_map_buffer_flush(GLintptr offset,
 {
         if (fv_map_buffer_state.using_buffer) {
                 fv_gl.glBufferSubData(fv_map_buffer_state.target,
-                                      fv_map_buffer_state.offset + offset,
+                                      offset,
                                       length,
                                       fv_map_buffer_state.buffer.data + offset);
         } else {
@@ -93,7 +90,7 @@ fv_map_buffer_unmap(void)
         if (fv_map_buffer_state.using_buffer) {
                 if (!fv_map_buffer_state.flush_explicit)
                         fv_gl.glBufferSubData(fv_map_buffer_state.target,
-                                              fv_map_buffer_state.offset,
+                                              0, /* offset */
                                               fv_map_buffer_state.length,
                                               fv_map_buffer_state.buffer.data);
         } else {

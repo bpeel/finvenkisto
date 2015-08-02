@@ -23,18 +23,17 @@
 #include <GL/gl.h>
 #include <stdbool.h>
 
-/* Maps the given buffer target for writing. Note that this will
- * always invalidate the entire buffer contents regardless of whether
- * only a subrange is mapped. It will only be mapped for writing. If
- * mapping is not available or the map fails it will resort to using a
- * temporary buffer which will be copied in when the buffer is
- * unmapped. This can not be used to map multiple buffers
- * simultaneously. The buffer binding state must not be changed while
- * a buffer is mapped.
+/* Maps the given buffer target for writing. This will always
+ * invalidate the entire buffer contents and it cannot be used to map
+ * a subrange. The length parameter should be the length of the entire
+ * buffer. It will only be mapped for writing. If mapping is not
+ * available or the map fails it will resort to using a temporary
+ * buffer which will be copied in when the buffer is unmapped. This
+ * can not be used to map multiple buffers simultaneously. The buffer
+ * binding state must not be changed while a buffer is mapped.
  */
 void *
 fv_map_buffer_map(GLenum target,
-                  GLintptr offset,
                   GLsizeiptr length,
                   bool flush_explicit);
 

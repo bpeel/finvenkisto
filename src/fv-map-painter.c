@@ -550,7 +550,6 @@ paint_special(struct fv_map_painter *painter,
                                            painter->instance_buffer);
                         painter->instance_buffer_map =
                                 fv_map_buffer_map(GL_ARRAY_BUFFER,
-                                                  0, /* offset */
                                                   sizeof (float) * 16 *
                                                   FV_MAP_MAX_SPECIALS,
                                                   true /* flush_explicit */);

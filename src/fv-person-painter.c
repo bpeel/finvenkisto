@@ -348,7 +348,6 @@ paint_person_cb(const struct fv_logic_person *person,
                                        FV_PERSON_PAINTER_MAX_INSTANCES);
                         data->instance_buffer_map =
                                 fv_map_buffer_map(GL_ARRAY_BUFFER,
-                                                  0, /* offset */
                                                   buffer_size,
                                                   true /* flush_explicit */);
                 }
