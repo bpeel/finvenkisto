@@ -43,10 +43,10 @@
  * and let the vertex shader expand it out.
  */
 #define FV_MAP_PAINTER_NORMAL_UP 0
-#define FV_MAP_PAINTER_NORMAL_NORTH 25
-#define FV_MAP_PAINTER_NORMAL_EAST 100
-#define FV_MAP_PAINTER_NORMAL_SOUTH -25
-#define FV_MAP_PAINTER_NORMAL_WEST -100
+#define FV_MAP_PAINTER_NORMAL_NORTH 166
+#define FV_MAP_PAINTER_NORMAL_EAST 255
+#define FV_MAP_PAINTER_NORMAL_SOUTH 90
+#define FV_MAP_PAINTER_NORMAL_WEST 3
 
 struct fv_map_painter_model {
         const char *filename;
@@ -104,7 +104,13 @@ struct fv_map_painter {
 
 struct vertex {
         uint8_t x, y, z;
-        int8_t normal;
+        /* The normal is encoded as the fourth component of the
+         * position rather than its own component because I read
+         * somewhere that all attributes should be aligned to a float.
+         * I'm not sure if this is true or not but it's not really
+         * difficult to do so we might as well play it safe.
+         */
+        uint8_t normal;
         uint16_t s, t;
 };
 
@@ -605,7 +611,7 @@ fv_map_painter_new(struct fv_image_data *image_data,
 
         fv_array_object_set_attribute(painter->array,
                                       FV_SHADER_DATA_ATTRIB_POSITION,
-                                      3, /* size */
+                                      4, /* size */
                                       GL_UNSIGNED_BYTE,
                                       GL_FALSE, /* normalized */
                                       sizeof (struct vertex),
@@ -622,16 +628,6 @@ fv_map_painter_new(struct fv_image_data *image_data,
                                       0, /* divisor */
                                       painter->vertices_buffer,
                                       offsetof(struct vertex, s));
-
-        fv_array_object_set_attribute(painter->array,
-                                      FV_SHADER_DATA_ATTRIB_NORMAL,
-                                      1, /* size */
-                                      GL_BYTE,
-                                      GL_FALSE, /* normalized */
-                                      sizeof (struct vertex),
-                                      0, /* divisor */
-                                      painter->vertices_buffer,
-                                      offsetof(struct vertex, normal));
 
         fv_gl.glGenBuffers(1, &painter->indices_buffer);
         fv_array_object_set_element_buffer(painter->array,

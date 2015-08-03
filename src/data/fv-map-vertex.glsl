@@ -17,9 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-attribute vec3 position;
+attribute vec4 position;
 attribute vec2 tex_coord_attrib;
-attribute float normal_attrib;
 
 uniform mat4 transform;
 uniform mat3 normal_transform;
@@ -34,23 +33,25 @@ get_lighting_tint(mat3 normal_transform,
 void
 main()
 {
-        float abs_normal_attrib = abs(normal_attrib);
         vec3 normal;
 
-        if (abs_normal_attrib < 1.0) {
+        if (position[3] < 1.0) {
                 normal = vec3(0.0, 0.0, 1.0);
         } else {
-                float normal_attrib_sign = sign(normal_attrib);
+                float normal_index = position[3] - 128.0f;
+                float normal_sign = sign(normal_index);
+
                 normal.z = 0.0;
-                if (abs_normal_attrib > 50.0)
-                        normal.xy = vec2(normal_attrib_sign, 0.0);
+
+                if (abs(normal_index) > 100.0)
+                        normal.xy = vec2(normal_sign, 0.0);
                 else
-                        normal.xy = vec2(0.0, normal_attrib_sign);
+                        normal.xy = vec2(0.0, normal_sign);
         }
 
         tint = get_lighting_tint(normal_transform, normal);
 
-        gl_Position = transform * vec4(position, 1.0);
+        gl_Position = transform * vec4(position.xyz, 1.0);
         tex_coord = tex_coord_attrib;
 }
 
