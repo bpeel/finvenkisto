@@ -115,6 +115,7 @@ fv_shader_data_shaders[] = {
                         FV_SHADER_DATA_PROGRAM_SPECIAL_TEXTURE,
                         FV_SHADER_DATA_PROGRAM_SPECIAL_COLOR,
                         FV_SHADER_DATA_PROGRAM_MAP,
+                        FV_SHADER_DATA_PROGRAM_PERSON,
                         PROGRAMS_END
                 }
         },
