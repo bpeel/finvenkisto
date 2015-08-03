@@ -32,7 +32,7 @@ fv_map_painter_new(struct fv_image_data *image_data,
 void
 fv_map_painter_paint(struct fv_map_painter *painter,
                      struct fv_logic *logic,
-                     const struct fv_paint_state *paint_state);
+                     struct fv_paint_state *paint_state);
 
 void
 fv_map_painter_free(struct fv_map_painter *painter);

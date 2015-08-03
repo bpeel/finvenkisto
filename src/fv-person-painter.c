@@ -338,7 +338,8 @@ paint_person_cb(const struct fv_logic_person *person,
         fv_matrix_rotate(&data->transform.modelview,
                          person->direction * 180.f / M_PI,
                          0.0f, 0.0f, 1.0f);
-        fv_transform_update_derived_values(&data->transform);
+        fv_transform_dirty(&data->transform);
+        fv_transform_ensure_mvp(&data->transform);
 
         green_tint = person->esperantified ? 120 : 0;
 

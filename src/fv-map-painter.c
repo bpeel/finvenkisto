@@ -672,7 +672,10 @@ paint_special(struct fv_map_painter *painter,
                                  special->rotation * 360.0f /
                                  (UINT16_MAX + 1.0f),
                                  0.0f, 0.0f, 1.0f);
-        fv_transform_update_derived_values(&transform);
+
+        fv_transform_dirty(&transform);
+        fv_transform_ensure_mvp(&transform);
+        fv_transform_ensure_normal_transform(&transform);
 
         if (fv_gl.have_instanced_arrays) {
                 if (painter->n_instances == 0) {
@@ -720,7 +723,7 @@ paint_special(struct fv_map_painter *painter,
 void
 fv_map_painter_paint(struct fv_map_painter *painter,
                      struct fv_logic *logic,
-                     const struct fv_paint_state *paint_state)
+                     struct fv_paint_state *paint_state)
 {
         int x_min, x_max, y_min, y_max;
         int idx_min;
@@ -768,6 +771,8 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         }
 
         flush_specials(painter);
+
+        fv_transform_ensure_mvp(&paint_state->transform);
 
         fv_gl.glUseProgram(painter->map_program.id);
         fv_gl.glUniformMatrix4fv(painter->map_program.modelview_transform,
