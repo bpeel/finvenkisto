@@ -31,10 +31,6 @@ uniform mat3 normal_transform;
 
 varying vec3 color;
 
-float
-get_lighting_tint(mat3 normal_transform,
-                  vec3 normal);
-
 void
 main()
 {
