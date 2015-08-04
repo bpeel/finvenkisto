@@ -34,7 +34,7 @@ main()
         if (position[3] < 1.0) {
                 normal = vec3(0.0, 0.0, 1.0);
         } else {
-                float normal_index = position[3] - 128.0f;
+                float normal_index = position[3] - 128.0;
                 float normal_sign = sign(normal_index);
 
                 normal.z = 0.0;
