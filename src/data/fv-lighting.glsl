@@ -17,10 +17,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* This is the vector [-1, 2, -3] rotated by -30° along the x axis and
+ * then normalised. This was calculated with this snippet of python:
+ * import numpy
+ * import math
+ * angle = -30.0 * math.pi / 180.0
+ * rotation = [[1.0, 0.0, 0.0],
+ *             [0.0, math.cos(angle), -math.sin(angle)],
+ *             [0.0, math.sin(angle), math.cos(angle)]]
+ * norm = [-1, 2, -3]
+ * trans_norm = numpy.dot(rotation, norm)
+ * norm_norm = numpy.divide(trans_norm,
+ *                          numpy.sqrt(numpy.dot(trans_norm, trans_norm)))
+ * print norm_norm
+ */
+const vec3 light_direction = vec3(-0.26726124, 0.06201819, -0.96162632);
+
 const float ambient_light = 0.8;
-const vec3 light_direction = vec3(0.5773502691896257,
-                                  0.5773502691896257,
-                                  0.5773502691896257);
 const float diffuse = 1.0 - ambient_light;
 
 float
@@ -33,7 +46,7 @@ get_lighting_tint(mat3 normal_transform,
         float light_factor = ambient_light;
         /* Calculate the diffuse factor based on the angle between the
            vertex normal and light direction */
-        float diffuse_factor = max(0.0, dot(light_direction, normal));
+        float diffuse_factor = max(0.0, dot(-light_direction, normal));
         /* Skip the diffuse term if the vertex is not facing
            the light */
         if (diffuse_factor > 0.0) {
