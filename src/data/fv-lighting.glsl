@@ -33,7 +33,7 @@
  */
 const vec3 light_direction = vec3(-0.26726124, 0.06201819, -0.96162632);
 
-const float ambient_light = 0.8;
+const float ambient_light = 0.5;
 const float diffuse = 1.0 - ambient_light;
 
 float
