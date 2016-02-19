@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2014 Neil Roberts
+ * Copyright (C) 2014, 2016 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -193,4 +193,30 @@ fv_gl_init(void)
 #endif
 
         fv_gl.have_multisampling = sample_buffers != 0;
+}
+
+bool
+fv_gl_check_extension(const char *haystack,
+                      const char *needle)
+{
+        int needle_len = strlen (needle);
+        const char *haystack_end;
+        const char *end;
+
+        haystack_end = haystack + strlen (haystack);
+
+        while (haystack < haystack_end) {
+                end = strchr(haystack, ' ');
+
+                if (end == NULL)
+                        end = haystack_end;
+
+                if (end - haystack == needle_len &&
+                    !memcmp (haystack, needle, needle_len))
+                        return true;
+
+                haystack = end + 1;
+        }
+
+        return false;
 }

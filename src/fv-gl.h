@@ -68,4 +68,8 @@ fv_gl_draw_range_elements(GLenum mode,
                                      indices);
 }
 
+bool
+fv_gl_check_extension(const char *haystack,
+                      const char *needle);
+
 #endif /* FV_GL_H */
