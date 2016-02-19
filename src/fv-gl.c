@@ -20,7 +20,6 @@
 #include "config.h"
 
 #include <GL/gl.h>
-#include <SDL.h>
 #include <dlfcn.h>
 
 #include "fv-gl.h"
@@ -59,6 +58,56 @@ gl_groups[] = {
 #undef FV_GL_FUNC
 #undef FV_GL_END_GROUP
 };
+
+static bool
+check_extension_in_list(const char *haystack,
+                        const char *needle)
+{
+        int needle_len = strlen (needle);
+        const char *haystack_end;
+        const char *end;
+
+        haystack_end = haystack + strlen (haystack);
+
+        while (haystack < haystack_end) {
+                end = strchr(haystack, ' ');
+
+                if (end == NULL)
+                        end = haystack_end;
+
+                if (end - haystack == needle_len &&
+                    !memcmp (haystack, needle, needle_len))
+                        return true;
+
+                haystack = end + 1;
+        }
+
+        return false;
+}
+
+static bool
+extension_supported(const char *extension)
+{
+        const char *extensions, *this_extension;
+        GLint n_extensions, i;
+
+        if (fv_gl.major_version < 3) {
+                extensions = (const char *) fv_gl.glGetString(GL_EXTENSIONS);
+
+                return check_extension_in_list(extensions, extension);
+        }
+
+        fv_gl.glGetIntegerv(GL_NUM_EXTENSIONS, &n_extensions);
+
+        for (i = 0; i < n_extensions; i++) {
+                this_extension =
+                        (const char *) fv_gl.glGetStringi(GL_EXTENSIONS, i);
+                if (!strcmp(extension, this_extension))
+                        return true;
+        }
+
+        return false;
+}
 
 static void
 get_gl_version(void)
@@ -118,8 +167,7 @@ init_group(const struct fv_gl_group *group)
         if (group->minimum_gl_version >= 0 &&
             gl_version >= group->minimum_gl_version)
                 suffix = "";
-        else if (group->extension &&
-                 SDL_GL_ExtensionSupported(group->extension))
+        else if (group->extension && extension_supported(group->extension))
                 suffix = group->extension_suffix;
         else
                 return;
@@ -130,7 +178,7 @@ init_group(const struct fv_gl_group *group)
                 fv_buffer_set_length(&buffer, 0);
                 fv_buffer_append_string(&buffer, group->funcs[i].name);
                 fv_buffer_append_string(&buffer, suffix);
-                func = SDL_GL_GetProcAddress((char *) buffer.data);
+                func = fv_gl.glXGetProcAddress((char *) buffer.data);
                 *(void **) ((char *) &fv_gl + group->funcs[i].offset) = func;
         }
 
@@ -143,7 +191,7 @@ fv_gl_init(void)
         int sample_buffers = 0;
         int i;
 
-        fv_gl.glGetString = SDL_GL_GetProcAddress("glGetString");
+        fv_gl.glGetString = fv_gl.glXGetProcAddress("glGetString");
 
         get_gl_version();
 
@@ -156,7 +204,7 @@ fv_gl_init(void)
         fv_gl.have_npot_mipmaps = true;
 
         fv_gl.have_texture_2d_array =
-                SDL_GL_ExtensionSupported("GL_EXT_texture_array");
+                extension_supported("GL_EXT_texture_array");
 
         fv_gl.have_instanced_arrays =
                 fv_gl.glVertexAttribDivisor != NULL &&
@@ -165,32 +213,6 @@ fv_gl_init(void)
         fv_gl.glGetIntegerv(GL_SAMPLE_BUFFERS_ARB, &sample_buffers);
 
         fv_gl.have_multisampling = sample_buffers != 0;
-}
-
-static bool
-check_extension_in_list(const char *haystack,
-                        const char *needle)
-{
-        int needle_len = strlen (needle);
-        const char *haystack_end;
-        const char *end;
-
-        haystack_end = haystack + strlen (haystack);
-
-        while (haystack < haystack_end) {
-                end = strchr(haystack, ' ');
-
-                if (end == NULL)
-                        end = haystack_end;
-
-                if (end - haystack == needle_len &&
-                    !memcmp (haystack, needle, needle_len))
-                        return true;
-
-                haystack = end + 1;
-        }
-
-        return false;
 }
 
 bool
@@ -206,7 +228,7 @@ fv_gl_init_glx(Display *display)
 
         memset(&fv_gl, 0, sizeof fv_gl);
 
-        fv_gl.lib_gl = dlopen("libGL.so.1", RTLD_LAZY);
+        fv_gl.lib_gl = dlopen("libGL.so.1", RTLD_LAZY | RTLD_GLOBAL);
 
         if (fv_gl.lib_gl == NULL) {
                 fv_error_message("Error openining libGL.so.1: %s",
@@ -220,6 +242,8 @@ fv_gl_init_glx(Display *display)
                 dlsym(fv_gl.lib_gl, "glXQueryExtensionsString");
         fv_gl.glXQueryVersion =
                 dlsym(fv_gl.lib_gl, "glXQueryVersion");
+        fv_gl.glXSwapBuffers =
+                dlsym(fv_gl.lib_gl, "glXSwapBuffers");
 
         fv_gl.glXQueryVersion(display, &glx_major, &glx_minor);
 

@@ -142,6 +142,12 @@ FV_GL_FUNC(void,
                                GLsizei width, GLsizei height))
 FV_GL_END_GROUP()
 
+/* glGetStringi from GL 3.0 */
+FV_GL_BEGIN_GROUP(30, NULL, NULL)
+FV_GL_FUNC(const GLubyte *,
+           glGetStringi, (GLenum name, GLuint index))
+FV_GL_END_GROUP()
+
 /* Map buffer range */
 FV_GL_BEGIN_GROUP(30, "GL_ARB_map_buffer_range", "")
 FV_GL_FUNC(void,

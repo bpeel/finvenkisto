@@ -39,13 +39,8 @@
 #include "fv-map.h"
 #include "fv-error-message.h"
 
-#define MIN_GL_MAJOR_VERSION 2
-#define MIN_GL_MINOR_VERSION 0
-#define REQUEST_GL_MAJOR_VERSION MIN_GL_MAJOR_VERSION
-#define REQUEST_GL_MINOR_VERSION MIN_GL_MINOR_VERSION
 #define CORE_GL_MAJOR_VERSION 3
-#define CORE_GL_MINOR_VERSION 1
-#define FV_GL_PROFILE SDL_GL_CONTEXT_PROFILE_COMPATIBILITY
+#define CORE_GL_MINOR_VERSION 3
 
 enum key_code {
         KEY_CODE_UP,
@@ -96,7 +91,6 @@ struct data {
 
         SDL_Window *window;
         int last_fb_width, last_fb_height;
-        SDL_GLContext gl_context;
 
         struct {
                 struct fv_shader_data shader_data;
@@ -762,7 +756,7 @@ paint(struct data *data)
 
         paint_hud(data, w, h);
 
-        SDL_GL_SwapWindow(data->window);
+        fv_gl.glXSwapBuffers(data->display, data->glx_window);
 }
 
 static bool
@@ -776,16 +770,16 @@ check_gl_version(void)
                 return false;
         }
 
-        if (fv_gl.major_version < MIN_GL_MAJOR_VERSION ||
-                   (fv_gl.major_version == MIN_GL_MAJOR_VERSION &&
-                    fv_gl.minor_version < MIN_GL_MINOR_VERSION)) {
+        if (fv_gl.major_version < CORE_GL_MAJOR_VERSION ||
+            (fv_gl.major_version == CORE_GL_MAJOR_VERSION &&
+                    fv_gl.minor_version < CORE_GL_MINOR_VERSION)) {
                 fv_error_message("GL version %i.%i is required but the driver "
                                  "is reporting:\n"
                                  "Version: %s\n"
                                  "Vendor: %s\n"
                                  "Renderer: %s",
-                                 MIN_GL_MAJOR_VERSION,
-                                 MIN_GL_MINOR_VERSION,
+                                 CORE_GL_MAJOR_VERSION,
+                                 CORE_GL_MINOR_VERSION,
                                  (const char *) fv_gl.glGetString(GL_VERSION),
                                  (const char *) fv_gl.glGetString(GL_VENDOR),
                                  (const char *) fv_gl.glGetString(GL_RENDERER));
@@ -866,37 +860,6 @@ process_arguments(struct data *data,
         }
 
         return true;
-}
-
-static SDL_GLContext
-create_gl_context(SDL_Window *window)
-{
-        SDL_GLContext context;
-
-        /* First try creating a core context because if we get one it
-         * can be more efficient.
-         */
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,
-                            CORE_GL_MAJOR_VERSION);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,
-                            CORE_GL_MINOR_VERSION);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                            SDL_GL_CONTEXT_PROFILE_CORE);
-
-        context = SDL_GL_CreateContext(window);
-
-        if (context != NULL)
-                return context;
-
-        /* Otherwise try a compatibility profile context */
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,
-                            REQUEST_GL_MAJOR_VERSION);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,
-                            REQUEST_GL_MINOR_VERSION);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                            FV_GL_PROFILE);
-
-        return SDL_GL_CreateContext(window);
 }
 
 static void
@@ -1037,6 +1000,8 @@ make_window(struct data *data)
                                     data->glx_window,
                                     data->glx_context);
 
+        XMapWindow(data->display, data->x_window);
+
         return true;
 }
 
@@ -1044,10 +1009,8 @@ int
 main(int argc, char **argv)
 {
         struct data data;
-        Uint32 flags;
         int res;
         int ret = EXIT_SUCCESS;
-        int i;
 
         data.is_fullscreen = true;
 
@@ -1075,6 +1038,8 @@ main(int argc, char **argv)
                 goto out_glx_funcs;
         }
 
+        fv_gl_init();
+
         res = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
         if (res < 0) {
                 fv_error_message("Unable to init SDL: %s\n", SDL_GetError());
@@ -1084,53 +1049,22 @@ main(int argc, char **argv)
 
         fv_buffer_init(&data.joysticks);
 
-        SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-        SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-        SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-        SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
-        SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 8);
-        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-
-        flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
-        if (data.is_fullscreen)
-                flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
-
-        /* First try creating a window with multisampling */
-        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 2);
-
-        for (i = 0; ; i++) {
-                data.window = SDL_CreateWindow("Finvenkisto",
-                                               SDL_WINDOWPOS_UNDEFINED,
-                                               SDL_WINDOWPOS_UNDEFINED,
-                                               800, 600,
-                                               flags);
-                if (data.window)
-                        break;
-
-                if (i == 0) {
-                        /* Try again without multisampling */
-                        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
-                        SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
-                } else {
-                        fv_error_message("Failed to create SDL window: %s",
-                                         SDL_GetError());
-                        ret = EXIT_FAILURE;
-                        goto out_sdl;
-                }
-        }
-
-        data.gl_context = create_gl_context(data.window);
-        if (data.gl_context == NULL) {
-                fv_error_message("Failed to create GL context: %s",
+        data.window = SDL_CreateWindow("Finvenkisto",
+                                       SDL_WINDOWPOS_UNDEFINED,
+                                       SDL_WINDOWPOS_UNDEFINED,
+                                       800, 600,
+                                       0 /* flags */);
+        if (data.window == NULL) {
+                fv_error_message("Failed to create SDL window: %s",
                                  SDL_GetError());
                 ret = EXIT_FAILURE;
-                goto out_sdl_window;
+                goto out_sdl;
         }
 
-        SDL_GL_MakeCurrent(data.window, data.gl_context);
-
-        fv_gl_init();
+        fv_gl.glXMakeContextCurrent(data.display,
+                                    data.glx_window,
+                                    data.glx_window,
+                                    data.glx_context);
 
         /* SDL seems to happily give you a GL 2 context if you ask for
          * a 3.x core profile but it can't provide one so we have to
@@ -1138,7 +1072,7 @@ main(int argc, char **argv)
          * for */
         if (!check_gl_version()) {
                 ret = EXIT_FAILURE;
-                goto out_context;
+                goto out_sdl_window;
         }
 
         SDL_ShowCursor(0);
@@ -1163,9 +1097,6 @@ main(int argc, char **argv)
         if (data.image_data)
                 fv_image_data_free(data.image_data);
 
- out_context:
-        SDL_GL_MakeCurrent(NULL, NULL);
-        SDL_GL_DeleteContext(data.gl_context);
  out_sdl_window:
         SDL_DestroyWindow(data.window);
  out_sdl:

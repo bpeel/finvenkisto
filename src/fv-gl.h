@@ -49,6 +49,7 @@ struct fv_gl {
         const char * (* glXQueryExtensionsString)(Display *dpy, int screen);
         Bool (* glXQueryVersion)(Display *dpy, int *maj, int *min);
         void * (* glXGetProcAddress)(const char *);
+        void (* glXSwapBuffers)(Display *dpy, GLXDrawable drawable);
 
         PFNGLXCHOOSEFBCONFIGPROC glXChooseFBConfig;
         PFNGLXCREATECONTEXTATTRIBSARBPROC glXCreateContextAttribs;
