@@ -21,10 +21,12 @@
 
 #include <GL/gl.h>
 #include <SDL.h>
+#include <dlfcn.h>
 
 #include "fv-gl.h"
 #include "fv-util.h"
 #include "fv-buffer.h"
+#include "fv-error-message.h"
 
 struct fv_gl fv_gl;
 
@@ -141,8 +143,6 @@ fv_gl_init(void)
         int sample_buffers = 0;
         int i;
 
-        memset(&fv_gl, 0, sizeof fv_gl);
-
         fv_gl.glGetString = SDL_GL_GetProcAddress("glGetString");
 
         get_gl_version();
@@ -167,9 +167,9 @@ fv_gl_init(void)
         fv_gl.have_multisampling = sample_buffers != 0;
 }
 
-bool
-fv_gl_check_extension(const char *haystack,
-                      const char *needle)
+static bool
+check_extension_in_list(const char *haystack,
+                        const char *needle)
 {
         int needle_len = strlen (needle);
         const char *haystack_end;
@@ -191,4 +191,84 @@ fv_gl_check_extension(const char *haystack,
         }
 
         return false;
+}
+
+bool
+fv_gl_init_glx(Display *display)
+{
+        int glx_major, glx_minor;
+        const char *extensions;
+        int i;
+        static const char *required_extensions[] = {
+                "GLX_ARB_create_context",
+                "GLX_ARB_get_proc_address"
+        };
+
+        memset(&fv_gl, 0, sizeof fv_gl);
+
+        fv_gl.lib_gl = dlopen("libGL.so.1", RTLD_LAZY);
+
+        if (fv_gl.lib_gl == NULL) {
+                fv_error_message("Error openining libGL.so.1: %s",
+                                 dlerror());
+                return false;
+        }
+
+        fv_gl.glXDestroyContext =
+                dlsym(fv_gl.lib_gl, "glXDestroyContext");
+        fv_gl.glXQueryExtensionsString =
+                dlsym(fv_gl.lib_gl, "glXQueryExtensionsString");
+        fv_gl.glXQueryVersion =
+                dlsym(fv_gl.lib_gl, "glXQueryVersion");
+
+        fv_gl.glXQueryVersion(display, &glx_major, &glx_minor);
+
+        if (glx_major < 1 || (glx_major == 1 && glx_minor < 3)) {
+                fv_error_message("GLX 1.3 support is required but only "
+                                 "%i.%i was found",
+                                 glx_major, glx_minor);
+                goto error;
+        }
+
+        extensions = fv_gl.glXQueryExtensionsString(display,
+                                                    DefaultScreen(display));
+
+        for (i = 0; i < FV_N_ELEMENTS(required_extensions); i++) {
+                if (!check_extension_in_list(extensions,
+                                             required_extensions[i])) {
+                        fv_error_message("%s extension is not supported",
+                                         required_extensions[i]);
+                        goto error;
+                }
+        }
+
+        fv_gl.glXGetProcAddress = dlsym(fv_gl.lib_gl, "glXGetProcAddressARB");
+
+        fv_gl.glXChooseFBConfig =
+                fv_gl.glXGetProcAddress("glXChooseFBConfig");
+        fv_gl.glXCreateContextAttribs =
+                fv_gl.glXGetProcAddress("glXCreateContextAttribsARB");
+        fv_gl.glXCreateWindow =
+                fv_gl.glXGetProcAddress("glXCreateWindow");
+        fv_gl.glXDestroyWindow =
+                fv_gl.glXGetProcAddress("glXDestroyWindow");
+        fv_gl.glXGetVisualFromFBConfig =
+                fv_gl.glXGetProcAddress("glXGetVisualFromFBConfig");
+        fv_gl.glXMakeContextCurrent =
+                fv_gl.glXGetProcAddress("glXMakeContextCurrent");
+
+        return true;
+
+error:
+        dlclose(fv_gl.lib_gl);
+
+        return false;
+}
+
+void
+fv_gl_deinit_glx(void)
+{
+        dlclose(fv_gl.lib_gl);
+
+        memset(&fv_gl, 0, sizeof fv_gl);
 }

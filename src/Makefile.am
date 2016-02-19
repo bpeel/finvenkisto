@@ -71,7 +71,7 @@ finvenkisto_SOURCES = \
 finvenkisto_LDADD = \
 	$(SDL_LIBS) \
 	$(X11_LIBS) \
-	$(GL_LIBS) \
+	-ldl \
 	rply/librply.a \
 	$(NULL)
 

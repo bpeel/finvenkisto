@@ -21,6 +21,7 @@
 #define FV_GL_H
 
 #include <GL/gl.h>
+#include <GL/glx.h>
 #include <stdbool.h>
 
 struct fv_gl {
@@ -41,9 +42,29 @@ struct fv_gl {
         bool have_instanced_arrays;
         bool have_npot_mipmaps;
         bool have_multisampling;
+
+        void *lib_gl;
+
+        void (* glXDestroyContext)(Display *dpy, GLXContext ctx);
+        const char * (* glXQueryExtensionsString)(Display *dpy, int screen);
+        Bool (* glXQueryVersion)(Display *dpy, int *maj, int *min);
+        void * (* glXGetProcAddress)(const char *);
+
+        PFNGLXCHOOSEFBCONFIGPROC glXChooseFBConfig;
+        PFNGLXCREATECONTEXTATTRIBSARBPROC glXCreateContextAttribs;
+        PFNGLXCREATEWINDOWPROC glXCreateWindow;
+        PFNGLXDESTROYWINDOWPROC glXDestroyWindow;
+        PFNGLXGETVISUALFROMFBCONFIGPROC glXGetVisualFromFBConfig;
+        PFNGLXMAKECONTEXTCURRENTPROC glXMakeContextCurrent;
 };
 
 extern struct fv_gl fv_gl;
+
+bool
+fv_gl_init_glx(Display *display);
+
+void
+fv_gl_deinit_glx(void);
 
 void
 fv_gl_init(void);
@@ -67,9 +88,5 @@ fv_gl_draw_range_elements(GLenum mode,
                                      type,
                                      indices);
 }
-
-bool
-fv_gl_check_extension(const char *haystack,
-                      const char *needle);
 
 #endif /* FV_GL_H */
