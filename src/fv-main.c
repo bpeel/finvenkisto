@@ -39,19 +39,6 @@
 #include "fv-map.h"
 #include "fv-error-message.h"
 
-#ifdef EMSCRIPTEN
-#include <emscripten.h>
-#include <emscripten/html5.h>
-/* On Emscripten you have to request 2.0 to get a 2.0 ES context but
- * the version is reports in GL_VERSION is 1.0 because that is the
- * WebGL version.
- */
-#define MIN_GL_MAJOR_VERSION 1
-#define MIN_GL_MINOR_VERSION 0
-#define REQUEST_GL_MAJOR_VERSION 2
-#define REQUEST_GL_MINOR_VERSION 0
-#define FV_GL_PROFILE SDL_GL_CONTEXT_PROFILE_ES
-#else
 #define MIN_GL_MAJOR_VERSION 2
 #define MIN_GL_MINOR_VERSION 0
 #define REQUEST_GL_MAJOR_VERSION MIN_GL_MAJOR_VERSION
@@ -59,7 +46,6 @@
 #define CORE_GL_MAJOR_VERSION 3
 #define CORE_GL_MINOR_VERSION 1
 #define FV_GL_PROFILE SDL_GL_CONTEXT_PROFILE_COMPATIBILITY
-#endif
 
 enum key_code {
         KEY_CODE_UP,
@@ -159,7 +145,6 @@ reset_menu_state(struct data *data)
         fv_logic_reset(data->logic, 0);
 }
 
-#ifndef EMSCRIPTEN
 static void
 toggle_fullscreen(struct data *data)
 {
@@ -180,7 +165,6 @@ toggle_fullscreen(struct data *data)
 
         SDL_SetWindowFullscreen(data->window, data->is_fullscreen);
 }
-#endif /* EMSCRIPTEN */
 
 static void
 update_direction(struct data *data,
@@ -394,12 +378,10 @@ handle_key_event(struct data *data,
                 }
                 break;
 
-#ifndef EMSCRIPTEN
         case SDLK_F11:
                 if (event->state == SDL_PRESSED)
                         toggle_fullscreen(data);
                 break;
-#endif
 
         default:
                 handle_other_key(data, event);
@@ -531,10 +513,6 @@ create_graphics(struct data *data)
 
         if (data->graphics.game == NULL)
                 goto error;
-
-#ifdef EMSCRIPTEN
-        emscripten_resume_main_loop();
-#endif
 
         return;
 
@@ -893,7 +871,6 @@ process_arguments(struct data *data,
 static SDL_GLContext
 create_gl_context(SDL_Window *window)
 {
-#ifndef EMSCRIPTEN
         SDL_GLContext context;
 
         /* First try creating a core context because if we get one it
@@ -910,7 +887,6 @@ create_gl_context(SDL_Window *window)
 
         if (context != NULL)
                 return context;
-#endif /* EMSCRIPTEN */
 
         /* Otherwise try a compatibility profile context */
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,
@@ -922,75 +898,6 @@ create_gl_context(SDL_Window *window)
 
         return SDL_GL_CreateContext(window);
 }
-
-#ifdef EMSCRIPTEN
-
-static void
-emscripten_loop_cb(void *user_data)
-{
-        struct data *data = user_data;
-
-        paint(data);
-}
-
-static int
-emscripten_event_filter(void *userdata,
-                        SDL_Event *event)
-{
-        handle_event(userdata, event);
-
-        /* Filter the event */
-        return 0;
-}
-
-static EM_BOOL
-context_lost_cb(int event_type,
-                const void *reserved,
-                void *user_data)
-{
-        struct data *data = user_data;
-
-        destroy_graphics(data);
-
-        /* Cancel loading the images */
-        if (data->image_data) {
-                fv_image_data_free(data->image_data);
-                data->image_data = NULL;
-        } else {
-                emscripten_pause_main_loop();
-        }
-
-        return true;
-}
-
-static EM_BOOL
-context_restored_cb(int event_type,
-                    const void *reserved,
-                    void *user_data)
-{
-        struct data *data = user_data;
-
-        /* When the context is lost all of the extension objects that
-         * Emscripten created become invalid so it needs to query them
-         * again. Ideally it would handle this itself internally. This
-         * is probably poking into its internals a bit.
-         */
-        EM_ASM({
-                        var context = GL.currentContext;
-                        context.initExtensionsDone = false;
-                        GL.initExtensions(context);
-                });
-
-        /* Reload the images. This will also reload the graphics when
-         * it has finished.
-         */
-        if (data->image_data == NULL)
-                data->image_data = fv_image_data_new(data->image_data_event);
-
-        return true;
-}
-
-#else  /* EMSCRIPTEN */
 
 static void
 iterate_main_loop(struct data *data)
@@ -1011,8 +918,6 @@ iterate_main_loop(struct data *data)
 
         paint(data);
 }
-
-#endif /* EMSCRIPTEN */
 
 static GLXFBConfig
 choose_fb_config(struct data *data)
@@ -1172,11 +1077,7 @@ main(int argc, char **argv)
         int ret = EXIT_SUCCESS;
         int i;
 
-#ifdef EMSCRIPTEN
-        data.is_fullscreen = false;
-#else
         data.is_fullscreen = true;
-#endif
 
         memset(&data.graphics, 0, sizeof data.graphics);
 
@@ -1275,30 +1176,8 @@ main(int argc, char **argv)
 
         reset_menu_state(&data);
 
-#ifdef EMSCRIPTEN
-
-        emscripten_set_webglcontextlost_callback("canvas",
-                                                 &data,
-                                                 false /* useCapture */,
-                                                 context_lost_cb);
-        emscripten_set_webglcontextrestored_callback("canvas",
-                                                     &data,
-                                                     false /* useCapture */,
-                                                     context_restored_cb);
-
-        SDL_SetEventFilter(emscripten_event_filter, &data);
-
-        emscripten_set_main_loop_arg(emscripten_loop_cb,
-                                     &data,
-                                     0, /* fps (use browser's choice) */
-                                     false /* simulate infinite loop */);
-        emscripten_pause_main_loop();
-        emscripten_exit_with_live_runtime();
-
-#else
         while (!data.quit)
                 iterate_main_loop(&data);
-#endif
 
         fv_logic_free(data.logic);
 

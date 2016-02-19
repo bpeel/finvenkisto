@@ -19,9 +19,6 @@ AM_PROG_CC_C_O
 AC_ISC_POSIX
 AC_C_CONST
 
-AC_CHECK_DECL([EMSCRIPTEN], [IS_EMSCRIPTEN=yes], [IS_EMSCRIPTEN=no])
-AM_CONDITIONAL([IS_EMSCRIPTEN], [test "x$IS_EMSCRIPTEN" = xyes])
-
 AC_C_BIGENDIAN([AC_DEFINE([HAVE_BIG_ENDIAN], [1], [System is big-endian])],
                [AC_DEFINE([HAVE_LITTLE_ENDIAN], [1],
                           [System is little-endian])])

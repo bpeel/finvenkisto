@@ -58,15 +58,6 @@ gl_groups[] = {
 #undef FV_GL_END_GROUP
 };
 
-static const char
-version_string_prefix[] =
-#ifdef EMSCRIPTEN
-        "WebGL "
-#else
-        ""
-#endif
-        ;
-
 static void
 get_gl_version(void)
 {
@@ -75,15 +66,6 @@ get_gl_version(void)
         const char *number_start, *p;
         int major_version = 0;
         int minor_version = 0;
-        int version_string_len;
-
-        version_string_len = strlen(version_string);
-        if (version_string_len < sizeof version_string_prefix ||
-            memcmp(version_string,
-                   version_string_prefix,
-                   sizeof version_string_prefix - 1))
-                goto invalid;
-        version_string += sizeof version_string_prefix - 1;
 
         number_start = p = version_string;
 
@@ -171,15 +153,7 @@ fv_gl_init(void)
         fv_gl.have_map_buffer_range = fv_gl.glMapBufferRange != NULL;
         fv_gl.have_vertex_array_objects = fv_gl.glGenVertexArrays != NULL;
 
-        /* On GLES2 (and thus WebGL) non-power-of-two textures are
-         * only supported if no mipmaps are used and the repeat mode
-         * is CLAMP_TO_EDGE.
-         */
-#ifdef EMSCRIPTEN
-        fv_gl.have_npot_mipmaps = false;
-#else
         fv_gl.have_npot_mipmaps = true;
-#endif
 
         fv_gl.have_texture_2d_array =
                 SDL_GL_ExtensionSupported("GL_EXT_texture_array");
@@ -188,9 +162,7 @@ fv_gl_init(void)
                 fv_gl.glVertexAttribDivisor != NULL &&
                 fv_gl.glDrawElementsInstanced != NULL;
 
-#ifndef EMSCRIPTEN
         fv_gl.glGetIntegerv(GL_SAMPLE_BUFFERS_ARB, &sample_buffers);
-#endif
 
         fv_gl.have_multisampling = sample_buffers != 0;
 }

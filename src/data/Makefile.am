@@ -172,12 +172,4 @@ DISTCLEANFILES = \
 
 EXTRA_TARGETS = fv-image-data-stamp
 
-if IS_EMSCRIPTEN
-EXTRA_TARGETS += finvenkisto-data.js
-
-finvenkisto-data.js : $(dist_images_DATA)
-	$(AM_V_GEN)python $$EMSCRIPTEN/tools/file_packager.py \
-	finvenkisto.data --js-output=$@ --preload $^
-endif
-
 all-local : $(EXTRA_TARGETS)
