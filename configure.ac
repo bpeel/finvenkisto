@@ -39,14 +39,9 @@ AS_COMPILER_FLAGS([WARNING_CFLAGS],
                   [$ALL_WARNING_CFLAGS])
 AC_SUBST([WARNING_CFLAGS])
 
-AS_IF([test "x$IS_EMSCRIPTEN" = "xyes"],
-      [SDL_CFLAGS="-s USE_SDL=2"
-       AC_SUBST([SDL_CFLAGS])],
-      [AS_CASE([$host_os],
-               [mingw*],
-               [GL_CFLAGS=""],
-               [PKG_CHECK_MODULES([GL], [gl])])
-      PKG_CHECK_MODULES([SDL], [sdl2])])
+PKG_CHECK_MODULES([GL], [gl])
+PKG_CHECK_MODULES([X11], [x11])
+PKG_CHECK_MODULES([SDL], [sdl2])
 
 AC_OUTPUT(
 Makefile

@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2013, 2014, 2015 Neil Roberts
+ * Copyright (C) 2013, 2014, 2015, 2016 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdarg.h>
+#include <GL/glx.h>
 
 #include "fv-game.h"
 #include "fv-logic.h"
@@ -101,6 +102,11 @@ enum menu_state {
 struct data {
         struct fv_image_data *image_data;
         Uint32 image_data_event;
+
+        Display *display;
+        Window x_window;
+        GLXWindow glx_window;
+        GLXContext glx_context;
 
         SDL_Window *window;
         int last_fb_width, last_fb_height;
@@ -1008,6 +1014,155 @@ iterate_main_loop(struct data *data)
 
 #endif /* EMSCRIPTEN */
 
+static GLXFBConfig
+choose_fb_config(struct data *data)
+{
+        GLXFBConfig *configs;
+        int n_configs;
+        GLXFBConfig ret;
+        static const int attrib_list[] = {
+                GLX_DOUBLEBUFFER, True,
+                GLX_DEPTH_SIZE, 16,
+                0
+        };
+
+        configs = glXChooseFBConfig(data->display,
+                                    DefaultScreen (data->display),
+                                    attrib_list,
+                                    &n_configs);
+
+        if (configs == NULL)
+                return NULL;
+
+        if (n_configs < 1)
+                ret = NULL;
+        else
+                ret = configs[0];
+
+        XFree (configs);
+
+        return ret;
+}
+
+static GLXContext
+create_context(struct data *data, GLXFBConfig fb_config)
+{
+        PFNGLXCREATECONTEXTATTRIBSARBPROC fnXCreateContextAttribs;
+        GLXContext context;
+        const char *extensions;
+        static const int attrib_list[] = {
+                GLX_CONTEXT_MAJOR_VERSION_ARB, CORE_GL_MAJOR_VERSION,
+                GLX_CONTEXT_MINOR_VERSION_ARB, CORE_GL_MINOR_VERSION,
+                GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+                GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
+                None
+        };
+
+        /* Make sure that the display supports the ARB_create_context
+         * extension.
+         */
+        extensions = glXQueryExtensionsString(data->display,
+                                              DefaultScreen(data->display));
+
+        if (!fv_gl_check_extension(extensions, "GLX_ARB_create_context")) {
+                fv_error_message("GLX_ARB_create_context extension is not "
+                                 "supported");
+                return NULL;
+        }
+
+        fnXCreateContextAttribs =
+                (void *) glXGetProcAddress((const GLubyte *)
+                                           "glXCreateContextAttribsARB");
+
+        context = fnXCreateContextAttribs(data->display,
+                                          fb_config,
+                                          NULL, /* shareList */
+                                          True, /* direct */
+                                          attrib_list);
+
+        if (context == NULL) {
+                fv_error_message("Failed to create GLX context");
+                return NULL;
+        }
+
+        return context;
+}
+
+static bool
+make_window(struct data *data)
+{
+        XSetWindowAttributes attr;
+        unsigned long mask;
+        Window root;
+        GLXFBConfig fb_config;
+        XVisualInfo *visinfo;
+        int glx_major, glx_minor;
+
+        glXQueryVersion(data->display, &glx_major, &glx_minor);
+
+        if (glx_major < 1 || (glx_major == 1 && glx_minor < 3)) {
+                fv_error_message("GLX 1.3 support is required but only "
+                                 "%i.%i was found",
+                                 glx_major, glx_minor);
+                return false;
+        }
+
+        root = RootWindow(data->display, 0 /* screen */);
+
+        fb_config = choose_fb_config(data);
+
+        if (fb_config == NULL) {
+                fv_error_message("Couldn't get an RGB, double-buffered "
+                                 "FB config");
+                return false;
+        }
+
+        visinfo = glXGetVisualFromFBConfig(data->display, fb_config);
+
+        if (visinfo == NULL) {
+                fv_error_message("FB config does not have an associated "
+                                 "visual");
+                return false;
+        }
+
+        data->glx_context = create_context(data, fb_config);
+
+        if (data->glx_context == NULL)
+                return false;
+
+        /* window attributes */
+        attr.background_pixel = 0;
+        attr.border_pixel = 0;
+        attr.colormap = XCreateColormap(data->display,
+                                        root,
+                                        visinfo->visual,
+                                        AllocNone);
+        attr.event_mask = (StructureNotifyMask | ExposureMask |
+                           PointerMotionMask | KeyPressMask);
+        mask = CWBorderPixel | CWColormap | CWEventMask;
+
+        data->x_window = XCreateWindow(data->display, root, 0, 0, 800, 600,
+                                       0, visinfo->depth, InputOutput,
+                                       visinfo->visual, mask, &attr);
+        if (!data->x_window) {
+                fv_error_message("XCreateWindow failed");
+                glXDestroyContext(data->display, data->glx_context);
+                return false;
+        }
+
+        data->glx_window = glXCreateWindow(data->display,
+                                           fb_config,
+                                           data->x_window,
+                                           NULL /* attrib_list */);
+
+        glXMakeContextCurrent(data->display,
+                              data->glx_window,
+                              data->glx_window,
+                              data->glx_context);
+
+        return true;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1030,11 +1185,23 @@ main(int argc, char **argv)
                 goto out;
         }
 
+        data.display = XOpenDisplay(NULL);
+        if (data.display == NULL) {
+                fv_error_message("Error: XOpenDisplay failed");
+                ret = EXIT_FAILURE;
+                goto out;
+        }
+
+        if (!make_window(&data)) {
+                ret = EXIT_FAILURE;
+                goto out_display;
+        }
+
         res = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
         if (res < 0) {
                 fv_error_message("Unable to init SDL: %s\n", SDL_GetError());
                 ret = EXIT_FAILURE;
-                goto out;
+                goto out_window;
         }
 
         fv_buffer_init(&data.joysticks);
@@ -1080,7 +1247,7 @@ main(int argc, char **argv)
                 fv_error_message("Failed to create GL context: %s",
                                  SDL_GetError());
                 ret = EXIT_FAILURE;
-                goto out_window;
+                goto out_sdl_window;
         }
 
         SDL_GL_MakeCurrent(data.window, data.gl_context);
@@ -1143,11 +1310,18 @@ main(int argc, char **argv)
  out_context:
         SDL_GL_MakeCurrent(NULL, NULL);
         SDL_GL_DeleteContext(data.gl_context);
- out_window:
+ out_sdl_window:
         SDL_DestroyWindow(data.window);
  out_sdl:
         close_joysticks(&data);
         SDL_Quit();
+ out_window:
+        glXMakeCurrent(data.display, None, NULL);
+        glXDestroyContext(data.display, data.glx_context);
+        glXDestroyWindow(data.display, data.glx_window);
+        XDestroyWindow(data.display, data.x_window);
+ out_display:
+        XCloseDisplay(data.display);
  out:
         return ret;
 }

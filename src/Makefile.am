@@ -11,6 +11,7 @@ endif
 AM_CFLAGS = \
 	$(GL_CFLAGS) \
 	$(SDL_CFLAGS) \
+	$(X11_CFLAGS) \
 	$(WARNING_CFLAGS) \
 	$(NULL)
 
@@ -70,6 +71,8 @@ fv-map.c : fv-map.png make-map.py
 
 ldadd = \
 	$(SDL_LIBS) \
+	$(X11_LIBS) \
+	$(GL_LIBS) \
 	rply/librply.a \
 	$(NULL)
 
