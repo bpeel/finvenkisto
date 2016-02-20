@@ -105,7 +105,7 @@ struct data {
         bool viewports_dirty;
         int n_viewports;
 
-        unsigned int start_time;
+        struct timespec start_time;
 
         enum menu_state menu_state;
         int n_players;
@@ -116,12 +116,29 @@ struct data {
 };
 
 static void
+reset_start_time(struct data *data)
+{
+        clock_gettime(CLOCK_MONOTONIC, &data->start_time);
+}
+
+static unsigned int
+get_ticks(struct data *data)
+{
+        struct timespec now;
+
+        clock_gettime(CLOCK_MONOTONIC, &now);
+
+        return ((now.tv_nsec - data->start_time.tv_nsec) / 1000000 +
+                ((long) now.tv_sec - (long) data->start_time.tv_sec) * 1000);
+}
+
+static void
 reset_menu_state(struct data *data)
 {
         int i, j;
 
         data->menu_state = MENU_STATE_CHOOSING_N_PLAYERS;
-        data->start_time = SDL_GetTicks();
+        reset_start_time(data);
         data->viewports_dirty = true;
         data->n_viewports = 1;
 
@@ -247,7 +264,7 @@ set_key(struct data *data,
 
                 if (data->next_player >= data->n_players) {
                         data->menu_state = MENU_STATE_PLAYING;
-                        data->start_time = SDL_GetTicks();
+                        reset_start_time(data);
                         fv_logic_reset(data->logic, data->n_players);
                 }
         }
@@ -605,7 +622,7 @@ paint(struct data *data)
                 data->viewports_dirty = true;
         }
 
-        fv_logic_update(data->logic, SDL_GetTicks() - data->start_time);
+        fv_logic_update(data->logic, get_ticks(data));
 
         update_viewports(data);
         update_centers(data);
