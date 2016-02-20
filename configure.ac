@@ -30,8 +30,7 @@ AC_CHECK_FUNCS([ffs ffsl])
 
 ALL_WARNING_CFLAGS="-Wall -Wuninitialized -Wempty-body -Wformat
                     -Wformat-security -Winit-self -Wundef
-                    -Wdeclaration-after-statement -Wvla
-                    -Wpointer-arith -Wmissing-declarations"
+                    -Wvla -Wpointer-arith -Wmissing-declarations"
 AS_COMPILER_FLAGS([WARNING_CFLAGS],
                   [$ALL_WARNING_CFLAGS])
 AC_SUBST([WARNING_CFLAGS])
