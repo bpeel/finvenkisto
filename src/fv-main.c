@@ -941,11 +941,16 @@ main(int argc, char **argv)
                 goto out;
         }
 
+        if (!fv_gl_load_libgl()) {
+                ret = EXIT_FAILURE;
+                goto out;
+        }
+
         data.display = XOpenDisplay(NULL);
         if (data.display == NULL) {
                 fv_error_message("Error: XOpenDisplay failed");
                 ret = EXIT_FAILURE;
-                goto out;
+                goto out_libgl;
         }
 
         if (!fv_gl_init_glx(data.display)) {
@@ -955,7 +960,7 @@ main(int argc, char **argv)
 
         if (!make_window(&data)) {
                 ret = EXIT_FAILURE;
-                goto out_glx_funcs;
+                goto out_display;
         }
 
         fv_gl_init();
@@ -1031,10 +1036,10 @@ main(int argc, char **argv)
         fv_gl.glXDestroyContext(data.display, data.glx_context);
         fv_gl.glXDestroyWindow(data.display, data.glx_window);
         XDestroyWindow(data.display, data.x_window);
- out_glx_funcs:
-        fv_gl_deinit_glx();
  out_display:
         XCloseDisplay(data.display);
+ out_libgl:
+        fv_gl_unload_libgl();
  out:
         fv_data_deinit();
 

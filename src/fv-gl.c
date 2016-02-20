@@ -216,16 +216,8 @@ fv_gl_init(void)
 }
 
 bool
-fv_gl_init_glx(Display *display)
+fv_gl_load_libgl(void)
 {
-        int glx_major, glx_minor;
-        const char *extensions;
-        int i;
-        static const char *required_extensions[] = {
-                "GLX_ARB_create_context",
-                "GLX_ARB_get_proc_address"
-        };
-
         memset(&fv_gl, 0, sizeof fv_gl);
 
         fv_gl.lib_gl = dlopen("libGL.so.1", RTLD_LAZY | RTLD_GLOBAL);
@@ -235,6 +227,20 @@ fv_gl_init_glx(Display *display)
                                  dlerror());
                 return false;
         }
+
+        return true;
+}
+
+bool
+fv_gl_init_glx(Display *display)
+{
+        int glx_major, glx_minor;
+        const char *extensions;
+        int i;
+        static const char *required_extensions[] = {
+                "GLX_ARB_create_context",
+                "GLX_ARB_get_proc_address"
+        };
 
         fv_gl.glXDestroyContext =
                 dlsym(fv_gl.lib_gl, "glXDestroyContext");
@@ -290,7 +296,7 @@ error:
 }
 
 void
-fv_gl_deinit_glx(void)
+fv_gl_unload_libgl(void)
 {
         dlclose(fv_gl.lib_gl);
 

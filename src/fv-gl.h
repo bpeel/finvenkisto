@@ -62,10 +62,13 @@ struct fv_gl {
 extern struct fv_gl fv_gl;
 
 bool
+fv_gl_load_libgl(void);
+
+bool
 fv_gl_init_glx(Display *display);
 
 void
-fv_gl_deinit_glx(void);
+fv_gl_unload_libgl(void);
 
 void
 fv_gl_init(void);
