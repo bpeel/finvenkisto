@@ -64,6 +64,11 @@ finvenkisto_SOURCES = \
 	fv-transform.h \
 	fv-util.c \
 	fv-util.h \
+	fv-vk.c \
+	fv-vk.h \
+	fv-vk-core-funcs.h \
+	fv-vk-device-funcs.h \
+	fv-vk-instance-funcs.h \
 	stb_image.h \
 	$(NULL)
 finvenkisto_LDADD = \

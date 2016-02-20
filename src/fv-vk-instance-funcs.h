@@ -1,0 +1,2 @@
+FV_VK_FUNC(vkDestroyInstance)
+FV_VK_FUNC(vkGetDeviceProcAddr)

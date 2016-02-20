@@ -32,6 +32,7 @@
 #include "fv-image-data.h"
 #include "fv-shader-data.h"
 #include "fv-gl.h"
+#include "fv-vk.h"
 #include "fv-util.h"
 #include "fv-hud.h"
 #include "fv-buffer.h"
@@ -924,19 +925,24 @@ main(int argc, char **argv)
 
         if (!process_arguments(&data, argc, argv)) {
                 ret = EXIT_FAILURE;
-                goto out;
+                goto out_data;
         }
 
         if (!fv_gl_load_libgl()) {
                 ret = EXIT_FAILURE;
-                goto out;
+                goto out_data;
+        }
+
+        if (!fv_vk_load_libvulkan()) {
+                ret = EXIT_FAILURE;
+                goto out_libgl;
         }
 
         data.display = XOpenDisplay(NULL);
         if (data.display == NULL) {
                 fv_error_message("Error: XOpenDisplay failed");
                 ret = EXIT_FAILURE;
-                goto out_libgl;
+                goto out_libvulkan;
         }
 
         if (!fv_gl_init_glx(data.display)) {
@@ -990,9 +996,11 @@ main(int argc, char **argv)
         XDestroyWindow(data.display, data.x_window);
  out_display:
         XCloseDisplay(data.display);
+ out_libvulkan:
+        fv_vk_unload_libvulkan();
  out_libgl:
         fv_gl_unload_libgl();
- out:
+ out_data:
         fv_data_deinit();
 
         return ret;
