@@ -38,6 +38,7 @@
 #include "fv-buffer.h"
 #include "fv-map.h"
 #include "fv-error-message.h"
+#include "fv-data.h"
 
 #define CORE_GL_MAJOR_VERSION 3
 #define CORE_GL_MINOR_VERSION 3
@@ -886,6 +887,8 @@ main(int argc, char **argv)
 
         data.is_fullscreen = true;
 
+        fv_data_init(argv[0]);
+
         if (!process_arguments(&data, argc, argv)) {
                 ret = EXIT_FAILURE;
                 goto out;
@@ -986,5 +989,7 @@ main(int argc, char **argv)
  out_display:
         XCloseDisplay(data.display);
  out:
+        fv_data_deinit();
+
         return ret;
 }

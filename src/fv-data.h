@@ -20,7 +20,13 @@
 #ifndef FV_DATA_H
 #define FV_DATA_H
 
+void
+fv_data_init(const char *exe_name);
+
 char *
 fv_data_get_filename(const char *name);
+
+void
+fv_data_deinit(void);
 
 #endif /* FV_DATA_H */

@@ -19,8 +19,6 @@
 
 #include "config.h"
 
-#include <SDL.h>
-
 #include "fv-data.h"
 #include "fv-util.h"
 
@@ -30,22 +28,39 @@
 #define FV_DATA_SEPARATOR "/"
 #endif
 
+static char *
+base_path;
+
+void
+fv_data_init(const char *exe_name)
+{
+        int len = strlen(exe_name);
+        int i;
+
+        for (i = len - 1; i >= 0; i--) {
+                if (exe_name[i] == FV_DATA_SEPARATOR[0]) {
+                        base_path = fv_alloc(i + 1);
+                        memcpy(base_path, exe_name, i);
+                        base_path[i] = '\0';
+                        return;
+                }
+        }
+
+        base_path = fv_strdup(".");
+}
+
 char *
 fv_data_get_filename(const char *name)
 {
-        char *data_path = SDL_GetBasePath();
-        char *full_path;
+        return fv_strconcat(base_path,
+                            FV_DATA_SEPARATOR "data"
+                            FV_DATA_SEPARATOR,
+                            name,
+                            NULL);
+}
 
-        if (data_path == NULL)
-                return NULL;
-
-        full_path = fv_strconcat(data_path,
-                                 FV_DATA_SEPARATOR "data"
-                                 FV_DATA_SEPARATOR,
-                                 name,
-                                 NULL);
-
-        SDL_free(data_path);
-
-        return full_path;
+void
+fv_data_deinit(void)
+{
+        fv_free(base_path);
 }
