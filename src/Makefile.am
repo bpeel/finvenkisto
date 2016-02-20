@@ -10,6 +10,16 @@ AM_CFLAGS = \
 	$(NULL)
 
 sources = \
+	$(NULL)
+
+BUILT_SOURCES = \
+	fv-map.c \
+	$(NULL)
+
+fv-map.c : fv-map.png make-map.py
+	$(AM_V_GEN)python3 $(srcdir)/make-map.py $(srcdir)/fv-map.png > $@
+
+finvenkisto_SOURCES = \
 	fv-array-object.c \
 	fv-array-object.h \
 	fv-buffer.c \
@@ -18,6 +28,7 @@ sources = \
 	fv-data.h \
 	fv-ease.c \
 	fv-ease.h \
+	fv-error-message.c \
 	fv-error-message.h \
 	fv-game.c \
 	fv-game.h \
@@ -26,6 +37,7 @@ sources = \
 	fv-gl-funcs.h \
 	fv-hud.c \
 	fv-hud.h \
+	fv-image-data.c \
 	fv-image-data.h \
 	fv-logic.c \
 	fv-logic.h \
@@ -54,19 +66,6 @@ sources = \
 	fv-util.c \
 	fv-util.h \
 	stb_image.h \
-	$(NULL)
-
-BUILT_SOURCES = \
-	fv-map.c \
-	$(NULL)
-
-fv-map.c : fv-map.png make-map.py
-	$(AM_V_GEN)python3 $(srcdir)/make-map.py $(srcdir)/fv-map.png > $@
-
-finvenkisto_SOURCES = \
-	$(sources) \
-	fv-error-message-native.c \
-	fv-image-data-native.c \
 	$(NULL)
 finvenkisto_LDADD = \
 	$(SDL_LIBS) \
