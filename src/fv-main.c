@@ -88,6 +88,7 @@ struct data {
         GLXContext glx_context;
 
         SDL_Window *window;
+        bool window_mapped;
         int last_fb_width, last_fb_height;
 
         struct {
@@ -476,6 +477,14 @@ handle_event(struct data *data,
              const XEvent *event)
 {
         switch (event->type) {
+        case MapNotify:
+                data->window_mapped = true;
+                goto handled;
+
+        case UnmapNotify:
+                data->window_mapped = false;
+                goto handled;
+
         case KeyPress:
         case KeyRelease:
                 handle_key_event(data, &event->xkey);
@@ -762,6 +771,13 @@ iterate_main_loop(struct data *data)
 {
         XEvent event;
 
+        if (!data->window_mapped) {
+                XNextEvent(data->display, &event);
+                reset_start_time(data);
+                handle_event(data, &event);
+                return;
+        }
+
         if (XPending(data->display)) {
                 XNextEvent(data->display, &event);
                 handle_event(data, &event);
@@ -903,6 +919,7 @@ main(int argc, char **argv)
         int ret = EXIT_SUCCESS;
 
         data.is_fullscreen = true;
+        data.window_mapped = false;
 
         fv_data_init(argv[0]);
 
