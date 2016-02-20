@@ -89,6 +89,7 @@ struct data {
 
         SDL_Window *window;
         bool window_mapped;
+        int fb_width, fb_height;
         int last_fb_width, last_fb_height;
 
         struct {
@@ -151,6 +152,14 @@ reset_menu_state(struct data *data)
         }
 
         fv_logic_reset(data->logic, 0);
+}
+
+static void
+handle_configure_event(struct data *data,
+                       const XConfigureEvent *event)
+{
+        data->fb_width = event->width;
+        data->fb_height = event->height;
 }
 
 static void
@@ -485,6 +494,10 @@ handle_event(struct data *data,
                 data->window_mapped = false;
                 goto handled;
 
+        case ConfigureNotify:
+                handle_configure_event(data, &event->xconfigure);
+                goto handled;
+
         case KeyPress:
         case KeyRelease:
                 handle_key_event(data, &event->xkey);
@@ -619,15 +632,13 @@ static void
 paint(struct data *data)
 {
         GLbitfield clear_mask = GL_DEPTH_BUFFER_BIT;
-        int w, h;
         int i;
 
-        SDL_GetWindowSize(data->window, &w, &h);
-
-        if (w != data->last_fb_width || h != data->last_fb_height) {
-                fv_gl.glViewport(0, 0, w, h);
-                data->last_fb_width = w;
-                data->last_fb_height = h;
+        if (data->fb_width != data->last_fb_width ||
+            data->fb_height != data->last_fb_height) {
+                fv_gl.glViewport(0, 0, data->fb_width, data->fb_height);
+                data->last_fb_width = data->fb_width;
+                data->last_fb_height = data->fb_height;
                 data->viewports_dirty = true;
         }
 
@@ -656,9 +667,9 @@ paint(struct data *data)
         }
 
         if (data->n_viewports != 1)
-                fv_gl.glViewport(0, 0, w, h);
+                fv_gl.glViewport(0, 0, data->fb_width, data->fb_height);
 
-        paint_hud(data, w, h);
+        paint_hud(data, data->fb_width, data->fb_height);
 
         fv_gl.glXSwapBuffers(data->display, data->glx_window);
 }
@@ -920,6 +931,8 @@ main(int argc, char **argv)
 
         data.is_fullscreen = true;
         data.window_mapped = false;
+        data.fb_width = 0;
+        data.fb_height = 0;
 
         fv_data_init(argv[0]);
 
