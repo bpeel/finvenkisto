@@ -856,18 +856,19 @@ make_window(struct data *data)
                 return false;
         }
 
+        data->glx_context = create_context(data, fb_config);
+
+        if (data->glx_context == NULL)
+                return false;
+
         visinfo = fv_gl.glXGetVisualFromFBConfig(data->display, fb_config);
 
         if (visinfo == NULL) {
                 fv_error_message("FB config does not have an associated "
                                  "visual");
+                fv_gl.glXDestroyContext(data->display, data->glx_context);
                 return false;
         }
-
-        data->glx_context = create_context(data, fb_config);
-
-        if (data->glx_context == NULL)
-                return false;
 
         /* window attributes */
         attr.background_pixel = 0;
@@ -884,6 +885,9 @@ make_window(struct data *data)
         data->x_window = XCreateWindow(data->display, root, 0, 0, 800, 600,
                                        0, visinfo->depth, InputOutput,
                                        visinfo->visual, mask, &attr);
+
+        XFree(visinfo);
+
         if (!data->x_window) {
                 fv_error_message("XCreateWindow failed");
                 fv_gl.glXDestroyContext(data->display, data->glx_context);
