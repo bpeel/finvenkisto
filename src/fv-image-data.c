@@ -19,8 +19,6 @@
 
 #include "config.h"
 
-#include <SDL.h>
-
 #include "fv-image-data.h"
 #include "fv-data.h"
 #include "fv-util.h"
@@ -42,7 +40,6 @@ image_filenames[] = {
 };
 
 struct fv_image_data {
-        bool loaded;
         struct image_details images[FV_N_ELEMENTS(image_filenames)];
 };
 
@@ -94,24 +91,11 @@ load_image(const char *name,
         return data;
 }
 
-static void
-send_result(uint32_t loaded_event,
-            enum fv_image_data_result result)
-{
-        SDL_Event event;
-
-        event.type = loaded_event;
-        event.user.code = result;
-
-        SDL_PushEvent(&event);
-}
-
 struct fv_image_data *
-fv_image_data_new(uint32_t loaded_event)
+fv_image_data_new(void)
 {
         struct fv_image_data *data;
         struct image_details *image;
-        enum fv_image_data_result result;
         int i;
 
         data = fv_alloc(sizeof *data);
@@ -127,17 +111,10 @@ fv_image_data_new(uint32_t loaded_event)
                 if (image->pixels == NULL) {
                         for (; i >= 0; --i)
                                 fv_free(data->images[i].pixels);
-                        data->loaded = false;
-                        result = FV_IMAGE_DATA_FAIL;
-                        goto done;
+                        fv_free(data);
+                        return NULL;
                 }
         }
-
-        data->loaded = true;
-        result = FV_IMAGE_DATA_SUCCESS;
-
-done:
-        send_result(loaded_event, result);
 
         return data;
 }
@@ -148,8 +125,6 @@ fv_image_data_get_size(struct fv_image_data *data,
                        int *width,
                        int *height)
 {
-        assert(data->loaded);
-
         *width = data->images[image].width;
         *height = data->images[image].height;
 }
@@ -162,7 +137,6 @@ fv_image_data_set_2d(struct fv_image_data *data,
                      enum fv_image_data_image image)
 {
         const struct image_details *img = data->images + image;
-        assert(data->loaded);
 
         fv_gl.glTexImage2D(target,
                            level,
@@ -181,7 +155,6 @@ fv_image_data_set_sub_2d(struct fv_image_data *data,
                          enum fv_image_data_image image)
 {
         const struct image_details *img = data->images + image;
-        assert(data->loaded);
 
         fv_gl.glTexSubImage2D(target,
                               level,
@@ -199,7 +172,6 @@ fv_image_data_set_sub_3d(struct fv_image_data *data,
                          enum fv_image_data_image image)
 {
         const struct image_details *img = data->images + image;
-        assert(data->loaded);
 
         fv_gl.glTexSubImage3D(target,
                               level,
@@ -215,10 +187,8 @@ fv_image_data_free(struct fv_image_data *data)
 {
         int i;
 
-        if (data->loaded) {
-                for (i = 0; i < FV_N_ELEMENTS(data->images); i++)
-                        fv_free(data->images[i].pixels);
-        }
+        for (i = 0; i < FV_N_ELEMENTS(data->images); i++)
+                fv_free(data->images[i].pixels);
 
         fv_free(data);
 }

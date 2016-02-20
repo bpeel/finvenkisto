@@ -27,15 +27,10 @@ enum fv_image_data_image {
 #include "data/fv-image-data-enum.h"
 };
 
-enum fv_image_data_result {
-        FV_IMAGE_DATA_SUCCESS,
-        FV_IMAGE_DATA_FAIL,
-};
-
 struct fv_image_data;
 
 struct fv_image_data *
-fv_image_data_new(uint32_t loaded_event);
+fv_image_data_new(void);
 
 void
 fv_image_data_get_size(struct fv_image_data *data,

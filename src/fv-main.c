@@ -81,7 +81,6 @@ enum menu_state {
 
 struct data {
         struct fv_image_data *image_data;
-        Uint32 image_data_event;
 
         Display *display;
         Window x_window;
@@ -412,9 +411,11 @@ destroy_graphics(struct data *data)
         }
 }
 
-static void
+static bool
 create_graphics(struct data *data)
 {
+        memset(&data->graphics, 0, sizeof data->graphics);
+
         /* All of the painting functions expect to have the default
          * OpenGL state plus the following modifications */
 
@@ -443,29 +444,11 @@ create_graphics(struct data *data)
         if (data->graphics.game == NULL)
                 goto error;
 
-        return;
+        return true;
 
 error:
         destroy_graphics(data);
-        data->quit = true;
-}
-
-static void
-handle_image_data_event(struct data *data,
-                        const SDL_UserEvent *event)
-{
-        switch ((enum fv_image_data_result) event->code) {
-        case FV_IMAGE_DATA_SUCCESS:
-                create_graphics(data);
-                break;
-
-        case FV_IMAGE_DATA_FAIL:
-                data->quit = true;
-                break;
-        }
-
-        fv_image_data_free(data->image_data);
-        data->image_data = NULL;
+        return false;
 }
 
 static void
@@ -493,11 +476,6 @@ handle_event(struct data *data,
 
         case SDL_QUIT:
                 data->quit = true;
-                goto handled;
-        }
-
-        if (event->type == data->image_data_event) {
-                handle_image_data_event(data, &event->user);
                 goto handled;
         }
 
@@ -776,12 +754,6 @@ iterate_main_loop(struct data *data)
 {
         SDL_Event event;
 
-        if (data->graphics.game == NULL) {
-                SDL_WaitEvent(&event);
-                data->start_time = SDL_GetTicks();
-                handle_event(data, &event);
-                return;
-        }
 
         if (SDL_PollEvent(&event)) {
                 handle_event(data, &event);
@@ -923,8 +895,6 @@ main(int argc, char **argv)
 
         data.is_fullscreen = true;
 
-        memset(&data.graphics, 0, sizeof data.graphics);
-
         if (!process_arguments(&data, argc, argv)) {
                 ret = EXIT_FAILURE;
                 goto out;
@@ -984,26 +954,33 @@ main(int argc, char **argv)
 
         SDL_ShowCursor(0);
 
-        data.image_data_event = SDL_RegisterEvents(1);
-
         data.quit = false;
 
         data.logic = fv_logic_new();
 
-        data.image_data = fv_image_data_new(data.image_data_event);
+        data.image_data = fv_image_data_new();
+
+        if (data.image_data == NULL) {
+                ret = EXIT_FAILURE;
+                goto out_logic;
+        }
+
+        if (!create_graphics(&data)) {
+                ret = EXIT_FAILURE;
+                goto out_image_data;
+        }
 
         reset_menu_state(&data);
 
         while (!data.quit)
                 iterate_main_loop(&data);
 
-        fv_logic_free(data.logic);
-
         destroy_graphics(&data);
 
-        if (data.image_data)
-                fv_image_data_free(data.image_data);
-
+ out_image_data:
+        fv_image_data_free(data.image_data);
+ out_logic:
+        fv_logic_free(data.logic);
  out_sdl_window:
         SDL_DestroyWindow(data.window);
  out_sdl:
