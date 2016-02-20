@@ -87,6 +87,9 @@ struct data {
         GLXWindow glx_window;
         GLXContext glx_context;
 
+        VkInstance vk_instance;
+        VkDevice vk_device;
+
         bool window_mapped;
         int fb_width, fb_height;
         int last_fb_width, last_fb_height;
@@ -910,6 +913,76 @@ make_window(struct data *data)
         return true;
 }
 
+static bool
+init_vk(struct data *data)
+{
+        VkResult res;
+        uint32_t count = 1;
+        VkPhysicalDevice physical_device;
+
+        struct VkInstanceCreateInfo instance_create_info = {
+                .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+                .pApplicationInfo = &(VkApplicationInfo) {
+                        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+                        .pApplicationName = "finvenkisto",
+                        .apiVersion = VK_MAKE_VERSION(1, 0, 2)
+                }
+        };
+        res = fv_vk.vkCreateInstance(&instance_create_info,
+                                     NULL, /* allocator */
+                                     &data->vk_instance);
+
+        if (res != VK_SUCCESS) {
+                fv_error_message("Failed to create VkInstance");
+                return false;
+        }
+
+        fv_vk_init_instance(data->vk_instance);
+
+        res = fv_vk.vkEnumeratePhysicalDevices(data->vk_instance,
+                                               &count,
+                                               &physical_device);
+        if (res != VK_SUCCESS || count < 1) {
+                fv_error_message("Error enumerating VkPhysicalDevices");
+                goto error_instance;
+        }
+
+        VkDeviceCreateInfo device_create_info = {
+                .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+                .queueCreateInfoCount = 1,
+                .pQueueCreateInfos = &(VkDeviceQueueCreateInfo) {
+                        .queueFamilyIndex = 0,
+                        .queueCount = 1,
+                }
+        };
+        res = fv_vk.vkCreateDevice(physical_device,
+                                   &device_create_info,
+                                   NULL, /* allocator */
+                                   &data->vk_device);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating VkDevice");
+                goto error_instance;
+        }
+
+        fv_vk_init_device(data->vk_device);
+
+        return true;
+
+error_instance:
+        fv_vk.vkDestroyInstance(data->vk_instance,
+                                NULL /* allocator */);
+        return false;
+}
+
+static void
+deinit_vk(struct data *data)
+{
+        fv_vk.vkDestroyDevice(data->vk_device,
+                              NULL /* allocator */);
+        fv_vk.vkDestroyInstance(data->vk_instance,
+                                NULL /* allocator */);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -938,11 +1011,16 @@ main(int argc, char **argv)
                 goto out_libgl;
         }
 
+        if (!init_vk(&data)) {
+                ret = EXIT_FAILURE;
+                goto out_libvulkan;
+        }
+
         data.display = XOpenDisplay(NULL);
         if (data.display == NULL) {
                 fv_error_message("Error: XOpenDisplay failed");
                 ret = EXIT_FAILURE;
-                goto out_libvulkan;
+                goto out_vk;
         }
 
         if (!fv_gl_init_glx(data.display)) {
@@ -996,6 +1074,8 @@ main(int argc, char **argv)
         XDestroyWindow(data.display, data.x_window);
  out_display:
         XCloseDisplay(data.display);
+ out_vk:
+        deinit_vk(&data);
  out_libvulkan:
         fv_vk_unload_libvulkan();
  out_libgl:

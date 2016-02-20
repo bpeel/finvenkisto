@@ -1,1 +1,2 @@
 FV_VK_FUNC(vkCreateCommandPool)
+FV_VK_FUNC(vkDestroyDevice)
