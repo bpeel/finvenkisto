@@ -59,9 +59,8 @@ enum key_type {
 
 struct key {
         enum key_type type;
-        SDL_Keycode keycode;
-        SDL_JoystickID device_id;
-        Uint8 button;
+        unsigned int keysym;
+        unsigned int button;
         bool down;
 };
 
@@ -223,11 +222,10 @@ is_key(const struct key *key,
 
         switch (key->type) {
         case KEY_TYPE_KEYBOARD:
-                return key->keycode == other_key->keycode;
+                return key->keysym == other_key->keysym;
 
         case KEY_TYPE_MOUSE:
-                return (key->device_id == other_key->device_id &&
-                        key->button == other_key->button);
+                return key->button == other_key->button;
         }
 
         assert(false);
@@ -328,15 +326,16 @@ handle_key(struct data *data,
 
 static void
 handle_other_key(struct data *data,
-                 const SDL_KeyboardEvent *event)
+                 const XKeyEvent *event,
+                 KeySym keysym)
 {
         struct key key;
 
         if (data->menu_state == MENU_STATE_CHOOSING_N_PLAYERS) {
-                if (event->state == SDL_PRESSED &&
-                    event->keysym.sym >= SDLK_1 &&
-                    event->keysym.sym < SDLK_1 + FV_LOGIC_MAX_PLAYERS) {
-                        data->n_players = event->keysym.sym - SDLK_1 + 1;
+                if (event->type == KeyPress &&
+                    keysym >= XK_1 &&
+                    keysym < XK_1 + FV_LOGIC_MAX_PLAYERS) {
+                        data->n_players = keysym - XK_1 + 1;
                         data->next_player = 0;
                         data->next_key = 0;
                         data->menu_state = MENU_STATE_CHOOSING_KEYS;
@@ -347,19 +346,23 @@ handle_other_key(struct data *data,
         }
 
         key.type = KEY_TYPE_KEYBOARD;
-        key.keycode = event->keysym.sym;
-        key.down = event->state == SDL_PRESSED;
+        key.keysym = keysym;
+        key.down = event->type == KeyPress;
 
         handle_key(data, &key);
 }
 
 static void
 handle_key_event(struct data *data,
-                 const SDL_KeyboardEvent *event)
+                 const XKeyEvent *event)
 {
-        switch (event->keysym.sym) {
-        case SDLK_ESCAPE:
-                if (event->state == SDL_PRESSED) {
+        KeySym keysym = XKeycodeToKeysym(data->display,
+                                         event->keycode,
+                                         0 /* index */);
+
+        switch (keysym) {
+        case XK_Escape:
+                if (event->type == KeyPress) {
                         if (data->menu_state == MENU_STATE_CHOOSING_N_PLAYERS)
                                 data->quit = true;
                         else
@@ -367,27 +370,26 @@ handle_key_event(struct data *data,
                 }
                 break;
 
-        case SDLK_F11:
-                if (event->state == SDL_PRESSED)
+        case XK_F11:
+                if (event->type == KeyPress)
                         toggle_fullscreen(data);
                 break;
 
         default:
-                handle_other_key(data, event);
+                handle_other_key(data, event, keysym);
                 break;
         }
 }
 
 static void
 handle_mouse_button(struct data *data,
-                    const SDL_MouseButtonEvent *event)
+                    const XButtonEvent *event)
 {
         struct key key;
 
         key.type = KEY_TYPE_MOUSE;
-        key.device_id = event->which;
         key.button = event->button;
-        key.down = event->state == SDL_PRESSED;
+        key.down = event->type == ButtonPress;
 
         handle_key(data, &key);
 }
@@ -453,29 +455,17 @@ error:
 
 static void
 handle_event(struct data *data,
-             const SDL_Event *event)
+             const XEvent *event)
 {
         switch (event->type) {
-        case SDL_WINDOWEVENT:
-                switch (event->window.event) {
-                case SDL_WINDOWEVENT_CLOSE:
-                        data->quit = true;
-                        break;
-                }
+        case KeyPress:
+        case KeyRelease:
+                handle_key_event(data, &event->xkey);
                 goto handled;
 
-        case SDL_KEYDOWN:
-        case SDL_KEYUP:
-                handle_key_event(data, &event->key);
-                goto handled;
-
-        case SDL_MOUSEBUTTONDOWN:
-        case SDL_MOUSEBUTTONUP:
-                handle_mouse_button(data, &event->button);
-                goto handled;
-
-        case SDL_QUIT:
-                data->quit = true;
+        case ButtonPress:
+        case ButtonRelease:
+                handle_mouse_button(data, &event->xbutton);
                 goto handled;
         }
 
@@ -752,10 +742,10 @@ process_arguments(struct data *data,
 static void
 iterate_main_loop(struct data *data)
 {
-        SDL_Event event;
+        XEvent event;
 
-
-        if (SDL_PollEvent(&event)) {
+        if (XPending(data->display)) {
+                XNextEvent(data->display, &event);
                 handle_event(data, &event);
                 return;
         }
@@ -859,7 +849,8 @@ make_window(struct data *data)
                                         visinfo->visual,
                                         AllocNone);
         attr.event_mask = (StructureNotifyMask | ExposureMask |
-                           PointerMotionMask | KeyPressMask);
+                           KeyPressMask | KeyReleaseMask |
+                           ButtonPressMask | ButtonReleaseMask);
         mask = CWBorderPixel | CWColormap | CWEventMask;
 
         data->x_window = XCreateWindow(data->display, root, 0, 0, 800, 600,
