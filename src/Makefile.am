@@ -4,7 +4,6 @@ bin_PROGRAMS = finvenkisto
 
 AM_CFLAGS = \
 	$(GL_CFLAGS) \
-	$(SDL_CFLAGS) \
 	$(X11_CFLAGS) \
 	$(WARNING_CFLAGS) \
 	$(NULL)
@@ -68,7 +67,6 @@ finvenkisto_SOURCES = \
 	stb_image.h \
 	$(NULL)
 finvenkisto_LDADD = \
-	$(SDL_LIBS) \
 	$(X11_LIBS) \
 	-ldl \
 	rply/librply.a \

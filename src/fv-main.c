@@ -20,7 +20,6 @@
 #include "config.h"
 
 #include <stdio.h>
-#include <SDL.h>
 #include <stdbool.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -87,7 +86,6 @@ struct data {
         GLXWindow glx_window;
         GLXContext glx_context;
 
-        SDL_Window *window;
         bool window_mapped;
         int fb_width, fb_height;
         int last_fb_width, last_fb_height;
@@ -165,22 +163,7 @@ handle_configure_event(struct data *data,
 static void
 toggle_fullscreen(struct data *data)
 {
-        int display_index;
-        SDL_DisplayMode mode;
-
-        display_index = SDL_GetWindowDisplayIndex(data->window);
-
-        if (display_index == -1)
-                return;
-
-        if (SDL_GetDesktopDisplayMode(display_index, &mode) == -1)
-                return;
-
-        SDL_SetWindowDisplayMode(data->window, &mode);
-
-        data->is_fullscreen = !data->is_fullscreen;
-
-        SDL_SetWindowFullscreen(data->window, data->is_fullscreen);
+        /* FIXME */
 }
 
 static void
@@ -926,7 +909,6 @@ int
 main(int argc, char **argv)
 {
         struct data data;
-        int res;
         int ret = EXIT_SUCCESS;
 
         data.is_fullscreen = true;
@@ -965,40 +947,10 @@ main(int argc, char **argv)
 
         fv_gl_init();
 
-        res = SDL_Init(SDL_INIT_VIDEO);
-        if (res < 0) {
-                fv_error_message("Unable to init SDL: %s\n", SDL_GetError());
+        if (!check_gl_version()) {
                 ret = EXIT_FAILURE;
                 goto out_window;
         }
-
-        data.window = SDL_CreateWindow("Finvenkisto",
-                                       SDL_WINDOWPOS_UNDEFINED,
-                                       SDL_WINDOWPOS_UNDEFINED,
-                                       800, 600,
-                                       0 /* flags */);
-        if (data.window == NULL) {
-                fv_error_message("Failed to create SDL window: %s",
-                                 SDL_GetError());
-                ret = EXIT_FAILURE;
-                goto out_sdl;
-        }
-
-        fv_gl.glXMakeContextCurrent(data.display,
-                                    data.glx_window,
-                                    data.glx_window,
-                                    data.glx_context);
-
-        /* SDL seems to happily give you a GL 2 context if you ask for
-         * a 3.x core profile but it can't provide one so we have to
-         * additionally check that we actually got what we asked
-         * for */
-        if (!check_gl_version()) {
-                ret = EXIT_FAILURE;
-                goto out_sdl_window;
-        }
-
-        SDL_ShowCursor(0);
 
         data.quit = false;
 
@@ -1027,10 +979,6 @@ main(int argc, char **argv)
         fv_image_data_free(data.image_data);
  out_logic:
         fv_logic_free(data.logic);
- out_sdl_window:
-        SDL_DestroyWindow(data.window);
- out_sdl:
-        SDL_Quit();
  out_window:
         fv_gl.glXMakeContextCurrent(data.display, None, None, NULL);
         fv_gl.glXDestroyContext(data.display, data.glx_context);
