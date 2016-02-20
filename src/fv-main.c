@@ -371,9 +371,8 @@ static void
 handle_key_event(struct data *data,
                  const XKeyEvent *event)
 {
-        KeySym keysym = XKeycodeToKeysym(data->display,
-                                         event->keycode,
-                                         0 /* index */);
+        KeySym keysym = XLookupKeysym((XKeyEvent *) event,
+                                      0 /* index */);
 
         switch (keysym) {
         case XK_Escape:
