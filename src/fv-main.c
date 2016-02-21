@@ -913,8 +913,8 @@ make_window(struct data *data)
 }
 
 static int
-find_queue(struct data *data,
-           VkPhysicalDevice physical_device)
+find_queue_family(struct data *data,
+                  VkPhysicalDevice physical_device)
 {
         VkQueueFamilyProperties *queues;
         uint32_t count = 0;
@@ -950,7 +950,7 @@ init_vk(struct data *data)
         VkResult res;
         uint32_t count = 1;
         VkPhysicalDevice physical_device;
-        int queue;
+        int queue_family;
 
         struct VkInstanceCreateInfo instance_create_info = {
                 .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -979,8 +979,8 @@ init_vk(struct data *data)
                 goto error_instance;
         }
 
-        queue = find_queue(data, physical_device);
-        if (queue == -1) {
+        queue_family = find_queue_family(data, physical_device);
+        if (queue_family == -1) {
                 fv_error_message("No graphics queue found on Vulkan device");
                 goto error_instance;
         }
@@ -993,7 +993,7 @@ init_vk(struct data *data)
                 .queueCreateInfoCount = 1,
                 .pQueueCreateInfos = &(VkDeviceQueueCreateInfo) {
                         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                        .queueFamilyIndex = queue,
+                        .queueFamilyIndex = queue_family,
                         .queueCount = 1,
                         .pQueuePriorities = (float[]) { 1.0f }
                 },
