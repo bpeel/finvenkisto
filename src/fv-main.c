@@ -912,12 +912,45 @@ make_window(struct data *data)
         return true;
 }
 
+static int
+find_queue(struct data *data,
+           VkPhysicalDevice physical_device)
+{
+        VkQueueFamilyProperties *queues;
+        uint32_t count = 0;
+        uint32_t i;
+
+        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
+                                                       &count,
+                                                       NULL /* queues */);
+
+        queues = fv_alloc(sizeof *queues * count);
+
+        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
+                                                       &count,
+                                                       queues);
+
+        for (i = 0; i < count; i++) {
+                if ((queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
+                    queues[i].queueCount >= 1)
+                        break;
+        }
+
+        fv_free(queues);
+
+        if (i >= count)
+                return -1;
+        else
+                return i;
+}
+
 static bool
 init_vk(struct data *data)
 {
         VkResult res;
         uint32_t count = 1;
         VkPhysicalDevice physical_device;
+        int queue;
 
         struct VkInstanceCreateInfo instance_create_info = {
                 .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -946,12 +979,21 @@ init_vk(struct data *data)
                 goto error_instance;
         }
 
+        queue = find_queue(data, physical_device);
+        if (queue == -1) {
+                fv_error_message("No graphics queue found on Vulkan device");
+                goto error_instance;
+        }
+
+        VkPhysicalDeviceFeatures features;
+        memset(&features, 0, sizeof features);
+
         VkDeviceCreateInfo device_create_info = {
                 .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                 .queueCreateInfoCount = 1,
                 .pQueueCreateInfos = &(VkDeviceQueueCreateInfo) {
                         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                        .queueFamilyIndex = 0,
+                        .queueFamilyIndex = queue,
                         .queueCount = 1,
                         .pQueuePriorities = (float[]) { 1.0f }
                 },
