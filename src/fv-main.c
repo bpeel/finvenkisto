@@ -90,6 +90,7 @@ struct data {
         VkInstance vk_instance;
         VkDevice vk_device;
         VkQueue vk_queue;
+        VkCommandPool vk_command_pool;
 
         bool window_mapped;
         int fb_width, fb_height;
@@ -1016,8 +1017,24 @@ init_vk(struct data *data)
                                0, /* queueIndex */
                                &data->vk_queue);
 
+        VkCommandPoolCreateInfo command_pool_create_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                .queueFamilyIndex = queue_family
+        };
+        res = fv_vk.vkCreateCommandPool(data->vk_device,
+                                        &command_pool_create_info,
+                                        NULL, /* allocator */
+                                        &data->vk_command_pool);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating VkCommandPool");
+                goto error_device;
+        }
+
         return true;
 
+error_device:
+        fv_vk.vkDestroyDevice(data->vk_device,
+                              NULL /* allocator */);
 error_instance:
         fv_vk.vkDestroyInstance(data->vk_instance,
                                 NULL /* allocator */);
@@ -1027,6 +1044,9 @@ error_instance:
 static void
 deinit_vk(struct data *data)
 {
+        fv_vk.vkDestroyCommandPool(data->vk_device,
+                                   data->vk_command_pool,
+                                   NULL /* allocator */);
         fv_vk.vkDestroyDevice(data->vk_device,
                               NULL /* allocator */);
         fv_vk.vkDestroyInstance(data->vk_instance,
