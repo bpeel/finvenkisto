@@ -675,7 +675,7 @@ check_gl_version(void)
 
         if (fv_gl.major_version < CORE_GL_MAJOR_VERSION ||
             (fv_gl.major_version == CORE_GL_MAJOR_VERSION &&
-                    fv_gl.minor_version < CORE_GL_MINOR_VERSION)) {
+             fv_gl.minor_version < CORE_GL_MINOR_VERSION)) {
                 fv_error_message("GL version %i.%i is required but the driver "
                                  "is reporting:\n"
                                  "Version: %s\n"
@@ -1133,24 +1133,24 @@ main(int argc, char **argv)
 
         destroy_graphics(&data);
 
- out_image_data:
+out_image_data:
         fv_image_data_free(data.image_data);
- out_logic:
+out_logic:
         fv_logic_free(data.logic);
- out_window:
+out_window:
         fv_gl.glXMakeContextCurrent(data.display, None, None, NULL);
         fv_gl.glXDestroyContext(data.display, data.glx_context);
         fv_gl.glXDestroyWindow(data.display, data.glx_window);
         XDestroyWindow(data.display, data.x_window);
- out_display:
+out_display:
         XCloseDisplay(data.display);
- out_vk:
+out_vk:
         deinit_vk(&data);
- out_libvulkan:
+out_libvulkan:
         fv_vk_unload_libvulkan();
- out_libgl:
+out_libgl:
         fv_gl_unload_libgl();
- out_data:
+out_data:
         fv_data_deinit();
 
         return ret;
