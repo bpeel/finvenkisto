@@ -950,9 +950,12 @@ init_vk(struct data *data)
                 .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                 .queueCreateInfoCount = 1,
                 .pQueueCreateInfos = &(VkDeviceQueueCreateInfo) {
+                        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
                         .queueFamilyIndex = 0,
                         .queueCount = 1,
-                }
+                        .pQueuePriorities = (float[]) { 1.0f }
+                },
+                .pEnabledFeatures = &features
         };
         res = fv_vk.vkCreateDevice(physical_device,
                                    &device_create_info,
