@@ -89,6 +89,7 @@ struct data {
 
         VkInstance vk_instance;
         VkDevice vk_device;
+        VkQueue vk_queue;
 
         bool window_mapped;
         int fb_width, fb_height;
@@ -1009,6 +1010,11 @@ init_vk(struct data *data)
         }
 
         fv_vk_init_device(data->vk_device);
+
+        fv_vk.vkGetDeviceQueue(data->vk_device,
+                               queue_family,
+                               0, /* queueIndex */
+                               &data->vk_queue);
 
         return true;
 
