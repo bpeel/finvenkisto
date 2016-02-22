@@ -44,8 +44,6 @@
 #define CORE_GL_MAJOR_VERSION 3
 #define CORE_GL_MINOR_VERSION 3
 
-#define FB_WIDTH 800
-#define FB_HEIGHT 600
 #define COLOR_IMAGE_FORMAT VK_FORMAT_B8G8R8A8_SRGB
 
 enum key_code {
@@ -767,8 +765,8 @@ create_framebuffer_resources(struct data *data)
                 .imageType = VK_IMAGE_TYPE_2D,
                 .format = COLOR_IMAGE_FORMAT,
                 .extent = {
-                        .width = FB_WIDTH,
-                        .height = FB_HEIGHT,
+                        .width = data->fb_width,
+                        .height = data->fb_height,
                         .depth = 1
                 },
                 .mipLevels = 1,
