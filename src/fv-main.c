@@ -980,7 +980,56 @@ paint_vk(struct data *data)
 
         fv_vk.vkCmdEndRenderPass(command_buffer);
 
+        VkImageCopy copy_region = {
+                .srcSubresource = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .mipLevel = 0,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                },
+                .srcOffset = { 0, 0, 0 },
+                .dstSubresource = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .mipLevel = 0,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                },
+                .dstOffset = { 0, 0, 0 },
+                .extent = { data->fb_width, data->fb_height, 1 }
+        };
+        fv_vk.vkCmdCopyImage(command_buffer,
+                             data->vk_fb.color_image,
+                             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                             data->vk_fb.linear_image,
+                             VK_IMAGE_LAYOUT_GENERAL,
+                             1, /* regionCount */
+                             &copy_region);
+
         res = fv_vk.vkEndCommandBuffer(command_buffer);
+        if (res != VK_SUCCESS)
+                goto error_command_buffer;
+
+        fv_vk.vkResetFences(data->vk_device,
+                            1, /* fenceCount */
+                            &data->vk_fence);
+
+        VkSubmitInfo submit_info = {
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                .commandBufferCount = 1,
+                .pCommandBuffers = &command_buffer,
+        };
+        res = fv_vk.vkQueueSubmit(data->vk_queue,
+                                  1, /* submitCount */
+                                  &submit_info,
+                                  data->vk_fence);
+        if (res != VK_SUCCESS)
+                goto error_command_buffer;
+
+        res = fv_vk.vkWaitForFences(data->vk_device,
+                                    1, /* fenceCount */
+                                    &data->vk_fence,
+                                    VK_TRUE, /* waitAll */
+                                    UINT64_MAX);
         if (res != VK_SUCCESS)
                 goto error_command_buffer;
 
