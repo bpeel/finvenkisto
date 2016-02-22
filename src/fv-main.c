@@ -91,17 +91,26 @@ struct data {
         GLXWindow glx_window;
         GLXContext glx_context;
 
+        /* Permanant vulkan resources */
         VkInstance vk_instance;
         VkPhysicalDevice vk_physical_device;
+        VkFormat vk_depth_format;
         VkDevice vk_device;
         VkQueue vk_queue;
         VkCommandPool vk_command_pool;
-        VkImage vk_fb_color_image;
-        VkImage vk_fb_linear_image;
-        VkImage vk_fb_depth_image;
-        VkDeviceMemory vk_fb_memory;
-        VkDeviceMemory vk_fb_linear_memory;
         VkRenderPass vk_render_pass;
+
+        /* Resources that are recreated lazily whenever the
+         * framebuffer size changes.
+         */
+        struct {
+                VkImage color_image;
+                VkImage linear_image;
+                VkImage depth_image;
+                VkDeviceMemory memory;
+                VkDeviceMemory linear_memory;
+                int width, height;
+        } vk_fb;
 
         bool window_mapped;
         int fb_width, fb_height;
@@ -627,6 +636,191 @@ need_clear(struct data *data)
         return false;
 }
 
+static bool
+allocate_image_store(struct data *data,
+                     uint32_t memory_type_flags,
+                     int n_images,
+                     const VkImage *images,
+                     VkDeviceMemory *memory_out)
+{
+        VkDeviceMemory memory;
+        VkMemoryRequirements reqs;
+        VkPhysicalDeviceMemoryProperties memory_properties;
+        VkPhysicalDeviceProperties props;
+        VkResult res;
+        int offset = 0;
+        int *offsets = alloca(sizeof *offsets * n_images);
+        int memory_type_index;
+        int i;
+
+        fv_vk.vkGetPhysicalDeviceProperties(data->vk_physical_device, &props);
+
+        for (i = 0; i < n_images; i++) {
+                fv_vk.vkGetImageMemoryRequirements(data->vk_device,
+                                                   images[i],
+                                                   &reqs);
+                offset = fv_align(offset, props.limits.bufferImageGranularity);
+                offset = fv_align(offset, reqs.alignment);
+                offsets[i] = offset;
+                offset += reqs.size;
+
+                memory_type_flags |= reqs.memoryTypeBits;
+        }
+
+        fv_vk.vkGetPhysicalDeviceMemoryProperties(data->vk_physical_device,
+                                                  &memory_properties);
+
+        for (i = 0; i < memory_properties.memoryTypeCount; i++) {
+                if ((memory_properties.memoryTypes[i].propertyFlags &
+                     memory_type_flags) == memory_type_flags) {
+                        memory_type_index = i;
+                        goto found_memory_type;
+                }
+        }
+
+        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+found_memory_type: (void) 0;
+
+        VkMemoryAllocateInfo allocate_info = {
+                .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+                .allocationSize = offset,
+                .memoryTypeIndex = memory_type_index
+        };
+        res = fv_vk.vkAllocateMemory(data->vk_device,
+                                     &allocate_info,
+                                     NULL, /* allocator */
+                                     &memory);
+        if (res != VK_SUCCESS)
+                return res;
+
+        for (i = 0; i < n_images; i++) {
+                fv_vk.vkBindImageMemory(data->vk_device,
+                                        images[i],
+                                        memory,
+                                        offsets[i]);
+        }
+
+        *memory_out = memory;
+
+        return VK_SUCCESS;
+}
+
+static void
+destroy_framebuffer_resources(struct data *data)
+{
+        if (data->vk_fb.linear_memory)
+                fv_vk.vkFreeMemory(data->vk_device,
+                                   data->vk_fb.linear_memory,
+                                   NULL /* allocator */);
+        if (data->vk_fb.memory)
+                fv_vk.vkFreeMemory(data->vk_device,
+                                   data->vk_fb.memory,
+                                   NULL /* allocator */);
+        if (data->vk_fb.depth_image)
+                fv_vk.vkDestroyImage(data->vk_device,
+                                     data->vk_fb.depth_image,
+                                     NULL /* allocator */);
+        if (data->vk_fb.linear_image)
+                fv_vk.vkDestroyImage(data->vk_device,
+                                     data->vk_fb.linear_image,
+                                     NULL /* allocator */);
+        if (data->vk_fb.color_image)
+                fv_vk.vkDestroyImage(data->vk_device,
+                                     data->vk_fb.color_image,
+                                     NULL /* allocator */);
+
+        memset(&data->vk_fb, 0, sizeof data->vk_fb);
+}
+
+static bool
+create_framebuffer_resources(struct data *data)
+{
+        VkResult res;
+
+        VkImageCreateInfo image_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                .imageType = VK_IMAGE_TYPE_2D,
+                .format = COLOR_IMAGE_FORMAT,
+                .extent = {
+                        .width = FB_WIDTH,
+                        .height = FB_HEIGHT,
+                        .depth = 1
+                },
+                .mipLevels = 1,
+                .arrayLayers = 1,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .tiling = VK_IMAGE_TILING_OPTIMAL,
+                .usage = (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
+                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+        };
+        res = fv_vk.vkCreateImage(data->vk_device,
+                                  &image_create_info,
+                                  NULL, /* allocator */
+                                  &data->vk_fb.color_image);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating VkImage");
+                goto error;
+        }
+
+        image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
+        res = fv_vk.vkCreateImage(data->vk_device,
+                                  &image_create_info,
+                                  NULL, /* allocator */
+                                  &data->vk_fb.linear_image);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating VkImage");
+                goto error;
+        }
+
+        image_create_info.format = data->vk_depth_format;
+        image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+        res = fv_vk.vkCreateImage(data->vk_device,
+                                  &image_create_info,
+                                  NULL, /* allocator */
+                                  &data->vk_fb.depth_image);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating VkImage");
+                goto error;
+        }
+
+        res = allocate_image_store(data,
+                                   0, /* memory_type_flags */
+                                   2, /* n_images */
+                                   (VkImage[]) {
+                                           data->vk_fb.color_image,
+                                           data->vk_fb.depth_image
+                                   },
+                                   &data->vk_fb.memory);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error allocating framebuffer memory");
+                goto error;
+        }
+
+        res = allocate_image_store(data,
+                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                   1, /* n_images */
+                                   &data->vk_fb.linear_image,
+                                   &data->vk_fb.linear_memory);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error allocating framebuffer memory");
+                goto error;
+        }
+
+        data->vk_fb.width = data->fb_width;
+        data->vk_fb.height = data->fb_height;
+
+        return true;
+
+error:
+        destroy_framebuffer_resources(data);
+
+        return false;
+}
+
 static void
 paint(struct data *data)
 {
@@ -984,79 +1178,9 @@ get_depth_format(struct data *data)
 }
 
 static bool
-allocate_image_store(struct data *data,
-                     uint32_t memory_type_flags,
-                     int n_images,
-                     const VkImage *images,
-                     VkDeviceMemory *memory_out)
-{
-        VkDeviceMemory memory;
-        VkMemoryRequirements reqs;
-        VkPhysicalDeviceMemoryProperties memory_properties;
-        VkPhysicalDeviceProperties props;
-        VkResult res;
-        int offset = 0;
-        int *offsets = alloca(sizeof *offsets * n_images);
-        int memory_type_index;
-        int i;
-
-        fv_vk.vkGetPhysicalDeviceProperties(data->vk_physical_device, &props);
-
-        for (i = 0; i < n_images; i++) {
-                fv_vk.vkGetImageMemoryRequirements(data->vk_device,
-                                                   images[i],
-                                                   &reqs);
-                offset = fv_align(offset, props.limits.bufferImageGranularity);
-                offset = fv_align(offset, reqs.alignment);
-                offsets[i] = offset;
-                offset += reqs.size;
-
-                memory_type_flags |= reqs.memoryTypeBits;
-        }
-
-        fv_vk.vkGetPhysicalDeviceMemoryProperties(data->vk_physical_device,
-                                                  &memory_properties);
-
-        for (i = 0; i < memory_properties.memoryTypeCount; i++) {
-                if ((memory_properties.memoryTypes[i].propertyFlags &
-                     memory_type_flags) == memory_type_flags) {
-                        memory_type_index = i;
-                        goto found_memory_type;
-                }
-        }
-
-        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-found_memory_type: (void) 0;
-
-        VkMemoryAllocateInfo allocate_info = {
-                .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                .allocationSize = offset,
-                .memoryTypeIndex = memory_type_index
-        };
-        res = fv_vk.vkAllocateMemory(data->vk_device,
-                                     &allocate_info,
-                                     NULL, /* allocator */
-                                     &memory);
-        if (res != VK_SUCCESS)
-                return res;
-
-        for (i = 0; i < n_images; i++) {
-                fv_vk.vkBindImageMemory(data->vk_device,
-                                        images[i],
-                                        memory,
-                                        offsets[i]);
-        }
-
-        *memory_out = memory;
-
-        return VK_SUCCESS;
-}
-
-static bool
 init_vk(struct data *data)
 {
         VkResult res;
-        VkFormat depth_format;
         uint32_t count = 1;
         int queue_family;
 
@@ -1086,6 +1210,8 @@ init_vk(struct data *data)
                 fv_error_message("Error enumerating VkPhysicalDevices");
                 goto error_instance;
         }
+
+        data->vk_depth_format = get_depth_format(data);
 
         queue_family = find_queue_family(data);
         if (queue_family == -1) {
@@ -1136,80 +1262,6 @@ init_vk(struct data *data)
                 goto error_device;
         }
 
-        VkImageCreateInfo image_create_info = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                .imageType = VK_IMAGE_TYPE_2D,
-                .format = COLOR_IMAGE_FORMAT,
-                .extent = {
-                        .width = FB_WIDTH,
-                        .height = FB_HEIGHT,
-                        .depth = 1
-                },
-                .mipLevels = 1,
-                .arrayLayers = 1,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .tiling = VK_IMAGE_TILING_OPTIMAL,
-                .usage = (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
-                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
-        };
-        res = fv_vk.vkCreateImage(data->vk_device,
-                                  &image_create_info,
-                                  NULL, /* allocator */
-                                  &data->vk_fb_color_image);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating VkImage");
-                goto error_command_pool;
-        }
-
-        image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
-        res = fv_vk.vkCreateImage(data->vk_device,
-                                  &image_create_info,
-                                  NULL, /* allocator */
-                                  &data->vk_fb_linear_image);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating VkImage");
-                goto error_fb_color_image;
-        }
-
-        depth_format = get_depth_format(data);
-        image_create_info.format = depth_format;
-        image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-        res = fv_vk.vkCreateImage(data->vk_device,
-                                  &image_create_info,
-                                  NULL, /* allocator */
-                                  &data->vk_fb_depth_image);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating VkImage");
-                goto error_fb_linear_image;
-        }
-
-        res = allocate_image_store(data,
-                                   0, /* memory_type_flags */
-                                   2, /* n_images */
-                                   (VkImage[]) {
-                                           data->vk_fb_color_image,
-                                           data->vk_fb_depth_image
-                                   },
-                                   &data->vk_fb_memory);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error allocating framebuffer memory");
-                goto error_fb_depth_image;
-        }
-
-        res = allocate_image_store(data,
-                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                                   1, /* n_images */
-                                   &data->vk_fb_linear_image,
-                                   &data->vk_fb_linear_memory);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error allocating framebuffer memory");
-                goto error_fb_memory;
-        }
-
         VkAttachmentDescription attachment_descriptions[] = {
                 {
                         .format = COLOR_IMAGE_FORMAT,
@@ -1222,7 +1274,7 @@ init_vk(struct data *data)
                         .finalLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
                 },
                 {
-                        .format = depth_format,
+                        .format = data->vk_depth_format,
                         .samples = VK_SAMPLE_COUNT_1_BIT,
                         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                         .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -1261,31 +1313,13 @@ init_vk(struct data *data)
                                        &data->vk_render_pass);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating render pass");
-                goto error_fb_linear_memory;
+                goto error_command_pool;
         }
+
+        memset(&data->vk_fb, 0, sizeof data->vk_fb);
 
         return true;
 
-error_fb_linear_memory:
-        fv_vk.vkFreeMemory(data->vk_device,
-                           data->vk_fb_linear_memory,
-                           NULL /* allocator */);
-error_fb_memory:
-        fv_vk.vkFreeMemory(data->vk_device,
-                           data->vk_fb_memory,
-                           NULL /* allocator */);
-error_fb_depth_image:
-        fv_vk.vkDestroyImage(data->vk_device,
-                             data->vk_fb_depth_image,
-                             NULL /* allocator */);
-error_fb_linear_image:
-        fv_vk.vkDestroyImage(data->vk_device,
-                             data->vk_fb_linear_image,
-                             NULL /* allocator */);
-error_fb_color_image:
-        fv_vk.vkDestroyImage(data->vk_device,
-                             data->vk_fb_color_image,
-                             NULL /* allocator */);
 error_command_pool:
         fv_vk.vkDestroyCommandPool(data->vk_device,
                                    data->vk_command_pool,
@@ -1305,21 +1339,6 @@ deinit_vk(struct data *data)
         fv_vk.vkDestroyRenderPass(data->vk_device,
                                   data->vk_render_pass,
                                   NULL /* allocator */);
-        fv_vk.vkFreeMemory(data->vk_device,
-                           data->vk_fb_linear_memory,
-                           NULL /* allocator */);
-        fv_vk.vkFreeMemory(data->vk_device,
-                           data->vk_fb_memory,
-                           NULL /* allocator */);
-        fv_vk.vkDestroyImage(data->vk_device,
-                             data->vk_fb_depth_image,
-                             NULL /* allocator */);
-        fv_vk.vkDestroyImage(data->vk_device,
-                             data->vk_fb_linear_image,
-                             NULL /* allocator */);
-        fv_vk.vkDestroyImage(data->vk_device,
-                             data->vk_fb_color_image,
-                             NULL /* allocator */);
         fv_vk.vkDestroyCommandPool(data->vk_device,
                                    data->vk_command_pool,
                                    NULL /* allocator */);
@@ -1408,6 +1427,8 @@ main(int argc, char **argv)
                 iterate_main_loop(&data);
 
         destroy_graphics(&data);
+
+        destroy_framebuffer_resources(&data);
 
 out_image_data:
         fv_image_data_free(data.image_data);
