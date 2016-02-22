@@ -88,6 +88,7 @@ struct data {
         GLXContext glx_context;
 
         VkInstance vk_instance;
+        VkPhysicalDevice vk_physical_device;
         VkDevice vk_device;
         VkQueue vk_queue;
         VkCommandPool vk_command_pool;
@@ -915,20 +916,19 @@ make_window(struct data *data)
 }
 
 static int
-find_queue_family(struct data *data,
-                  VkPhysicalDevice physical_device)
+find_queue_family(struct data *data)
 {
         VkQueueFamilyProperties *queues;
         uint32_t count = 0;
         uint32_t i;
 
-        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
+        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(data->vk_physical_device,
                                                        &count,
                                                        NULL /* queues */);
 
         queues = fv_alloc(sizeof *queues * count);
 
-        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
+        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(data->vk_physical_device,
                                                        &count,
                                                        queues);
 
@@ -951,7 +951,6 @@ init_vk(struct data *data)
 {
         VkResult res;
         uint32_t count = 1;
-        VkPhysicalDevice physical_device;
         int queue_family;
 
         struct VkInstanceCreateInfo instance_create_info = {
@@ -975,13 +974,13 @@ init_vk(struct data *data)
 
         res = fv_vk.vkEnumeratePhysicalDevices(data->vk_instance,
                                                &count,
-                                               &physical_device);
+                                               &data->vk_physical_device);
         if (res != VK_SUCCESS || count < 1) {
                 fv_error_message("Error enumerating VkPhysicalDevices");
                 goto error_instance;
         }
 
-        queue_family = find_queue_family(data, physical_device);
+        queue_family = find_queue_family(data);
         if (queue_family == -1) {
                 fv_error_message("No graphics queue found on Vulkan device");
                 goto error_instance;
@@ -1001,7 +1000,7 @@ init_vk(struct data *data)
                 },
                 .pEnabledFeatures = &features
         };
-        res = fv_vk.vkCreateDevice(physical_device,
+        res = fv_vk.vkCreateDevice(data->vk_physical_device,
                                    &device_create_info,
                                    NULL, /* allocator */
                                    &data->vk_device);
