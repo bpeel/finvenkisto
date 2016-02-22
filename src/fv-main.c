@@ -112,6 +112,9 @@ struct data {
                 VkImage depth_image;
                 VkDeviceMemory memory;
                 VkDeviceMemory linear_memory;
+                bool need_linear_memory_invalidate;
+                void *linear_memory_map;
+                VkDeviceSize linear_memory_stride;
                 VkImageView color_image_view;
                 VkImageView depth_image_view;
                 VkFramebuffer framebuffer;
@@ -647,7 +650,8 @@ allocate_image_store(struct data *data,
                      uint32_t memory_type_flags,
                      int n_images,
                      const VkImage *images,
-                     VkDeviceMemory *memory_out)
+                     VkDeviceMemory *memory_out,
+                     int *memory_type_index_out)
 {
         VkDeviceMemory memory;
         VkMemoryRequirements reqs;
@@ -703,6 +707,8 @@ found_memory_type: (void) 0;
         }
 
         *memory_out = memory;
+        if (memory_type_index_out)
+                *memory_type_index_out = memory_type_index;
 
         return VK_SUCCESS;
 }
@@ -722,6 +728,9 @@ destroy_framebuffer_resources(struct data *data)
                 fv_vk.vkDestroyFramebuffer(data->vk_device,
                                            data->vk_fb.framebuffer,
                                            NULL /* allocator */);
+        if (data->vk_fb.linear_memory_map)
+                fv_vk.vkUnmapMemory(data->vk_device,
+                                    data->vk_fb.linear_memory);
         if (data->vk_fb.linear_memory)
                 fv_vk.vkFreeMemory(data->vk_device,
                                    data->vk_fb.linear_memory,
@@ -750,6 +759,7 @@ static bool
 create_framebuffer_resources(struct data *data)
 {
         VkResult res;
+        int linear_memory_type;
 
         VkImageCreateInfo image_create_info = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -808,7 +818,8 @@ create_framebuffer_resources(struct data *data)
                                            data->vk_fb.color_image,
                                            data->vk_fb.depth_image
                                    },
-                                   &data->vk_fb.memory);
+                                   &data->vk_fb.memory,
+                                   NULL /* memory_type_index */);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error allocating framebuffer memory");
                 goto error;
@@ -818,9 +829,38 @@ create_framebuffer_resources(struct data *data)
                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                                    1, /* n_images */
                                    &data->vk_fb.linear_image,
-                                   &data->vk_fb.linear_memory);
+                                   &data->vk_fb.linear_memory,
+                                   &linear_memory_type);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error allocating framebuffer memory");
+                goto error;
+        }
+
+        data->vk_fb.need_linear_memory_invalidate =
+                (data->vk_memory_properties.
+                 memoryTypes[linear_memory_type].propertyFlags &
+                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0;
+
+        VkImageSubresource linear_subresource = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = 0,
+                .arrayLayer = 0
+        };
+        VkSubresourceLayout linear_layout;
+        fv_vk.vkGetImageSubresourceLayout(data->vk_device,
+                                          data->vk_fb.linear_image,
+                                          &linear_subresource,
+                                          &linear_layout);
+        data->vk_fb.linear_memory_stride = linear_layout.rowPitch;
+
+        res = fv_vk.vkMapMemory(data->vk_device,
+                                data->vk_fb.linear_memory,
+                                0, /* offset */
+                                VK_WHOLE_SIZE,
+                                0, /* flags */
+                                &data->vk_fb.linear_memory_map);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error mapping linear memory");
                 goto error;
         }
 
@@ -1030,6 +1070,18 @@ paint_vk(struct data *data)
                                     UINT64_MAX);
         if (res != VK_SUCCESS)
                 goto error_command_buffer;
+
+        if (data->vk_fb.need_linear_memory_invalidate) {
+                VkMappedMemoryRange memory_range = {
+                        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                        .memory = data->vk_fb.linear_memory,
+                        .offset = 0,
+                        .size = VK_WHOLE_SIZE
+                };
+                fv_vk.vkInvalidateMappedMemoryRanges(data->vk_device,
+                                                     1, /* memoryRangeCount */
+                                                     &memory_range);
+        }
 
 error_command_buffer:
         fv_vk.vkFreeCommandBuffers(data->vk_device,
