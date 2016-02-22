@@ -109,6 +109,9 @@ struct data {
                 VkImage depth_image;
                 VkDeviceMemory memory;
                 VkDeviceMemory linear_memory;
+                VkImageView color_image_view;
+                VkImageView depth_image_view;
+                VkFramebuffer framebuffer;
                 int width, height;
         } vk_fb;
 
@@ -708,6 +711,18 @@ found_memory_type: (void) 0;
 static void
 destroy_framebuffer_resources(struct data *data)
 {
+        if (data->vk_fb.depth_image_view)
+                fv_vk.vkDestroyImageView(data->vk_device,
+                                         data->vk_fb.depth_image_view,
+                                         NULL /* allocator */);
+        if (data->vk_fb.color_image_view)
+                fv_vk.vkDestroyImageView(data->vk_device,
+                                         data->vk_fb.color_image_view,
+                                         NULL /* allocator */);
+        if (data->vk_fb.framebuffer)
+                fv_vk.vkDestroyFramebuffer(data->vk_device,
+                                           data->vk_fb.framebuffer,
+                                           NULL /* allocator */);
         if (data->vk_fb.linear_memory)
                 fv_vk.vkFreeMemory(data->vk_device,
                                    data->vk_fb.linear_memory,
@@ -809,6 +824,65 @@ create_framebuffer_resources(struct data *data)
                 fv_error_message("Error allocating framebuffer memory");
                 goto error;
         }
+
+        VkImageViewCreateInfo image_view_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = data->vk_fb.color_image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = COLOR_IMAGE_FORMAT,
+                .components = {
+                        .r = VK_COMPONENT_SWIZZLE_R,
+                        .g = VK_COMPONENT_SWIZZLE_G,
+                        .b = VK_COMPONENT_SWIZZLE_B,
+                        .a = VK_COMPONENT_SWIZZLE_A
+                },
+                .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                }
+        };
+        res = fv_vk.vkCreateImageView(data->vk_device,
+                                      &image_view_create_info,
+                                      NULL, /* allocator */
+                                      &data->vk_fb.color_image_view);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating image view");
+                goto error;
+        }
+
+        image_view_create_info.image = data->vk_fb.depth_image;
+        image_view_create_info.format = data->vk_depth_format;
+        image_view_create_info.subresourceRange.aspectMask =
+                VK_IMAGE_ASPECT_DEPTH_BIT;
+        res = fv_vk.vkCreateImageView(data->vk_device,
+                                      &image_view_create_info,
+                                      NULL, /* allocator */
+                                      &data->vk_fb.depth_image_view);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating image view");
+                goto error;
+        }
+
+        VkImageView attachments[] = {
+                data->vk_fb.color_image_view,
+                data->vk_fb.depth_image_view
+        };
+        VkFramebufferCreateInfo framebuffer_create_info = {
+                .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                .renderPass = data->vk_render_pass,
+                .attachmentCount = FV_N_ELEMENTS(attachments),
+                .pAttachments = attachments,
+                .width = data->fb_width,
+                .height = data->fb_height,
+                .layers = 1
+        };
+        res = fv_vk.vkCreateFramebuffer(data->vk_device,
+                                        &framebuffer_create_info,
+                                        NULL, /* allocator */
+                                        &data->vk_fb.framebuffer);
 
         data->vk_fb.width = data->fb_width;
         data->vk_fb.height = data->fb_height;
