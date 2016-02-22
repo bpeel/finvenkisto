@@ -99,6 +99,7 @@ struct data {
         VkQueue vk_queue;
         VkCommandPool vk_command_pool;
         VkRenderPass vk_render_pass;
+        VkFence vk_fence;
 
         /* Resources that are recreated lazily whenever the
          * framebuffer size changes.
@@ -1487,10 +1488,26 @@ init_vk(struct data *data)
                 goto error_command_pool;
         }
 
+        VkFenceCreateInfo fence_create_info = {
+                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
+        };
+        res = fv_vk.vkCreateFence(data->vk_device,
+                                  &fence_create_info,
+                                  NULL, /* allocator */
+                                  &data->vk_fence);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating fence");
+                goto error_render_pass;
+        }
+
         memset(&data->vk_fb, 0, sizeof data->vk_fb);
 
         return true;
 
+error_render_pass:
+        fv_vk.vkDestroyRenderPass(data->vk_device,
+                                  data->vk_render_pass,
+                                  NULL /* allocator */);
 error_command_pool:
         fv_vk.vkDestroyCommandPool(data->vk_device,
                                    data->vk_command_pool,
@@ -1507,6 +1524,9 @@ error_instance:
 static void
 deinit_vk(struct data *data)
 {
+        fv_vk.vkDestroyFence(data->vk_device,
+                             data->vk_fence,
+                             NULL /* allocator */);
         fv_vk.vkDestroyRenderPass(data->vk_device,
                                   data->vk_render_pass,
                                   NULL /* allocator */);
