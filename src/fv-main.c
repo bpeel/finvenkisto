@@ -45,6 +45,7 @@
 
 #define FB_WIDTH 800
 #define FB_HEIGHT 600
+#define COLOR_IMAGE_FORMAT VK_FORMAT_B8G8R8A8_SRGB
 
 enum key_code {
         KEY_CODE_UP,
@@ -98,6 +99,7 @@ struct data {
         VkImage vk_fb_color_image;
         VkImage vk_fb_depth_image;
         VkDeviceMemory vk_fb_memory;
+        VkRenderPass vk_render_pass;
 
         bool window_mapped;
         int fb_width, fb_height;
@@ -1052,6 +1054,7 @@ static bool
 init_vk(struct data *data)
 {
         VkResult res;
+        VkFormat depth_format;
         uint32_t count = 1;
         int queue_family;
 
@@ -1134,7 +1137,7 @@ init_vk(struct data *data)
         VkImageCreateInfo image_create_info = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                 .imageType = VK_IMAGE_TYPE_2D,
-                .format = VK_FORMAT_B8G8R8A8_SRGB,
+                .format = COLOR_IMAGE_FORMAT,
                 .extent = {
                         .width = FB_WIDTH,
                         .height = FB_HEIGHT,
@@ -1158,7 +1161,8 @@ init_vk(struct data *data)
                 goto error_command_pool;
         }
 
-        image_create_info.format = get_depth_format(data);
+        depth_format = get_depth_format(data);
+        image_create_info.format = depth_format;
         image_create_info.usage = (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
         res = fv_vk.vkCreateImage(data->vk_device,
@@ -1182,8 +1186,69 @@ init_vk(struct data *data)
                 goto error_fb_depth_image;
         }
 
+        VkAttachmentDescription attachment_descriptions[] = {
+                {
+                        .format = COLOR_IMAGE_FORMAT,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .initialLayout =
+                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                },
+                {
+                        .format = depth_format,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .initialLayout =
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                        .finalLayout =
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                }
+        };
+        VkSubpassDescription subpass_descriptions[] = {
+                {
+                        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        .colorAttachmentCount = 1,
+                        .pColorAttachments = &(VkAttachmentReference) {
+                                .attachment = 0,
+                                .layout =
+                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                        },
+                        .pDepthStencilAttachment = &(VkAttachmentReference) {
+                                .attachment = 1,
+                                .layout =
+                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                        }
+                }
+        };
+        VkRenderPassCreateInfo render_pass_create_info = {
+                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+                .attachmentCount = FV_N_ELEMENTS(attachment_descriptions),
+                .pAttachments = attachment_descriptions,
+                .subpassCount = FV_N_ELEMENTS(subpass_descriptions),
+                .pSubpasses = subpass_descriptions
+        };
+        res = fv_vk.vkCreateRenderPass(data->vk_device,
+                                       &render_pass_create_info,
+                                       NULL, /* allocator */
+                                       &data->vk_render_pass);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating render pass");
+                goto error_fb_memory;
+        }
+
         return true;
 
+error_fb_memory:
+        fv_vk.vkFreeMemory(data->vk_device,
+                           data->vk_fb_memory,
+                           NULL /* allocator */);
 error_fb_depth_image:
         fv_vk.vkDestroyImage(data->vk_device,
                              data->vk_fb_depth_image,
@@ -1208,6 +1273,9 @@ error_instance:
 static void
 deinit_vk(struct data *data)
 {
+        fv_vk.vkDestroyRenderPass(data->vk_device,
+                                  data->vk_render_pass,
+                                  NULL /* allocator */);
         fv_vk.vkFreeMemory(data->vk_device,
                            data->vk_fb_memory,
                            NULL /* allocator */);
