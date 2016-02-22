@@ -896,6 +896,99 @@ error:
 }
 
 static void
+paint_vk(struct data *data)
+{
+        VkCommandBuffer command_buffer;
+        VkResult res;
+
+        if (data->vk_fb.width != data->fb_width ||
+            data->vk_fb.height != data->fb_height) {
+                destroy_framebuffer_resources(data);
+                if (!create_framebuffer_resources(data)) {
+                        data->quit = true;
+                        return;
+                }
+        }
+
+        VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                .commandPool = data->vk_command_pool,
+                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                .commandBufferCount = 1
+        };
+        res = fv_vk.vkAllocateCommandBuffers(data->vk_device,
+                                             &command_buffer_allocate_info,
+                                             &command_buffer);
+
+        if (res != VK_SUCCESS)
+                return;
+
+        VkCommandBufferBeginInfo begin_command_buffer_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+        };
+        res = fv_vk.vkBeginCommandBuffer(command_buffer,
+                                         &begin_command_buffer_info);
+        if (res != VK_SUCCESS)
+                goto error_command_buffer;
+
+        VkClearValue clear_values[] = {
+                [1] = {
+                        .depthStencil = {
+                                .depth = 0.0f,
+                                .stencil = 0
+                        }
+                }
+        };
+        VkRenderPassBeginInfo render_pass_begin_info = {
+                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+                .renderPass = data->vk_render_pass,
+                .framebuffer = data->vk_fb.framebuffer,
+                .renderArea = {
+                        .offset = { 0, 0 },
+                        .extent = { data->fb_width, data->fb_height}
+                },
+                .clearValueCount = FV_N_ELEMENTS(clear_values),
+                .pClearValues = clear_values
+        };
+        fv_vk.vkCmdBeginRenderPass(command_buffer,
+                                   &render_pass_begin_info,
+                                   VK_SUBPASS_CONTENTS_INLINE);
+
+        VkClearAttachment color_clear_attachment = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .colorAttachment = 0,
+                .clearValue = {
+                        .color = {
+                                .float32 = { 0.0f, 0.0f, 0.0f, 0.0f }
+                        }
+                },
+        };
+        VkClearRect color_clear_rect = {
+                .rect = {
+                        .offset = { 0, 0 },
+                        .extent = { data->fb_width, data->fb_height}
+                },
+                .baseArrayLayer = 0,
+                .layerCount = 1
+        };
+        fv_vk.vkCmdClearAttachments(command_buffer,
+                                    1, /* attachmentCount */
+                                    &color_clear_attachment,
+                                    1,
+                                    &color_clear_rect);
+
+        res = fv_vk.vkEndCommandBuffer(command_buffer);
+        if (res != VK_SUCCESS)
+                goto error_command_buffer;
+
+error_command_buffer:
+        fv_vk.vkFreeCommandBuffers(data->vk_device,
+                                   data->vk_command_pool,
+                                   1, /* commandBufferCount */
+                                   &command_buffer);
+}
+
+static void
 paint(struct data *data)
 {
         GLbitfield clear_mask = GL_DEPTH_BUFFER_BIT;
@@ -937,6 +1030,8 @@ paint(struct data *data)
                 fv_gl.glViewport(0, 0, data->fb_width, data->fb_height);
 
         paint_hud(data, data->fb_width, data->fb_height);
+
+        paint_vk(data);
 
         fv_gl.glXSwapBuffers(data->display, data->glx_window);
 }
