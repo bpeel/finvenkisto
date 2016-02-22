@@ -39,6 +39,7 @@
 #include "fv-map.h"
 #include "fv-error-message.h"
 #include "fv-data.h"
+#include "fv-matrix.h"
 
 #define CORE_GL_MAJOR_VERSION 3
 #define CORE_GL_MINOR_VERSION 3
@@ -1091,6 +1092,94 @@ error_command_buffer:
 }
 
 static void
+upload_vk_image(struct data *data)
+{
+        struct fv_shader_data *shader_data;
+        GLuint tex, prog, vao, vbo;
+        int alignment = 1;
+        struct fv_matrix matrix;
+        GLuint transform_location;
+        struct vertex {
+                float x, y;
+                float s, t;
+        };
+        static const struct vertex verts[] = {
+                { -1, -1, 0, 1 },
+                { 1, -1, 1, 1 },
+                { -1, 1, 0, 0 },
+                { 1, 1, 1, 0 },
+        };
+
+        while ((data->vk_fb.linear_memory_stride & alignment) == 0 &&
+               alignment < 8)
+                alignment <<= 1;
+
+        fv_gl.glGenTextures(1, &tex);
+        fv_gl.glBindTexture(GL_TEXTURE_2D, tex);
+        fv_gl.glPixelStorei(GL_UNPACK_ROW_LENGTH,
+                            data->vk_fb.linear_memory_stride / 4);
+        fv_gl.glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
+        fv_gl.glTexImage2D(GL_TEXTURE_2D,
+                           0, /* level */
+                           GL_RGBA,
+                           data->fb_width,
+                           data->fb_height,
+                           0, /* border */
+                           GL_BGRA,
+                           GL_UNSIGNED_BYTE,
+                           data->vk_fb.linear_memory_map);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_MAG_FILTER,
+                              GL_NEAREST);
+        fv_gl.glTexParameteri(GL_TEXTURE_2D,
+                              GL_TEXTURE_MIN_FILTER,
+                              GL_NEAREST);
+
+        shader_data = &data->graphics.shader_data;
+        prog = shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
+        fv_gl.glUseProgram(prog);
+
+        transform_location = fv_gl.glGetUniformLocation(prog, "transform");
+        fv_matrix_init_identity(&matrix);
+        fv_gl.glUniformMatrix4fv(transform_location,
+                                 1, /* count */
+                                 GL_FALSE, /* transpose */
+                                 &matrix.xx);
+
+        fv_gl.glGenBuffers(1, &vbo);
+        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        fv_gl.glBufferData(GL_ARRAY_BUFFER,
+                           sizeof verts,
+                           verts,
+                           GL_STATIC_DRAW);
+
+        fv_gl.glGenVertexArrays(1, &vao);
+        fv_gl.glBindVertexArray(vao);
+        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_POSITION,
+                                    2, /* size */
+                                    GL_FLOAT,
+                                    GL_FALSE, /* normalised */
+                                    sizeof verts[0],
+                                    (void *) (GLintptr)
+                                    offsetof(struct vertex, x));
+        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_POSITION);
+        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_TEX_COORD,
+                                    2, /* size */
+                                    GL_FLOAT,
+                                    GL_FALSE, /* normalised */
+                                    sizeof verts[0],
+                                    (void *) (GLintptr)
+                                    offsetof(struct vertex, s));
+        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_TEX_COORD);
+
+        fv_gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+        fv_gl.glDeleteVertexArrays(1, &vao);
+        fv_gl.glDeleteBuffers(1, &vbo);
+        fv_gl.glDeleteTextures(1, &tex);
+}
+
+static void
 paint(struct data *data)
 {
         GLbitfield clear_mask = GL_DEPTH_BUFFER_BIT;
@@ -1134,6 +1223,8 @@ paint(struct data *data)
         paint_hud(data, data->fb_width, data->fb_height);
 
         paint_vk(data);
+
+        upload_vk_image(data);
 
         fv_gl.glXSwapBuffers(data->display, data->glx_window);
 }

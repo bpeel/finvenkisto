@@ -108,6 +108,8 @@ FV_GL_FUNC(GLint,
 FV_GL_FUNC(void,
            glLinkProgram, (GLuint program))
 FV_GL_FUNC(void,
+           glPixelStorei, (GLenum pname, GLint param))
+FV_GL_FUNC(void,
            glShaderSource, (GLuint shader, GLsizei count,
                             const GLchar *const*string, const GLint *length))
 FV_GL_FUNC(void,
