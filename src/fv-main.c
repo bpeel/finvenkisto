@@ -1163,8 +1163,7 @@ init_vk(struct data *data)
 
         depth_format = get_depth_format(data);
         image_create_info.format = depth_format;
-        image_create_info.usage = (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+        image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
         res = fv_vk.vkCreateImage(data->vk_device,
                                   &image_create_info,
                                   NULL, /* allocator */
