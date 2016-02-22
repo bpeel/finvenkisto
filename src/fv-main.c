@@ -977,6 +977,8 @@ paint_vk(struct data *data)
                                     1,
                                     &color_clear_rect);
 
+        fv_vk.vkCmdEndRenderPass(command_buffer);
+
         res = fv_vk.vkEndCommandBuffer(command_buffer);
         if (res != VK_SUCCESS)
                 goto error_command_buffer;
