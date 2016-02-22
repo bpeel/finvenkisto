@@ -94,6 +94,8 @@ struct data {
         /* Permanant vulkan resources */
         VkInstance vk_instance;
         VkPhysicalDevice vk_physical_device;
+        VkPhysicalDeviceMemoryProperties vk_memory_properties;
+        VkPhysicalDeviceProperties vk_device_properties;
         VkFormat vk_depth_format;
         VkDevice vk_device;
         VkQueue vk_queue;
@@ -649,21 +651,20 @@ allocate_image_store(struct data *data,
 {
         VkDeviceMemory memory;
         VkMemoryRequirements reqs;
-        VkPhysicalDeviceMemoryProperties memory_properties;
-        VkPhysicalDeviceProperties props;
         VkResult res;
         int offset = 0;
         int *offsets = alloca(sizeof *offsets * n_images);
         int memory_type_index;
+        VkDeviceSize granularity;
         int i;
 
-        fv_vk.vkGetPhysicalDeviceProperties(data->vk_physical_device, &props);
+        granularity = data->vk_device_properties.limits.bufferImageGranularity;
 
         for (i = 0; i < n_images; i++) {
                 fv_vk.vkGetImageMemoryRequirements(data->vk_device,
                                                    images[i],
                                                    &reqs);
-                offset = fv_align(offset, props.limits.bufferImageGranularity);
+                offset = fv_align(offset, granularity);
                 offset = fv_align(offset, reqs.alignment);
                 offsets[i] = offset;
                 offset += reqs.size;
@@ -671,11 +672,8 @@ allocate_image_store(struct data *data,
                 memory_type_flags |= reqs.memoryTypeBits;
         }
 
-        fv_vk.vkGetPhysicalDeviceMemoryProperties(data->vk_physical_device,
-                                                  &memory_properties);
-
-        for (i = 0; i < memory_properties.memoryTypeCount; i++) {
-                if ((memory_properties.memoryTypes[i].propertyFlags &
+        for (i = 0; i < data->vk_memory_properties.memoryTypeCount; i++) {
+                if ((data->vk_memory_properties.memoryTypes[i].propertyFlags &
                      memory_type_flags) == memory_type_flags) {
                         memory_type_index = i;
                         goto found_memory_type;
@@ -1432,6 +1430,10 @@ init_vk(struct data *data)
                 goto error_instance;
         }
 
+        fv_vk.vkGetPhysicalDeviceProperties(data->vk_physical_device,
+                                            &data->vk_device_properties);
+        fv_vk.vkGetPhysicalDeviceMemoryProperties(data->vk_physical_device,
+                                                  &data->vk_memory_properties);
         data->vk_depth_format = get_depth_format(data);
 
         queue_family = find_queue_family(data);
