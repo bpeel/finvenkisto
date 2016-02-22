@@ -166,4 +166,13 @@ int
 fv_util_ffsl(long int value);
 #endif
 
+/**
+ * Align a value, only works pot alignemnts.
+ */
+static inline int
+fv_align(int value, int alignment)
+{
+   return (value + alignment - 1) & ~(alignment - 1);
+}
+
 #endif /* FV_UTIL_H */
