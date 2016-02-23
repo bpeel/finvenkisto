@@ -39,7 +39,6 @@
 #include "fv-map.h"
 #include "fv-error-message.h"
 #include "fv-data.h"
-#include "fv-matrix.h"
 
 #define CORE_GL_MAJOR_VERSION 3
 #define CORE_GL_MINOR_VERSION 3
@@ -119,6 +118,8 @@ struct data {
                 VkFramebuffer framebuffer;
                 int width, height;
         } vk_fb;
+
+        GLuint blit_program;
 
         bool window_mapped;
         int fb_width, fb_height;
@@ -1089,14 +1090,62 @@ error_command_buffer:
                                    &command_buffer);
 }
 
+static GLuint
+create_blit_program(void)
+{
+        static const char *vertex_source =
+                "attribute vec3 position;\n"
+                "attribute vec2 tex_coord_attrib;\n"
+                "varying vec2 tex_coord;\n"
+                "\n"
+                "void\n"
+                "main()\n"
+                "{\n"
+                "        gl_Position = vec4(position, 1.0);\n"
+                "        tex_coord = tex_coord_attrib;\n"
+                "}\n";
+        static const char *frag_source =
+                "varying vec2 tex_coord;\n"
+                "uniform sampler2D tex;\n"
+                "\n"
+                "void\n"
+                "main()\n"
+                "{\n"
+                "        gl_FragColor = texture2D(tex, tex_coord);\n"
+                "}\n";
+        static const GLint length = -1;
+        GLuint prog, shader;
+
+        prog = fv_gl.glCreateProgram();
+
+        shader = fv_gl.glCreateShader(GL_VERTEX_SHADER);
+        fv_gl.glShaderSource(shader,
+                             1, /* count */
+                             (const GLchar **) &vertex_source,
+                             &length);
+        fv_gl.glCompileShader(shader);
+        fv_gl.glAttachShader(prog, shader);
+        fv_gl.glDeleteShader(shader);
+
+        shader = fv_gl.glCreateShader(GL_FRAGMENT_SHADER);
+        fv_gl.glShaderSource(shader,
+                             1, /* count */
+                             (const GLchar **) &frag_source,
+                             &length);
+        fv_gl.glCompileShader(shader);
+        fv_gl.glAttachShader(prog, shader);
+        fv_gl.glDeleteShader(shader);
+
+        fv_gl.glLinkProgram(prog);
+
+        return prog;
+}
+
 static void
 upload_vk_image(struct data *data)
 {
-        struct fv_shader_data *shader_data;
-        GLuint tex, prog, vao, vbo;
+        GLuint tex, vao, vbo;
         int alignment = 1;
-        struct fv_matrix matrix;
-        GLuint transform_location;
         struct vertex {
                 float x, y;
                 float s, t;
@@ -1133,16 +1182,7 @@ upload_vk_image(struct data *data)
                               GL_TEXTURE_MIN_FILTER,
                               GL_NEAREST);
 
-        shader_data = &data->graphics.shader_data;
-        prog = shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
-        fv_gl.glUseProgram(prog);
-
-        transform_location = fv_gl.glGetUniformLocation(prog, "transform");
-        fv_matrix_init_identity(&matrix);
-        fv_gl.glUniformMatrix4fv(transform_location,
-                                 1, /* count */
-                                 GL_FALSE, /* transpose */
-                                 &matrix.xx);
+        fv_gl.glUseProgram(data->blit_program);
 
         fv_gl.glGenBuffers(1, &vbo);
         fv_gl.glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -1804,10 +1844,14 @@ main(int argc, char **argv)
                 goto out_image_data;
         }
 
+        data.blit_program = create_blit_program();
+
         reset_menu_state(&data);
 
         while (!data.quit)
                 iterate_main_loop(&data);
+
+        fv_gl.glDeleteProgram(data.blit_program);
 
         destroy_graphics(&data);
 
