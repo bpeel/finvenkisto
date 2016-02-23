@@ -17,22 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if defined(HAVE_INSTANCED_ARRAYS) && defined(HAVE_TEXTURE_2D_ARRAY)
-varying vec3 tex_coord;
-uniform sampler2DArray tex;
-#define textureFunc texture2DArray
-#else
 varying vec2 tex_coord;
-uniform sampler2D tex;
-#define textureFunc texture2D
-#endif
+varying float tint;
 
-varying vec2 tint;
+uniform sampler2D tex;
 
 void
 main()
 {
-        gl_FragColor = vec4(mix(textureFunc(tex, tex_coord).rgb,
-                                vec3(0.0, 1.0, 0.0),
-                                tint.x) * tint.y, 1.0);
+        gl_FragColor = vec4(texture2D(tex, tex_coord).rgb * tint, 1.0);
 }

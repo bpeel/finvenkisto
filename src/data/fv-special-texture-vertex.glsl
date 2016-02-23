@@ -21,34 +21,22 @@ attribute vec3 position;
 attribute vec2 tex_coord_attrib;
 attribute vec3 normal_attrib;
 
-#if defined(HAVE_INSTANCED_ARRAYS) && defined(HAVE_TEXTURE_2D_ARRAY)
+#ifdef HAVE_INSTANCED_ARRAYS
 attribute mat4 transform;
 attribute mat3 normal_transform;
-attribute float tex_layer;
-attribute float green_tint_attrib;
-varying vec3 tex_coord;
-#else
+#else /* HAVE_INSTANCED_ARRAYS */
 uniform mat4 transform;
 uniform mat3 normal_transform;
-uniform float green_tint_attrib;
-varying vec2 tex_coord;
 #endif
 
-varying vec2 tint;
+varying vec2 tex_coord;
+varying float tint;
 
 void
 main()
 {
         gl_Position = transform * vec4(position, 1.0);
-
-#if defined(HAVE_INSTANCED_ARRAYS) && defined(HAVE_TEXTURE_2D_ARRAY)
-        tex_coord = vec3(tex_coord_attrib, tex_layer);
-#else
         tex_coord = tex_coord_attrib;
-#endif
-
-
-        tint = vec2(green_tint_attrib,
-                    get_lighting_tint(normal_transform, normal_attrib));
+        tint = get_lighting_tint(normal_transform, normal_attrib);
 }
 

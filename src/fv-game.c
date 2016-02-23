@@ -36,12 +36,15 @@
 #include "fv-gl.h"
 #include "fv-paint-state.h"
 
-/* 40° vertical FOV angle when the height of the display is 2.0 */
-#define FV_GAME_NEAR_PLANE 2.7474774194546225f
-#define FV_GAME_FAR_PLANE 15.0f
+#define FV_GAME_FRUSTUM_TOP 1.428f
+/* 40° vertical FOV angle when the height of the display is
+ * FV_GAME_FRUSTUM_TOP*2
+ * ie, top / tan(40 / 2)
+ */
+#define FV_GAME_NEAR_PLANE 3.9233977549812007f
+#define FV_GAME_FAR_PLANE 21.429f
 
-#define FV_GAME_ORIGIN_DISTANCE 10.0f
-#define FV_GAME_SCALE 0.7f
+#define FV_GAME_ORIGIN_DISTANCE 14.286f
 
 struct fv_game {
         /* Size of a players viewport the last time we painted */
@@ -70,9 +73,6 @@ fv_game_new(struct fv_image_data *image_data,
         fv_matrix_rotate(&game->base_transform,
                          -30.0f,
                          1.0f, 0.0f, 0.0f);
-
-        fv_matrix_scale(&game->base_transform,
-                        FV_GAME_SCALE, FV_GAME_SCALE, FV_GAME_SCALE);
 
         game->map_painter = fv_map_painter_new(image_data, shader_data);
         if (game->map_painter == NULL)
@@ -185,11 +185,11 @@ update_projection(struct fv_game *game,
          * from last time */
         if (w != game->last_viewport_width || h != game->last_viewport_height) {
                 if (w < h) {
-                        right = 1.0f;
-                        top = h / (float) w;
+                        right = FV_GAME_FRUSTUM_TOP;
+                        top = h * FV_GAME_FRUSTUM_TOP / (float) w;
                 } else {
-                        top = 1.0f;
-                        right = w / (float) h;
+                        top = FV_GAME_FRUSTUM_TOP;
+                        right = w * FV_GAME_FRUSTUM_TOP / (float) h;
                 }
 
                 fv_matrix_init_identity(&transform->projection);
@@ -199,6 +199,8 @@ update_projection(struct fv_game *game,
                                   -top, top,
                                   FV_GAME_NEAR_PLANE,
                                   FV_GAME_FAR_PLANE);
+
+                fv_transform_dirty(transform);
 
                 update_visible_area(game);
 
@@ -217,6 +219,8 @@ update_modelview(struct fv_game *game,
                             -game->paint_state.center_x,
                             -game->paint_state.center_y,
                             0.0f);
+
+        fv_transform_dirty(&game->paint_state.transform);
 }
 
 bool
@@ -251,8 +255,6 @@ fv_game_paint(struct fv_game *game,
         update_projection(game, width, height);
 
         update_modelview(game, logic);
-
-        fv_transform_update_derived_values(&game->paint_state.transform);
 
         fv_person_painter_paint(game->person_painter,
                                 logic,

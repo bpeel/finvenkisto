@@ -134,6 +134,9 @@ FV_GL_FUNC(void,
            glUniformMatrix4fv, (GLint location, GLsizei count,
                                 GLboolean transpose, const GLfloat *value))
 FV_GL_FUNC(void,
+           glUniformMatrix3fv, (GLint location, GLsizei count,
+                                GLboolean transpose, const GLfloat *value))
+FV_GL_FUNC(void,
            glUseProgram, (GLuint program))
 FV_GL_FUNC(void,
            glVertexAttribPointer, (GLuint index, GLint size,

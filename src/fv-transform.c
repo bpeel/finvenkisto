@@ -23,10 +23,42 @@
 #include "fv-gl.h"
 
 void
-fv_transform_update_derived_values(struct fv_transform *transform)
+fv_transform_ensure_mvp(struct fv_transform *transform)
 {
+        if (!transform->mvp_dirty)
+                return;
+
         /* Calculate the combined modelview-projection matrix */
         fv_matrix_multiply(&transform->mvp,
                            &transform->projection,
                            &transform->modelview);
+
+        transform->mvp_dirty = false;
+}
+
+void
+fv_transform_ensure_normal_transform(struct fv_transform *transform)
+{
+        struct fv_matrix inverse_modelview;
+
+        if (!transform->normal_transform_dirty)
+                return;
+
+        /* Invert the matrix */
+        fv_matrix_get_inverse(&transform->modelview, &inverse_modelview);
+
+        /* Transpose it while converting it to 3x3 */
+        transform->normal_transform[0] = inverse_modelview.xx;
+        transform->normal_transform[1] = inverse_modelview.xy;
+        transform->normal_transform[2] = inverse_modelview.xz;
+
+        transform->normal_transform[3] = inverse_modelview.yx;
+        transform->normal_transform[4] = inverse_modelview.yy;
+        transform->normal_transform[5] = inverse_modelview.yz;
+
+        transform->normal_transform[6] = inverse_modelview.zx;
+        transform->normal_transform[7] = inverse_modelview.zy;
+        transform->normal_transform[8] = inverse_modelview.zz;
+
+        transform->normal_transform_dirty = false;
 }

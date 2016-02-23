@@ -51,7 +51,7 @@ fv_shader_data_newline[] =
 
 struct fv_shader_data_shader {
         GLenum type;
-        const char *filename;
+        const char **filenames;
         enum fv_shader_data_program programs[FV_SHADER_DATA_N_PROGRAMS + 1];
 };
 
@@ -61,43 +61,78 @@ static const struct fv_shader_data_shader
 fv_shader_data_shaders[] = {
         {
                 GL_FRAGMENT_SHADER,
-                "fv-texture-fragment.glsl",
+                (const char *[]) { "fv-texture-fragment.glsl", NULL },
                 {
-                        FV_SHADER_DATA_PROGRAM_TEXTURE,
                         FV_SHADER_DATA_PROGRAM_HUD,
+                        FV_SHADER_DATA_PROGRAM_TEXTURE,
                         PROGRAMS_END
                 }
         },
         {
                 GL_VERTEX_SHADER,
-                "fv-texture-vertex.glsl",
+                (const char *[]) { "fv-texture-vertex.glsl", NULL },
                 { FV_SHADER_DATA_PROGRAM_TEXTURE, PROGRAMS_END }
         },
         {
                 GL_FRAGMENT_SHADER,
-                "fv-special-fragment.glsl",
-                { FV_SHADER_DATA_PROGRAM_SPECIAL, PROGRAMS_END }
+                (const char *[]) { "fv-color-fragment.glsl", NULL },
+                { FV_SHADER_DATA_PROGRAM_SPECIAL_COLOR, PROGRAMS_END }
         },
         {
                 GL_VERTEX_SHADER,
-                "fv-special-vertex.glsl",
-                { FV_SHADER_DATA_PROGRAM_SPECIAL, PROGRAMS_END }
+                (const char *[]) {
+                        "fv-lighting.glsl",
+                        "fv-special-color-vertex.glsl",
+                        NULL
+                },
+                { FV_SHADER_DATA_PROGRAM_SPECIAL_COLOR, PROGRAMS_END }
         },
         {
                 GL_FRAGMENT_SHADER,
-                "fv-person-fragment.glsl",
+                (const char *[]) { "fv-lighting-texture-fragment.glsl", NULL },
+                {
+                        FV_SHADER_DATA_PROGRAM_SPECIAL_TEXTURE,
+                        FV_SHADER_DATA_PROGRAM_MAP,
+                        PROGRAMS_END
+                }
+        },
+        {
+                GL_VERTEX_SHADER,
+                (const char *[]) {
+                        "fv-lighting.glsl",
+                        "fv-special-texture-vertex.glsl",
+                        NULL
+                },
+                { FV_SHADER_DATA_PROGRAM_SPECIAL_TEXTURE, PROGRAMS_END }
+        },
+        {
+                GL_FRAGMENT_SHADER,
+                (const char *[]) { "fv-person-fragment.glsl", NULL },
                 { FV_SHADER_DATA_PROGRAM_PERSON, PROGRAMS_END }
         },
         {
                 GL_VERTEX_SHADER,
-                "fv-person-vertex.glsl",
+                (const char *[]) {
+                        "fv-lighting.glsl",
+                        "fv-person-vertex.glsl",
+                        NULL
+                },
                 { FV_SHADER_DATA_PROGRAM_PERSON, PROGRAMS_END }
         },
         {
                 GL_VERTEX_SHADER,
-                "fv-hud-vertex.glsl",
+                (const char *[]) { "fv-hud-vertex.glsl", NULL },
                 { FV_SHADER_DATA_PROGRAM_HUD, PROGRAMS_END }
         },
+        {
+                GL_VERTEX_SHADER,
+                (const char *[]) {
+                        "fv-lighting.glsl",
+                        "fv-map-vertex.glsl",
+                        NULL
+                },
+                { FV_SHADER_DATA_PROGRAM_MAP, PROGRAMS_END }
+        }
 };
 
 static GLuint
@@ -171,68 +206,97 @@ create_shader(const char *name,
 }
 
 static GLuint
-create_shader_from_file(GLenum shader_type,
-                        const char *filename)
+create_shader_from_files(GLenum shader_type,
+                         const char **filenames)
 {
         char *fullname;
-        FILE *file;
-        char *source;
-        long int length;
+        char *source, *p;
+        long int *lengths;
+        long int total_length = 0;
         size_t got;
         GLuint shader;
+        int n_files;
+        FILE **files;
+        int i;
 
-        fullname = fv_data_get_filename(filename);
+        for (n_files = 0, i = 0; filenames[i]; i++)
+                n_files++;
 
-        if (fullname == NULL) {
-                fv_error_message("Couldn't get filename for %s", filename);
-                return 0;
-        }
+        files = alloca(sizeof files[0] * n_files);
+        lengths = alloca(sizeof lengths[0] * n_files);
 
-        file = fopen(fullname, "r");
+        for (n_files = 0, i = 0; filenames[i]; i++) {
+                fullname = fv_data_get_filename(filenames[i]);
 
-        fv_free(fullname);
+                if (fullname == NULL) {
+                        fv_error_message("Couldn't get filename for %s",
+                                         filenames[i]);
+                        shader = 0;
+                        goto out;
+                }
 
-        if (file == NULL) {
-                fv_error_message("%s: %s", filename, strerror(errno));
-                return 0;
-        }
+                files[i] = fopen(fullname, "r");
 
-        if (fseek(file, 0, SEEK_END) != 0)
-                goto file_error;
+                fv_free(fullname);
 
-        length = ftell(file);
-        if (length == -1)
-                goto file_error;
+                if (files[i] == NULL) {
+                        fv_error_message("%s: %s",
+                                         filenames[i],
+                                         strerror(errno));
+                        shader = 0;
+                        goto out;
+                }
 
-        if (fseek(file, 0, SEEK_SET) != 0)
-                goto file_error;
+                n_files++;
 
-        source = fv_alloc(length);
-
-        got = fread(source, 1, length, file);
-
-        if (got != length) {
-                fv_free(source);
-                if (ferror(file))
+                if (fseek(files[i], 0, SEEK_END) != 0)
                         goto file_error;
-                fv_error_message("%s: Unexpected EOF", filename);
-                goto close_error;
+
+                lengths[i] = ftell(files[i]);
+                if (lengths[i] == -1)
+                        goto file_error;
+
+                if (fseek(files[i], 0, SEEK_SET) != 0)
+                        goto file_error;
+
+                total_length += lengths[i];
         }
 
-        fclose(file);
+        source = fv_alloc(total_length);
 
-        shader = create_shader(filename, shader_type, source, length);
+        for (p = source, i = 0; i < n_files; i++) {
+                got = fread(p, 1, lengths[i], files[i]);
+
+                if (got != lengths[i]) {
+                        shader = 0;
+                        fv_free(source);
+                        if (ferror(files[i]))
+                                goto file_error;
+                        fv_error_message("%s: Unexpected EOF",
+                                         filenames[i]);
+                        goto out;
+                }
+
+                p += got;
+        }
+
+        shader = create_shader(filenames[n_files - 1],
+                               shader_type,
+                               source,
+                               total_length);
 
         fv_free(source);
 
-        return shader;
+        goto out;
 
 file_error:
-        fv_error_message("%s: %s", filename, strerror(errno));
-close_error:
-        fclose(file);
+        fv_error_message("%s: %s", filenames[i], strerror(errno));
+        shader = 0;
+out:
+        for (i = 0; i < n_files; i++)
+                fclose(files[i]);
 
-        return 0;
+        return shader;
 }
 
 static bool
@@ -254,7 +318,7 @@ get_program_name(enum fv_shader_data_program program_num)
 {
         struct fv_buffer buffer = FV_BUFFER_STATIC_INIT;
         const struct fv_shader_data_shader *shader;
-        int i;
+        int i, j;
 
         /* Generate the program name as just a list of the shaders it
          * contains */
@@ -267,7 +331,9 @@ get_program_name(enum fv_shader_data_program program_num)
                 if (shader_contains_program(shader, program_num)) {
                         if (buffer.length > 1)
                                 fv_buffer_append_string(&buffer, ", ");
-                        fv_buffer_append_string(&buffer, shader->filename);
+                        for (j = 0; shader->filenames[j]; j++)
+                                fv_buffer_append_string(&buffer,
+                                                        shader->filenames[j]);
                 }
         }
 
@@ -358,8 +424,8 @@ fv_shader_data_init(struct fv_shader_data *data)
         for (n_shaders = 0; n_shaders < FV_N_ELEMENTS(shaders); n_shaders++) {
                 shader = fv_shader_data_shaders + n_shaders;
                 shaders[n_shaders] =
-                        create_shader_from_file(shader->type,
-                                                shader->filename);
+                        create_shader_from_files(shader->type,
+                                                 shader->filenames);
                 if (shaders[n_shaders] == 0) {
                         result = false;
                         goto out;

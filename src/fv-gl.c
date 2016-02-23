@@ -189,6 +189,7 @@ void
 fv_gl_init(void)
 {
         int sample_buffers = 0;
+        int max_vertex_attribs;
         int i;
 
         fv_gl.glGetString = fv_gl.glXGetProcAddress("glGetString");
@@ -206,9 +207,12 @@ fv_gl_init(void)
         fv_gl.have_texture_2d_array =
                 extension_supported("GL_EXT_texture_array");
 
+        fv_gl.glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &max_vertex_attribs);
+
         fv_gl.have_instanced_arrays =
                 fv_gl.glVertexAttribDivisor != NULL &&
-                fv_gl.glDrawElementsInstanced != NULL;
+                fv_gl.glDrawElementsInstanced != NULL &&
+                max_vertex_attribs >= 11;
 
         fv_gl.glGetIntegerv(GL_SAMPLE_BUFFERS_ARB, &sample_buffers);
 

@@ -153,10 +153,10 @@ paint_cb(const struct fv_logic_shout *shout,
                                    painter->vertex_buffer);
                 data->buffer_map =
                         fv_map_buffer_map(GL_ARRAY_BUFFER,
-                                          0, /* offset */
                                           FV_LOGIC_MAX_PLAYERS *
                                           sizeof *vertex * 3,
-                                          true /* flush_explicit */);
+                                          true /* flush_explicit */,
+                                          GL_STREAM_DRAW);
         }
 
         cx = cosf(shout->direction - FV_LOGIC_SHOUT_ANGLE / 2.0f);
