@@ -166,6 +166,12 @@ int
 fv_util_ffsl(long int value);
 #endif
 
+#ifdef WIN32
+#define FV_PATH_SEPARATOR "\\"
+#else
+#define FV_PATH_SEPARATOR "/"
+#endif
+
 /**
  * Align a value, only works pot alignemnts.
  */

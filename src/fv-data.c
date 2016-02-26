@@ -22,12 +22,6 @@
 #include "fv-data.h"
 #include "fv-util.h"
 
-#ifdef WIN32
-#define FV_DATA_SEPARATOR "\\"
-#else
-#define FV_DATA_SEPARATOR "/"
-#endif
-
 static char *
 base_path;
 
@@ -38,7 +32,7 @@ fv_data_init(const char *exe_name)
         int i;
 
         for (i = len - 1; i >= 0; i--) {
-                if (exe_name[i] == FV_DATA_SEPARATOR[0]) {
+                if (exe_name[i] == FV_PATH_SEPARATOR[0]) {
                         base_path = fv_alloc(i + 1);
                         memcpy(base_path, exe_name, i);
                         base_path[i] = '\0';
@@ -53,8 +47,8 @@ char *
 fv_data_get_filename(const char *name)
 {
         return fv_strconcat(base_path,
-                            FV_DATA_SEPARATOR "data"
-                            FV_DATA_SEPARATOR,
+                            FV_PATH_SEPARATOR "data"
+                            FV_PATH_SEPARATOR,
                             name,
                             NULL);
 }
