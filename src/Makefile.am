@@ -56,6 +56,8 @@ finvenkisto_SOURCES = \
 	fv-person.h \
 	fv-person-painter.c \
 	fv-person-painter.h \
+	fv-pipeline-data.c \
+	fv-pipeline-data.h \
 	fv-shader-data.c \
 	fv-shader-data.h \
 	fv-shout-painter.c \
@@ -64,6 +66,7 @@ finvenkisto_SOURCES = \
 	fv-transform.h \
 	fv-util.c \
 	fv-util.h \
+	fv-vertex.h \
 	fv-vk.c \
 	fv-vk.h \
 	fv-vk-core-funcs.h \

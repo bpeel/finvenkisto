@@ -39,6 +39,7 @@
 #include "fv-map.h"
 #include "fv-error-message.h"
 #include "fv-data.h"
+#include "fv-pipeline-data.h"
 
 #define CORE_GL_MAJOR_VERSION 3
 #define CORE_GL_MINOR_VERSION 3
@@ -131,6 +132,8 @@ struct data {
                 struct fv_hud *hud;
                 bool shader_data_loaded;
         } graphics;
+
+        struct fv_pipeline_data pipeline_data;
 
         struct fv_logic *logic;
 
@@ -1844,6 +1847,11 @@ main(int argc, char **argv)
                 goto out_image_data;
         }
 
+        if (!fv_pipeline_data_init(data.vk_device,
+                                   data.vk_render_pass,
+                                   &data.pipeline_data))
+                goto out_graphics;
+
         data.blit_program = create_blit_program();
 
         reset_menu_state(&data);
@@ -1853,10 +1861,13 @@ main(int argc, char **argv)
 
         fv_gl.glDeleteProgram(data.blit_program);
 
-        destroy_graphics(&data);
-
         destroy_framebuffer_resources(&data);
 
+        fv_pipeline_data_destroy(data.vk_device,
+                                 &data.pipeline_data);
+
+out_graphics:
+        destroy_graphics(&data);
 out_image_data:
         fv_image_data_free(data.image_data);
 out_logic:

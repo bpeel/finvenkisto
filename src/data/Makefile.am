@@ -58,6 +58,17 @@ SHADERS = \
 	fv-person-vertex.glsl \
 	$(NULL)
 
+GLSL = \
+	shaders/fv-lighting.glsl \
+	shaders/fv-lighting-texture-fragment.glsl \
+	shaders/fv-map-vertex.glsl \
+	$(NULL)
+
+SPIRV = \
+	shaders/fv-lighting-texture-fragment.spirv \
+	shaders/fv-map-vertex.spirv \
+	$(NULL)
+
 MODELS = \
 	person.ply \
 	table.ply \
@@ -108,6 +119,11 @@ IMAGES = \
 	toiletguy.png \
 	$(NULL)
 
+spirvdir = $(datadir)/finvenkisto/shaders
+dist_spirv_DATA = \
+	$(SPIRV) \
+	$(NULL)
+
 NON_IMAGES = \
 	ARTCREDITS.txt \
 	$(SHADERS) \
@@ -138,6 +154,7 @@ EXTRA_DIST = \
 	$(HUD_DIGITS) \
 	$(MODELS:.ply=.blend) \
 	$(BLOCK_IMAGES) \
+	$(GLSL) \
 	$(NULL)
 
 .svg.png :
