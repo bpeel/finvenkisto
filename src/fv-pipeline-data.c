@@ -209,13 +209,13 @@ create_pipelines(VkDevice device,
                 {
                         .location = 0,
                         .binding = 0,
-                        .format = VK_FORMAT_R32G32_SFLOAT,
+                        .format = VK_FORMAT_R8G8B8A8_USCALED,
                         .offset = offsetof(struct fv_vertex_map, x)
                 },
                 {
                         .location = 1,
                         .binding = 0,
-                        .format = VK_FORMAT_R32G32_SFLOAT,
+                        .format = VK_FORMAT_R16G16_UNORM,
                         .offset = offsetof(struct fv_vertex_map, s)
                 }
         };

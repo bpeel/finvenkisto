@@ -23,8 +23,15 @@
 #include <stdint.h>
 
 struct fv_vertex_map {
-        float x, y;
-        float s, t;
+        uint8_t x, y, z;
+        /* The normal is encoded as the fourth component of the
+         * position rather than its own component because I read
+         * somewhere that all attributes should be aligned to a float.
+         * I'm not sure if this is true or not but it's not really
+         * difficult to do so we might as well play it safe.
+         */
+        uint8_t normal;
+        uint16_t s, t;
 };
 
 #endif /* FV_VERTEX_H */
