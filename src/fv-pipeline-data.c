@@ -339,6 +339,7 @@ error:
 
 bool
 fv_pipeline_data_init(VkDevice device,
+                      int queue_family,
                       VkRenderPass render_pass,
                       struct fv_pipeline_data *data)
 {
@@ -349,6 +350,7 @@ fv_pipeline_data_init(VkDevice device,
         int i;
 
         data->device = device;
+        data->queue_family = queue_family;
 
         if (!load_shaders(device, shaders))
                 return false;

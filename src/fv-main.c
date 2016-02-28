@@ -97,6 +97,7 @@ struct data {
         VkPhysicalDeviceProperties vk_device_properties;
         VkFormat vk_depth_format;
         VkDevice vk_device;
+        int vk_queue_family;
         VkQueue vk_queue;
         VkCommandPool vk_command_pool;
         VkRenderPass vk_render_pass;
@@ -1585,7 +1586,6 @@ init_vk(struct data *data)
 {
         VkResult res;
         uint32_t count = 1;
-        int queue_family;
 
         struct VkInstanceCreateInfo instance_create_info = {
                 .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -1620,8 +1620,8 @@ init_vk(struct data *data)
                                                   &data->vk_memory_properties);
         data->vk_depth_format = get_depth_format(data);
 
-        queue_family = find_queue_family(data);
-        if (queue_family == -1) {
+        data->vk_queue_family = find_queue_family(data);
+        if (data->vk_queue_family == -1) {
                 fv_error_message("No graphics queue found on Vulkan device");
                 goto error_instance;
         }
@@ -1634,7 +1634,7 @@ init_vk(struct data *data)
                 .queueCreateInfoCount = 1,
                 .pQueueCreateInfos = &(VkDeviceQueueCreateInfo) {
                         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                        .queueFamilyIndex = queue_family,
+                        .queueFamilyIndex = data->vk_queue_family,
                         .queueCount = 1,
                         .pQueuePriorities = (float[]) { 1.0f }
                 },
@@ -1652,13 +1652,13 @@ init_vk(struct data *data)
         fv_vk_init_device(data->vk_device);
 
         fv_vk.vkGetDeviceQueue(data->vk_device,
-                               queue_family,
+                               data->vk_queue_family,
                                0, /* queueIndex */
                                &data->vk_queue);
 
         VkCommandPoolCreateInfo command_pool_create_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                .queueFamilyIndex = queue_family
+                .queueFamilyIndex = data->vk_queue_family
         };
         res = fv_vk.vkCreateCommandPool(data->vk_device,
                                         &command_pool_create_info,
@@ -1848,6 +1848,7 @@ main(int argc, char **argv)
         }
 
         if (!fv_pipeline_data_init(data.vk_device,
+                                   data.vk_queue_family,
                                    data.vk_render_pass,
                                    &data.pipeline_data))
                 goto out_graphics;

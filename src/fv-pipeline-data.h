@@ -37,6 +37,7 @@ enum fv_pipeline_data_attrib {
 
 struct fv_pipeline_data {
         VkDevice device;
+        int queue_family;
         VkDescriptorSetLayout descriptor_set_layout;
         VkPipelineLayout layout;
         VkPipeline map_pipeline;
@@ -44,6 +45,7 @@ struct fv_pipeline_data {
 
 bool
 fv_pipeline_data_init(VkDevice device,
+                      int queue_family,
                       VkRenderPass render_pass,
                       struct fv_pipeline_data *data);
 
