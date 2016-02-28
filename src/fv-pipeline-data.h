@@ -36,6 +36,7 @@ enum fv_pipeline_data_attrib {
 };
 
 struct fv_pipeline_data {
+        VkDevice device;
         VkDescriptorSetLayout descriptor_set_layout;
         VkPipelineLayout layout;
         VkPipeline map_pipeline;
@@ -47,7 +48,6 @@ fv_pipeline_data_init(VkDevice device,
                       struct fv_pipeline_data *data);
 
 void
-fv_pipeline_data_destroy(VkDevice device,
-                         struct fv_pipeline_data *data);
+fv_pipeline_data_destroy(struct fv_pipeline_data *data);
 
 #endif /* FV_PIPELINE_DATA_H */

@@ -1863,8 +1863,7 @@ main(int argc, char **argv)
 
         destroy_framebuffer_resources(&data);
 
-        fv_pipeline_data_destroy(data.vk_device,
-                                 &data.pipeline_data);
+        fv_pipeline_data_destroy(&data.pipeline_data);
 
 out_graphics:
         destroy_graphics(&data);
