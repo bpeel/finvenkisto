@@ -2,6 +2,12 @@
 
 set -e
 
+base_dir=$(dirname "$0")
+
+if test -z "$GLSLC"; then
+    GLSLC="$base_dir/../../../../shaderc/build/glslc/glslc"
+fi
+
 VERTEX_SHADERS=( \
     fv-map-vertex.glsl \
 )
@@ -16,10 +22,11 @@ function compile_shaders() {
 
     for x in "$@"; do
         spirv=$(echo "$x" | sed 's/glsl$/spirv/')
-        ../../../../shaderc/build/glslc/glslc \
+        $GLSLC \
+            -I "$base_dir" \
             -fshader-stage="$stage" \
-            -o "$spirv" \
-            "$x"
+            -o "$base_dir/$spirv" \
+            "$base_dir/$x"
     done
 }
 
