@@ -34,4 +34,9 @@ struct fv_vertex_map {
         uint16_t s, t;
 };
 
+struct fv_vertex_map_push_constants {
+        float transform[16];
+        float normal_transform[9];
+};
+
 #endif /* FV_VERTEX_H */
