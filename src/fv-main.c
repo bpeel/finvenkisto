@@ -1847,7 +1847,8 @@ main(int argc, char **argv)
                 goto out_image_data;
         }
 
-        if (!fv_pipeline_data_init(data.vk_device,
+        if (!fv_pipeline_data_init(data.vk_physical_device,
+                                   data.vk_device,
                                    data.vk_queue_family,
                                    data.vk_render_pass,
                                    &data.pipeline_data))

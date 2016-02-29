@@ -338,7 +338,8 @@ error:
 }
 
 bool
-fv_pipeline_data_init(VkDevice device,
+fv_pipeline_data_init(VkPhysicalDevice physical_device,
+                      VkDevice device,
                       int queue_family,
                       VkRenderPass render_pass,
                       struct fv_pipeline_data *data)
@@ -349,8 +350,12 @@ fv_pipeline_data_init(VkDevice device,
         VkResult res;
         int i;
 
+        data->physical_device = physical_device;
         data->device = device;
         data->queue_family = queue_family;
+
+        fv_vk.vkGetPhysicalDeviceMemoryProperties(data->physical_device,
+                                                  &data->memory_properties);
 
         if (!load_shaders(device, shaders))
                 return false;

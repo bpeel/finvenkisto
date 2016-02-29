@@ -36,15 +36,19 @@ enum fv_pipeline_data_attrib {
 };
 
 struct fv_pipeline_data {
+        VkPhysicalDevice physical_device;
         VkDevice device;
         int queue_family;
         VkDescriptorSetLayout descriptor_set_layout;
         VkPipelineLayout layout;
         VkPipeline map_pipeline;
+
+        VkPhysicalDeviceMemoryProperties memory_properties;
 };
 
 bool
-fv_pipeline_data_init(VkDevice device,
+fv_pipeline_data_init(VkPhysicalDevice physical_device,
+                      VkDevice device,
                       int queue_family,
                       VkRenderPass render_pass,
                       struct fv_pipeline_data *data);
