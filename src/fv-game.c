@@ -29,6 +29,7 @@
 #include "fv-util.h"
 #include "fv-matrix.h"
 #include "fv-transform.h"
+#include "fv-map-painter.h"
 #include "fv-map.h"
 #include "fv-paint-state.h"
 
@@ -48,11 +49,13 @@ struct fv_game {
 
         struct fv_paint_state paint_state;
 
+        struct fv_map_painter *map_painter;
+
         struct fv_matrix base_transform;
 };
 
 struct fv_game *
-fv_game_new(struct fv_pipeline_data *shader_data)
+fv_game_new(struct fv_pipeline_data *pipeline_data)
 {
         struct fv_game *game = fv_calloc(sizeof *game);
 
@@ -65,7 +68,16 @@ fv_game_new(struct fv_pipeline_data *shader_data)
                          -30.0f,
                          1.0f, 0.0f, 0.0f);
 
+        game->map_painter = fv_map_painter_new(pipeline_data);
+        if (game->map_painter == NULL)
+                goto error;
+
         return game;
+
+error:
+        fv_free(game);
+
+        return NULL;
 }
 
 static void
@@ -217,7 +229,8 @@ void
 fv_game_paint(struct fv_game *game,
               float center_x, float center_y,
               int width, int height,
-              struct fv_logic *logic)
+              struct fv_logic *logic,
+              VkCommandBuffer command_buffer)
 {
         game->paint_state.center_x = center_x;
         game->paint_state.center_y = center_y;
@@ -225,10 +238,16 @@ fv_game_paint(struct fv_game *game,
         update_projection(game, width, height);
 
         update_modelview(game, logic);
+
+        fv_map_painter_paint(game->map_painter,
+                             logic,
+                             command_buffer,
+                             &game->paint_state);
 }
 
 void
 fv_game_free(struct fv_game *game)
 {
+        fv_map_painter_free(game->map_painter);
         fv_free(game);
 }

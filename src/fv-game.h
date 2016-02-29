@@ -24,6 +24,7 @@
 
 #include "fv-logic.h"
 #include "fv-pipeline-data.h"
+#include "fv-vk.h"
 
 struct fv_game *
 fv_game_new(struct fv_pipeline_data *pipeline_data);
@@ -32,7 +33,8 @@ void
 fv_game_paint(struct fv_game *game,
               float center_x, float center_y,
               int width, int height,
-              struct fv_logic *logic);
+              struct fv_logic *logic,
+              VkCommandBuffer command_buffer);
 
 bool
 fv_game_covers_framebuffer(struct fv_game *game,

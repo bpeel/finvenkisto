@@ -942,6 +942,7 @@ paint_vk(struct data *data)
 {
         VkCommandBuffer command_buffer;
         VkResult res;
+        int i;
 
         if (data->vk_fb.width != data->fb_width ||
             data->vk_fb.height != data->fb_height) {
@@ -996,28 +997,52 @@ paint_vk(struct data *data)
                                    &render_pass_begin_info,
                                    VK_SUBPASS_CONTENTS_INLINE);
 
-        VkClearAttachment color_clear_attachment = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .colorAttachment = 0,
-                .clearValue = {
-                        .color = {
-                                .float32 = { 0.0f, 0.0f, 0.0f, 0.0f }
-                        }
-                },
-        };
-        VkClearRect color_clear_rect = {
-                .rect = {
-                        .offset = { 0, 0 },
-                        .extent = { data->fb_width, data->fb_height}
-                },
-                .baseArrayLayer = 0,
-                .layerCount = 1
-        };
-        fv_vk.vkCmdClearAttachments(command_buffer,
-                                    1, /* attachmentCount */
-                                    &color_clear_attachment,
-                                    1,
-                                    &color_clear_rect);
+        if (need_clear(data)) {
+                VkClearAttachment color_clear_attachment = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .colorAttachment = 0,
+                        .clearValue = {
+                                .color = {
+                                        .float32 = { 0.0f, 0.0f, 0.0f, 0.0f }
+                                }
+                        },
+                };
+                VkClearRect color_clear_rect = {
+                        .rect = {
+                                .offset = { 0, 0 },
+                                .extent = { data->fb_width, data->fb_height}
+                        },
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                };
+                fv_vk.vkCmdClearAttachments(command_buffer,
+                                            1, /* attachmentCount */
+                                            &color_clear_attachment,
+                                            1,
+                                            &color_clear_rect);
+        }
+
+        for (i = 0; i < data->n_viewports; i++) {
+                VkViewport viewport = {
+                        .x = data->players[i].viewport_x,
+                        .y = data->players[i].viewport_y,
+                        .width = data->players[i].viewport_width,
+                        .height = data->players[i].viewport_height,
+                        .minDepth = 0.0f,
+                        .maxDepth = 1.0f
+                };
+                fv_vk.vkCmdSetViewport(command_buffer,
+                                       0, /* firstViewport */
+                                       1, /* viewportCount */
+                                       &viewport);
+                fv_game_paint(data->graphics.game,
+                              data->players[i].center_x,
+                              data->players[i].center_y,
+                              data->players[i].viewport_width,
+                              data->players[i].viewport_height,
+                              data->logic,
+                              command_buffer);
+        }
 
         fv_vk.vkCmdEndRenderPass(command_buffer);
 
@@ -1224,7 +1249,6 @@ static void
 paint(struct data *data)
 {
         GLbitfield clear_mask = GL_DEPTH_BUFFER_BIT;
-        int i;
 
         if (data->fb_width != data->last_fb_width ||
             data->fb_height != data->last_fb_height) {
@@ -1243,20 +1267,6 @@ paint(struct data *data)
                 clear_mask |= GL_COLOR_BUFFER_BIT;
 
         fv_gl.glClear(clear_mask);
-
-        for (i = 0; i < data->n_viewports; i++) {
-                if (data->n_viewports != 1)
-                        fv_gl.glViewport(data->players[i].viewport_x,
-                                         data->players[i].viewport_y,
-                                         data->players[i].viewport_width,
-                                         data->players[i].viewport_height);
-                fv_game_paint(data->graphics.game,
-                              data->players[i].center_x,
-                              data->players[i].center_y,
-                              data->players[i].viewport_width,
-                              data->players[i].viewport_height,
-                              data->logic);
-        }
 
         if (data->n_viewports != 1)
                 fv_gl.glViewport(0, 0, data->fb_width, data->fb_height);
