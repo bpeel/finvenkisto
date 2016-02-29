@@ -489,8 +489,7 @@ create_graphics(struct data *data)
         if (data->graphics.hud == NULL)
                 goto error;
 
-        data->graphics.game = fv_game_new(data->image_data,
-                                          &data->graphics.shader_data);
+        data->graphics.game = fv_game_new(&data->pipeline_data);
 
         if (data->graphics.game == NULL)
                 goto error;
@@ -1842,17 +1841,17 @@ main(int argc, char **argv)
                 goto out_logic;
         }
 
-        if (!create_graphics(&data)) {
-                ret = EXIT_FAILURE;
-                goto out_image_data;
-        }
-
         if (!fv_pipeline_data_init(data.vk_physical_device,
                                    data.vk_device,
                                    data.vk_queue_family,
                                    data.vk_render_pass,
                                    &data.pipeline_data))
-                goto out_graphics;
+                goto out_image_data;
+
+        if (!create_graphics(&data)) {
+                ret = EXIT_FAILURE;
+                goto out_pipeline_data;
+        }
 
         data.blit_program = create_blit_program();
 
@@ -1865,10 +1864,10 @@ main(int argc, char **argv)
 
         destroy_framebuffer_resources(&data);
 
-        fv_pipeline_data_destroy(&data.pipeline_data);
-
-out_graphics:
         destroy_graphics(&data);
+
+out_pipeline_data:
+        fv_pipeline_data_destroy(&data.pipeline_data);
 out_image_data:
         fv_image_data_free(data.image_data);
 out_logic:

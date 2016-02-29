@@ -29,11 +29,7 @@
 #include "fv-util.h"
 #include "fv-matrix.h"
 #include "fv-transform.h"
-#include "fv-map-painter.h"
-#include "fv-person-painter.h"
-#include "fv-shout-painter.h"
 #include "fv-map.h"
-#include "fv-gl.h"
 #include "fv-paint-state.h"
 
 #define FV_GAME_FRUSTUM_TOP 1.428f
@@ -52,16 +48,11 @@ struct fv_game {
 
         struct fv_paint_state paint_state;
 
-        struct fv_map_painter *map_painter;
-        struct fv_person_painter *person_painter;
-        struct fv_shout_painter *shout_painter;
-
         struct fv_matrix base_transform;
 };
 
 struct fv_game *
-fv_game_new(struct fv_image_data *image_data,
-            struct fv_shader_data *shader_data)
+fv_game_new(struct fv_pipeline_data *shader_data)
 {
         struct fv_game *game = fv_calloc(sizeof *game);
 
@@ -74,28 +65,7 @@ fv_game_new(struct fv_image_data *image_data,
                          -30.0f,
                          1.0f, 0.0f, 0.0f);
 
-        game->map_painter = fv_map_painter_new(image_data, shader_data);
-        if (game->map_painter == NULL)
-                goto error;
-
-        game->person_painter = fv_person_painter_new(image_data, shader_data);
-        if (game->person_painter == NULL)
-                goto error_map;
-
-        game->shout_painter = fv_shout_painter_new(image_data, shader_data);
-        if (game->shout_painter == NULL)
-                goto error_person;
-
         return game;
-
-error_person:
-        fv_person_painter_free(game->person_painter);
-error_map:
-        fv_map_painter_free(game->map_painter);
-error:
-        fv_free(game);
-
-        return NULL;
 }
 
 static void
@@ -255,25 +225,10 @@ fv_game_paint(struct fv_game *game,
         update_projection(game, width, height);
 
         update_modelview(game, logic);
-
-        fv_person_painter_paint(game->person_painter,
-                                logic,
-                                &game->paint_state);
-
-        fv_map_painter_paint(game->map_painter,
-                             logic,
-                             &game->paint_state);
-
-        fv_shout_painter_paint(game->shout_painter,
-                               logic,
-                               &game->paint_state);
 }
 
 void
 fv_game_free(struct fv_game *game)
 {
-        fv_shout_painter_free(game->shout_painter);
-        fv_person_painter_free(game->person_painter);
-        fv_map_painter_free(game->map_painter);
         fv_free(game);
 }
