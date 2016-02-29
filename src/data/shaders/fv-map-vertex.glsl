@@ -24,10 +24,10 @@
 layout(location = 0) in vec4 position;
 layout(location = 1) in vec2 tex_coord_attrib;
 
-layout(std140, set = 0, binding = 0) uniform block {
+layout(std140, push_constant) uniform block {
         uniform mat4 transform;
         uniform mat3 normal_transform;
-};
+} matrices;
 
 layout(location = 0) out float tint;
 
@@ -50,8 +50,8 @@ main()
                         normal.xy = vec2(0.0, normal_sign);
         }
 
-        tint = get_lighting_tint(normal_transform, normal);
+        tint = get_lighting_tint(matrices.normal_transform, normal);
 
-        gl_Position = transform * vec4(position.xyz, 1.0);
+        gl_Position = matrices.transform * vec4(position.xyz, 1.0);
 }
 

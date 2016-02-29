@@ -39,7 +39,6 @@ struct fv_pipeline_data {
         VkPhysicalDevice physical_device;
         VkDevice device;
         int queue_family;
-        VkDescriptorSetLayout descriptor_set_layout;
         VkPipelineLayout layout;
         VkPipeline map_pipeline;
 

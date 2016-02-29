@@ -146,32 +146,17 @@ create_pipelines(VkRenderPass render_pass,
 {
         VkResult res;
 
-        VkDescriptorSetLayoutBinding bindings[] = {
+        VkPushConstantRange push_constant_ranges[] = {
                 {
-                        .binding = 0,
-                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                        .descriptorCount = 1,
                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                        .offset = 0,
+                        .size = sizeof (struct fv_vertex_map_push_constants)
                 }
         };
-        VkDescriptorSetLayoutCreateInfo set_layout_create_info = {
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-                .bindingCount = FV_N_ELEMENTS(bindings),
-                .pBindings = bindings
-        };
-        res = fv_vk.vkCreateDescriptorSetLayout(data->device,
-                                                &set_layout_create_info,
-                                                NULL, /* allocator */
-                                                &data->descriptor_set_layout);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating descriptor set layout");
-                goto error;
-        }
-
         VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-                .setLayoutCount = 1,
-                .pSetLayouts = &data->descriptor_set_layout
+                .pushConstantRangeCount = FV_N_ELEMENTS(push_constant_ranges),
+                .pPushConstantRanges = push_constant_ranges
         };
         res = fv_vk.vkCreatePipelineLayout(data->device,
                                            &pipeline_layout_create_info,
@@ -179,7 +164,7 @@ create_pipelines(VkRenderPass render_pass,
                                            &data->layout);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating pipeline layout");
-                goto error_descriptor_set_layout;
+                goto error;
         }
 
         VkPipelineShaderStageCreateInfo stages[] = {
@@ -329,10 +314,6 @@ error_layout:
         fv_vk.vkDestroyPipelineLayout(data->device,
                                       data->layout,
                                       NULL /* allocator */);
-error_descriptor_set_layout:
-        fv_vk.vkDestroyDescriptorSetLayout(data->device,
-                                           data->descriptor_set_layout,
-                                           NULL /* allocator */);
 error:
         return false;
 }
@@ -400,7 +381,4 @@ fv_pipeline_data_destroy(struct fv_pipeline_data *data)
         fv_vk.vkDestroyPipelineLayout(data->device,
                                       data->layout,
                                       NULL /* allocator */);
-        fv_vk.vkDestroyDescriptorSetLayout(data->device,
-                                           data->descriptor_set_layout,
-                                           NULL /* allocator */);
 }
