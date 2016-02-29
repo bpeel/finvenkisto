@@ -20,18 +20,17 @@
 #ifndef FV_MAP_PAINTER_H
 #define FV_MAP_PAINTER_H
 
-#include "fv-image-data.h"
-#include "fv-shader-data.h"
+#include "fv-pipeline-data.h"
 #include "fv-logic.h"
 #include "fv-paint-state.h"
 
 struct fv_map_painter *
-fv_map_painter_new(struct fv_image_data *image_data,
-                   struct fv_shader_data *shader_data);
+fv_map_painter_new(struct fv_pipeline_data *pipeline_data);
 
 void
 fv_map_painter_paint(struct fv_map_painter *painter,
                      struct fv_logic *logic,
+                     VkCommandBuffer command_buffer,
                      struct fv_paint_state *paint_state);
 
 void
