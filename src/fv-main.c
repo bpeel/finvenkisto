@@ -977,7 +977,7 @@ paint_vk(struct data *data)
         VkClearValue clear_values[] = {
                 [1] = {
                         .depthStencil = {
-                                .depth = 0.0f,
+                                .depth = 1.0f,
                                 .stencil = 0
                         }
                 }
