@@ -178,7 +178,7 @@ update_projection(struct fv_game *game,
 
                 fv_matrix_frustum(&transform->projection,
                                   -right, right,
-                                  -top, top,
+                                  top, -top,
                                   FV_GAME_NEAR_PLANE,
                                   FV_GAME_FAR_PLANE);
 
