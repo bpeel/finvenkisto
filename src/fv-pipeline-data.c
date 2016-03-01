@@ -223,11 +223,8 @@ create_pipelines(VkRenderPass render_pass,
                 .sType =
                 VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
                 .viewportCount = 1,
-                /* actual viewport state is dynamic */
-                .scissorCount = 1,
-                /* scissoring is disabled so it doesn't matter what is here */
-                .pScissors = &(VkRect2D) { .offset = { 0, 0 },
-                                           .extent = { 0, 0 } }
+                .scissorCount = 1
+                /* actual viewport and scissor state is dynamic */
         };
         VkPipelineRasterizationStateCreateInfo rasterization_state = {
                 .sType =
@@ -265,7 +262,8 @@ create_pipelines(VkRenderPass render_pass,
                 .pAttachments = blend_attachments
         };
         VkDynamicState dynamic_states[] = {
-                VK_DYNAMIC_STATE_VIEWPORT
+                VK_DYNAMIC_STATE_VIEWPORT,
+                VK_DYNAMIC_STATE_SCISSOR
         };
         VkPipelineDynamicStateCreateInfo dynamic_state ={
                 .sType =

@@ -1022,6 +1022,15 @@ paint_vk(struct data *data)
                                             &color_clear_rect);
         }
 
+        VkRect2D scissor = {
+                .offset = { .x = 0, .y = 0 },
+                .extent = { .width = data->fb_width, .height = data->fb_height }
+        };
+        fv_vk.vkCmdSetScissor(command_buffer,
+                              0, /* firstScissor */
+                              1, /* scissorCount */
+                              &scissor);
+
         for (i = 0; i < data->n_viewports; i++) {
                 VkViewport viewport = {
                         .x = data->players[i].viewport_x,
