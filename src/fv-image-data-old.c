@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include "fv-image-data.h"
+#include "fv-image-data-old.h"
 #include "fv-data.h"
 #include "fv-util.h"
 #include "fv-error-message.h"
@@ -39,7 +39,7 @@ image_filenames[] = {
 #include "data/fv-image-data-files.h"
 };
 
-struct fv_image_data {
+struct fv_image_data_old {
         struct image_details images[FV_N_ELEMENTS(image_filenames)];
 };
 
@@ -91,10 +91,10 @@ load_image(const char *name,
         return data;
 }
 
-struct fv_image_data *
-fv_image_data_new(void)
+struct fv_image_data_old *
+fv_image_data_old_new(void)
 {
-        struct fv_image_data *data;
+        struct fv_image_data_old *data;
         struct image_details *image;
         int i;
 
@@ -120,8 +120,8 @@ fv_image_data_new(void)
 }
 
 void
-fv_image_data_get_size(struct fv_image_data *data,
-                       enum fv_image_data_image image,
+fv_image_data_old_get_size(struct fv_image_data_old *data,
+                       enum fv_image_data_old_image image,
                        int *width,
                        int *height)
 {
@@ -130,11 +130,11 @@ fv_image_data_get_size(struct fv_image_data *data,
 }
 
 void
-fv_image_data_set_2d(struct fv_image_data *data,
+fv_image_data_old_set_2d(struct fv_image_data_old *data,
                      GLenum target,
                      GLint level,
                      GLint internal_format,
-                     enum fv_image_data_image image)
+                     enum fv_image_data_old_image image)
 {
         const struct image_details *img = data->images + image;
 
@@ -148,11 +148,11 @@ fv_image_data_set_2d(struct fv_image_data *data,
 }
 
 void
-fv_image_data_set_sub_2d(struct fv_image_data *data,
+fv_image_data_old_set_sub_2d(struct fv_image_data_old *data,
                          GLenum target,
                          GLint level,
                          GLint x_offset, GLint y_offset,
-                         enum fv_image_data_image image)
+                         enum fv_image_data_old_image image)
 {
         const struct image_details *img = data->images + image;
 
@@ -165,11 +165,11 @@ fv_image_data_set_sub_2d(struct fv_image_data *data,
 }
 
 void
-fv_image_data_set_sub_3d(struct fv_image_data *data,
+fv_image_data_old_set_sub_3d(struct fv_image_data_old *data,
                          GLenum target,
                          GLint level,
                          GLint x_offset, GLint y_offset, GLint z_offset,
-                         enum fv_image_data_image image)
+                         enum fv_image_data_old_image image)
 {
         const struct image_details *img = data->images + image;
 
@@ -183,7 +183,7 @@ fv_image_data_set_sub_3d(struct fv_image_data *data,
 }
 
 void
-fv_image_data_free(struct fv_image_data *data)
+fv_image_data_old_free(struct fv_image_data_old *data)
 {
         int i;
 

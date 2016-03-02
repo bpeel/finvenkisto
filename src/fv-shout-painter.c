@@ -48,12 +48,12 @@ struct fv_shout_painter {
 
 static void
 load_texture(struct fv_shout_painter *painter,
-             struct fv_image_data *image_data)
+             struct fv_image_data_old *image_data)
 {
         fv_gl.glGenTextures(1, &painter->texture);
         fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
 
-        fv_image_data_set_2d(image_data,
+        fv_image_data_old_set_2d(image_data,
                              GL_TEXTURE_2D,
                              0, /* level */
                              GL_RGBA,
@@ -110,7 +110,7 @@ make_buffer(struct fv_shout_painter *painter)
 }
 
 struct fv_shout_painter *
-fv_shout_painter_new(struct fv_image_data *image_data,
+fv_shout_painter_new(struct fv_image_data_old *image_data,
                      struct fv_shader_data *shader_data)
 {
         struct fv_shout_painter *painter = fv_calloc(sizeof *painter);

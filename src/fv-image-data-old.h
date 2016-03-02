@@ -23,43 +23,43 @@
 #include <stdint.h>
 #include <GL/gl.h>
 
-enum fv_image_data_image {
+enum fv_image_data_old_image {
 #include "data/fv-image-data-enum.h"
 };
 
-struct fv_image_data;
+struct fv_image_data_old;
 
-struct fv_image_data *
-fv_image_data_new(void);
+struct fv_image_data_old *
+fv_image_data_old_new(void);
 
 void
-fv_image_data_get_size(struct fv_image_data *data,
-                       enum fv_image_data_image image,
+fv_image_data_old_get_size(struct fv_image_data_old *data,
+                       enum fv_image_data_old_image image,
                        int *width,
                        int *height);
 
 void
-fv_image_data_set_2d(struct fv_image_data *data,
+fv_image_data_old_set_2d(struct fv_image_data_old *data,
                      GLenum target,
                      GLint level,
                      GLint internal_format,
-                     enum fv_image_data_image image);
+                     enum fv_image_data_old_image image);
 
 void
-fv_image_data_set_sub_2d(struct fv_image_data *data,
+fv_image_data_old_set_sub_2d(struct fv_image_data_old *data,
                          GLenum target,
                          GLint level,
                          GLint x_offset, GLint y_offset,
-                         enum fv_image_data_image image);
+                         enum fv_image_data_old_image image);
 
 void
-fv_image_data_set_sub_3d(struct fv_image_data *data,
+fv_image_data_old_set_sub_3d(struct fv_image_data_old *data,
                          GLenum target,
                          GLint level,
                          GLint x_offset, GLint y_offset, GLint z_offset,
-                         enum fv_image_data_image image);
+                         enum fv_image_data_old_image image);
 
 void
-fv_image_data_free(struct fv_image_data *data);
+fv_image_data_old_free(struct fv_image_data_old *data);
 
 #endif /* FV_IMAGE_H */

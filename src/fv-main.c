@@ -29,7 +29,7 @@
 
 #include "fv-game.h"
 #include "fv-logic.h"
-#include "fv-image-data.h"
+#include "fv-image-data-old.h"
 #include "fv-shader-data.h"
 #include "fv-gl.h"
 #include "fv-vk.h"
@@ -83,7 +83,7 @@ enum menu_state {
 };
 
 struct data {
-        struct fv_image_data *image_data;
+        struct fv_image_data_old *image_data;
 
         Display *display;
         Window x_window;
@@ -1853,7 +1853,7 @@ main(int argc, char **argv)
 
         data.logic = fv_logic_new();
 
-        data.image_data = fv_image_data_new();
+        data.image_data = fv_image_data_old_new();
 
         if (data.image_data == NULL) {
                 ret = EXIT_FAILURE;
@@ -1888,7 +1888,7 @@ main(int argc, char **argv)
 out_pipeline_data:
         fv_pipeline_data_destroy(&data.pipeline_data);
 out_image_data:
-        fv_image_data_free(data.image_data);
+        fv_image_data_old_free(data.image_data);
 out_logic:
         fv_logic_free(data.logic);
 out_window:

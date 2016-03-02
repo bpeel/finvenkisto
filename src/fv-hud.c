@@ -91,7 +91,7 @@ fv_hud_digit_images[] = {
 #define FV_HUD_FINA_VENKO_SLIDE_TIME 1.0f
 
 struct fv_hud *
-fv_hud_new(struct fv_image_data *image_data,
+fv_hud_new(struct fv_image_data_old *image_data,
            struct fv_shader_data *shader_data)
 {
         struct fv_hud *hud;
@@ -102,7 +102,7 @@ fv_hud_new(struct fv_image_data *image_data,
 
         hud = fv_alloc(sizeof *hud);
 
-        fv_image_data_get_size(image_data,
+        fv_image_data_old_get_size(image_data,
                                FV_IMAGE_DATA_HUD,
                                &hud->tex_width,
                                &hud->tex_height);
@@ -115,7 +115,7 @@ fv_hud_new(struct fv_image_data *image_data,
 
         fv_gl.glGenTextures(1, &hud->tex);
         fv_gl.glBindTexture(GL_TEXTURE_2D, hud->tex);
-        fv_image_data_set_2d(image_data,
+        fv_image_data_old_set_2d(image_data,
                              GL_TEXTURE_2D,
                              0, /* level */
                              GL_RGBA,

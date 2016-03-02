@@ -35,7 +35,7 @@
 
 /* Textures to use for the different person types. These must match
  * the order of the enum in fv_person_type */
-enum fv_image_data_image
+enum fv_image_data_old_image
 textures[] = {
         FV_IMAGE_DATA_FINVENKISTO,
         FV_IMAGE_DATA_BAMBO1,
@@ -90,7 +90,7 @@ set_texture_properties(GLenum target)
 
 static void
 set_texture(struct fv_person_painter *painter,
-            struct fv_image_data *image_data,
+            struct fv_image_data_old *image_data,
             int tex_num,
             int tex_width, int tex_height)
 {
@@ -106,7 +106,7 @@ set_texture(struct fv_person_painter *painter,
                                            GL_UNSIGNED_BYTE,
                                            NULL);
                 }
-                fv_image_data_set_sub_3d(image_data,
+                fv_image_data_old_set_sub_3d(image_data,
                                          GL_TEXTURE_2D_ARRAY,
                                          0, /* level */
                                          0, 0, /* x/y offset */
@@ -114,7 +114,7 @@ set_texture(struct fv_person_painter *painter,
                                          textures[tex_num]);
         } else {
                 fv_gl.glBindTexture(GL_TEXTURE_2D, painter->textures[tex_num]);
-                fv_image_data_set_2d(image_data,
+                fv_image_data_old_set_2d(image_data,
                                      GL_TEXTURE_2D,
                                      0, /* level */
                                      GL_RGB,
@@ -126,7 +126,7 @@ set_texture(struct fv_person_painter *painter,
 
 static bool
 load_textures(struct fv_person_painter *painter,
-              struct fv_image_data *image_data)
+              struct fv_image_data_old *image_data)
 {
         int tex_width = -1, tex_height = -1;
         int layer_width, layer_height;
@@ -140,7 +140,7 @@ load_textures(struct fv_person_painter *painter,
         }
 
         for (i = 0; i < FV_N_ELEMENTS(textures); i++) {
-                fv_image_data_get_size(image_data,
+                fv_image_data_old_get_size(image_data,
                                        textures[i],
                                        &layer_width, &layer_height);
 
@@ -250,7 +250,7 @@ set_up_instanced_arrays(struct fv_person_painter *painter)
 }
 
 struct fv_person_painter *
-fv_person_painter_new(struct fv_image_data *image_data,
+fv_person_painter_new(struct fv_image_data_old *image_data,
                       struct fv_shader_data *shader_data)
 {
         struct fv_person_painter *painter = fv_calloc(sizeof *painter);
