@@ -280,7 +280,7 @@ create_shader_from_files(GLenum shader_type,
                 total_length += lengths[i];
         }
 
-        source = fv_alloc(total_length);
+        source = fv_alloc(total_length + 1);
 
         for (p = source, i = 0; i < n_files; i++) {
                 got = fread(p, 1, lengths[i], files[i]);
@@ -297,6 +297,11 @@ create_shader_from_files(GLenum shader_type,
 
                 p += got;
         }
+
+        /* Emscripten's version of glShaderSource seems to ignore the
+         * length and interpret the string as null-terminated.
+         */
+        source[total_length] = '\0';
 
         shader = create_shader(filenames[n_files - 1],
                                shader_type,
