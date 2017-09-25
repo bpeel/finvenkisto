@@ -19,6 +19,8 @@ fv-map.c : fv-map.png make-map.py
 	$(AM_V_GEN)python3 $(srcdir)/make-map.py $(srcdir)/fv-map.png > $@
 
 finvenkisto_SOURCES = \
+	fv-allocate-image-store.c \
+	fv-allocate-image-store.h \
 	fv-array-object.c \
 	fv-array-object.h \
 	fv-buffer.c \

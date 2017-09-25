@@ -41,6 +41,7 @@
 #include "fv-data.h"
 #include "fv-pipeline-data.h"
 #include "fv-vk-data.h"
+#include "fv-allocate-image-store.h"
 
 #define CORE_GL_MAJOR_VERSION 3
 #define CORE_GL_MINOR_VERSION 3
@@ -646,79 +647,6 @@ need_clear(struct data *data)
         return false;
 }
 
-static VkResult
-allocate_image_store(const struct fv_vk_data *vk_data,
-                     uint32_t memory_type_flags,
-                     int n_images,
-                     const VkImage *images,
-                     VkDeviceMemory *memory_out,
-                     int *memory_type_index_out)
-{
-        VkDeviceMemory memory;
-        VkMemoryRequirements reqs;
-        VkResult res;
-        int offset = 0;
-        int *offsets = alloca(sizeof *offsets * n_images);
-        int memory_type_index;
-        uint32_t usable_memory_types = UINT32_MAX;
-        VkDeviceSize granularity;
-        int i;
-
-        granularity = vk_data->device_properties.limits.bufferImageGranularity;
-
-        for (i = 0; i < n_images; i++) {
-                fv_vk.vkGetImageMemoryRequirements(vk_data->device,
-                                                   images[i],
-                                                   &reqs);
-                offset = fv_align(offset, granularity);
-                offset = fv_align(offset, reqs.alignment);
-                offsets[i] = offset;
-                offset += reqs.size;
-
-                usable_memory_types &= reqs.memoryTypeBits;
-        }
-
-        while (usable_memory_types) {
-                i = fv_util_ffs(usable_memory_types) - 1;
-
-                if ((vk_data->memory_properties.memoryTypes[i].propertyFlags &
-                     memory_type_flags) == memory_type_flags) {
-                        memory_type_index = i;
-                        goto found_memory_type;
-                }
-
-                usable_memory_types &= ~(1 << i);
-        }
-
-        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-found_memory_type: (void) 0;
-
-        VkMemoryAllocateInfo allocate_info = {
-                .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                .allocationSize = offset,
-                .memoryTypeIndex = memory_type_index
-        };
-        res = fv_vk.vkAllocateMemory(vk_data->device,
-                                     &allocate_info,
-                                     NULL, /* allocator */
-                                     &memory);
-        if (res != VK_SUCCESS)
-                return res;
-
-        for (i = 0; i < n_images; i++) {
-                fv_vk.vkBindImageMemory(vk_data->device,
-                                        images[i],
-                                        memory,
-                                        offsets[i]);
-        }
-
-        *memory_out = memory;
-        if (memory_type_index_out)
-                *memory_type_index_out = memory_type_index;
-
-        return VK_SUCCESS;
-}
-
 static void
 destroy_framebuffer_resources(struct data *data)
 {
@@ -817,26 +745,26 @@ create_framebuffer_resources(struct data *data)
                 goto error;
         }
 
-        res = allocate_image_store(&data->vk_data,
-                                   0, /* memory_type_flags */
-                                   2, /* n_images */
-                                   (VkImage[]) {
-                                           data->vk_fb.color_image,
-                                           data->vk_fb.depth_image
-                                   },
-                                   &data->vk_fb.memory,
-                                   NULL /* memory_type_index */);
+        res = fv_allocate_image_store(&data->vk_data,
+                                      0, /* memory_type_flags */
+                                      2, /* n_images */
+                                      (VkImage[]) {
+                                              data->vk_fb.color_image,
+                                              data->vk_fb.depth_image
+                                      },
+                                      &data->vk_fb.memory,
+                                      NULL /* memory_type_index */);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error allocating framebuffer memory");
                 goto error;
         }
 
-        res = allocate_image_store(&data->vk_data,
-                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                                   1, /* n_images */
-                                   &data->vk_fb.linear_image,
-                                   &data->vk_fb.linear_memory,
-                                   &linear_memory_type);
+        res = fv_allocate_image_store(&data->vk_data,
+                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                      1, /* n_images */
+                                      &data->vk_fb.linear_image,
+                                      &data->vk_fb.linear_memory,
+                                      &linear_memory_type);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error allocating framebuffer memory");
                 goto error;
