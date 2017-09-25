@@ -55,7 +55,8 @@ struct fv_game {
 };
 
 struct fv_game *
-fv_game_new(struct fv_pipeline_data *pipeline_data)
+fv_game_new(const struct fv_vk_data *vk_data,
+            struct fv_pipeline_data *pipeline_data)
 {
         struct fv_game *game = fv_calloc(sizeof *game);
 
@@ -68,7 +69,8 @@ fv_game_new(struct fv_pipeline_data *pipeline_data)
                          -30.0f,
                          1.0f, 0.0f, 0.0f);
 
-        game->map_painter = fv_map_painter_new(pipeline_data);
+        game->map_painter = fv_map_painter_new(vk_data,
+                                               pipeline_data);
         if (game->map_painter == NULL)
                 goto error;
 

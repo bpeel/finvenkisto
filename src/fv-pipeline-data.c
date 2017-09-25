@@ -144,7 +144,8 @@ error:
 }
 
 static bool
-create_pipelines(VkRenderPass render_pass,
+create_pipelines(const struct fv_vk_data *vk_data,
+                 VkRenderPass render_pass,
                  VkPipelineCache pipeline_cache,
                  VkShaderModule *shaders,
                  struct fv_pipeline_data *data)
@@ -163,7 +164,7 @@ create_pipelines(VkRenderPass render_pass,
                 .pushConstantRangeCount = FV_N_ELEMENTS(push_constant_ranges),
                 .pPushConstantRanges = push_constant_ranges
         };
-        res = fv_vk.vkCreatePipelineLayout(data->device,
+        res = fv_vk.vkCreatePipelineLayout(vk_data->device,
                                            &pipeline_layout_create_info,
                                            NULL, /* allocator */
                                            &data->layout);
@@ -299,7 +300,7 @@ create_pipelines(VkRenderPass render_pass,
         };
         const int n_infos = FV_N_ELEMENTS(pipeline_create_infos);
 
-        res = fv_vk.vkCreateGraphicsPipelines(data->device,
+        res = fv_vk.vkCreateGraphicsPipelines(vk_data->device,
                                               pipeline_cache,
                                               n_infos,
                                               pipeline_create_infos,
@@ -314,7 +315,7 @@ create_pipelines(VkRenderPass render_pass,
         return true;
 
 error_layout:
-        fv_vk.vkDestroyPipelineLayout(data->device,
+        fv_vk.vkDestroyPipelineLayout(vk_data->device,
                                       data->layout,
                                       NULL /* allocator */);
 error:
@@ -322,9 +323,7 @@ error:
 }
 
 bool
-fv_pipeline_data_init(VkPhysicalDevice physical_device,
-                      VkDevice device,
-                      int queue_family,
+fv_pipeline_data_init(const struct fv_vk_data *vk_data,
                       VkRenderPass render_pass,
                       struct fv_pipeline_data *data)
 {
@@ -334,20 +333,13 @@ fv_pipeline_data_init(VkPhysicalDevice physical_device,
         VkResult res;
         int i;
 
-        data->physical_device = physical_device;
-        data->device = device;
-        data->queue_family = queue_family;
-
-        fv_vk.vkGetPhysicalDeviceMemoryProperties(data->physical_device,
-                                                  &data->memory_properties);
-
-        if (!load_shaders(device, shaders))
+        if (!load_shaders(vk_data->device, shaders))
                 return false;
 
         VkPipelineCacheCreateInfo pipeline_cache_create_info = {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO
         };
-        res = fv_vk.vkCreatePipelineCache(device,
+        res = fv_vk.vkCreatePipelineCache(vk_data->device,
                                           &pipeline_cache_create_info,
                                           NULL, /* allocator */
                                           &pipeline_cache);
@@ -355,19 +347,20 @@ fv_pipeline_data_init(VkPhysicalDevice physical_device,
                 fv_error_message("Error creating pipeline cache");
                 ret = false;
         } else {
-                if (!create_pipelines(render_pass,
+                if (!create_pipelines(vk_data,
+                                      render_pass,
                                       pipeline_cache,
                                       shaders,
                                       data))
                         ret = false;
 
-                fv_vk.vkDestroyPipelineCache(device,
+                fv_vk.vkDestroyPipelineCache(vk_data->device,
                                              pipeline_cache,
                                              NULL /* allocator */);
         }
 
         for (i = 0; i < FV_N_ELEMENTS(shader_data); i++) {
-                fv_vk.vkDestroyShaderModule(device,
+                fv_vk.vkDestroyShaderModule(vk_data->device,
                                             shaders[i],
                                             NULL /* allocator */);
         }
@@ -376,12 +369,13 @@ fv_pipeline_data_init(VkPhysicalDevice physical_device,
 }
 
 void
-fv_pipeline_data_destroy(struct fv_pipeline_data *data)
+fv_pipeline_data_destroy(const struct fv_vk_data *vk_data,
+                         struct fv_pipeline_data *data)
 {
-        fv_vk.vkDestroyPipeline(data->device,
+        fv_vk.vkDestroyPipeline(vk_data->device,
                                 data->map_pipeline,
                                 NULL /* allocator */);
-        fv_vk.vkDestroyPipelineLayout(data->device,
+        fv_vk.vkDestroyPipelineLayout(vk_data->device,
                                       data->layout,
                                       NULL /* allocator */);
 }

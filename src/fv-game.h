@@ -25,9 +25,11 @@
 #include "fv-logic.h"
 #include "fv-pipeline-data.h"
 #include "fv-vk.h"
+#include "fv-vk-data.h"
 
 struct fv_game *
-fv_game_new(struct fv_pipeline_data *pipeline_data);
+fv_game_new(const struct fv_vk_data *vk_data,
+            struct fv_pipeline_data *pipeline_data);
 
 void
 fv_game_paint(struct fv_game *game,

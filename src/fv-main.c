@@ -40,6 +40,7 @@
 #include "fv-error-message.h"
 #include "fv-data.h"
 #include "fv-pipeline-data.h"
+#include "fv-vk-data.h"
 
 #define CORE_GL_MAJOR_VERSION 3
 #define CORE_GL_MINOR_VERSION 3
@@ -91,13 +92,9 @@ struct data {
         GLXContext glx_context;
 
         /* Permanant vulkan resources */
+        struct fv_vk_data vk_data;
         VkInstance vk_instance;
-        VkPhysicalDevice vk_physical_device;
-        VkPhysicalDeviceMemoryProperties vk_memory_properties;
-        VkPhysicalDeviceProperties vk_device_properties;
         VkFormat vk_depth_format;
-        VkDevice vk_device;
-        int vk_queue_family;
         VkQueue vk_queue;
         VkCommandPool vk_command_pool;
         VkRenderPass vk_render_pass;
@@ -489,7 +486,8 @@ create_graphics(struct data *data)
         if (data->graphics.hud == NULL)
                 goto error;
 
-        data->graphics.game = fv_game_new(&data->pipeline_data);
+        data->graphics.game = fv_game_new(&data->vk_data,
+                                          &data->pipeline_data);
 
         if (data->graphics.game == NULL)
                 goto error;
@@ -649,7 +647,7 @@ need_clear(struct data *data)
 }
 
 static VkResult
-allocate_image_store(struct data *data,
+allocate_image_store(const struct fv_vk_data *vk_data,
                      uint32_t memory_type_flags,
                      int n_images,
                      const VkImage *images,
@@ -666,10 +664,10 @@ allocate_image_store(struct data *data,
         VkDeviceSize granularity;
         int i;
 
-        granularity = data->vk_device_properties.limits.bufferImageGranularity;
+        granularity = vk_data->device_properties.limits.bufferImageGranularity;
 
         for (i = 0; i < n_images; i++) {
-                fv_vk.vkGetImageMemoryRequirements(data->vk_device,
+                fv_vk.vkGetImageMemoryRequirements(vk_data->device,
                                                    images[i],
                                                    &reqs);
                 offset = fv_align(offset, granularity);
@@ -683,7 +681,7 @@ allocate_image_store(struct data *data,
         while (usable_memory_types) {
                 i = fv_util_ffs(usable_memory_types) - 1;
 
-                if ((data->vk_memory_properties.memoryTypes[i].propertyFlags &
+                if ((vk_data->memory_properties.memoryTypes[i].propertyFlags &
                      memory_type_flags) == memory_type_flags) {
                         memory_type_index = i;
                         goto found_memory_type;
@@ -700,7 +698,7 @@ found_memory_type: (void) 0;
                 .allocationSize = offset,
                 .memoryTypeIndex = memory_type_index
         };
-        res = fv_vk.vkAllocateMemory(data->vk_device,
+        res = fv_vk.vkAllocateMemory(vk_data->device,
                                      &allocate_info,
                                      NULL, /* allocator */
                                      &memory);
@@ -708,7 +706,7 @@ found_memory_type: (void) 0;
                 return res;
 
         for (i = 0; i < n_images; i++) {
-                fv_vk.vkBindImageMemory(data->vk_device,
+                fv_vk.vkBindImageMemory(vk_data->device,
                                         images[i],
                                         memory,
                                         offsets[i]);
@@ -725,38 +723,38 @@ static void
 destroy_framebuffer_resources(struct data *data)
 {
         if (data->vk_fb.depth_image_view)
-                fv_vk.vkDestroyImageView(data->vk_device,
+                fv_vk.vkDestroyImageView(data->vk_data.device,
                                          data->vk_fb.depth_image_view,
                                          NULL /* allocator */);
         if (data->vk_fb.color_image_view)
-                fv_vk.vkDestroyImageView(data->vk_device,
+                fv_vk.vkDestroyImageView(data->vk_data.device,
                                          data->vk_fb.color_image_view,
                                          NULL /* allocator */);
         if (data->vk_fb.framebuffer)
-                fv_vk.vkDestroyFramebuffer(data->vk_device,
+                fv_vk.vkDestroyFramebuffer(data->vk_data.device,
                                            data->vk_fb.framebuffer,
                                            NULL /* allocator */);
         if (data->vk_fb.linear_memory_map)
-                fv_vk.vkUnmapMemory(data->vk_device,
+                fv_vk.vkUnmapMemory(data->vk_data.device,
                                     data->vk_fb.linear_memory);
         if (data->vk_fb.linear_memory)
-                fv_vk.vkFreeMemory(data->vk_device,
+                fv_vk.vkFreeMemory(data->vk_data.device,
                                    data->vk_fb.linear_memory,
                                    NULL /* allocator */);
         if (data->vk_fb.memory)
-                fv_vk.vkFreeMemory(data->vk_device,
+                fv_vk.vkFreeMemory(data->vk_data.device,
                                    data->vk_fb.memory,
                                    NULL /* allocator */);
         if (data->vk_fb.depth_image)
-                fv_vk.vkDestroyImage(data->vk_device,
+                fv_vk.vkDestroyImage(data->vk_data.device,
                                      data->vk_fb.depth_image,
                                      NULL /* allocator */);
         if (data->vk_fb.linear_image)
-                fv_vk.vkDestroyImage(data->vk_device,
+                fv_vk.vkDestroyImage(data->vk_data.device,
                                      data->vk_fb.linear_image,
                                      NULL /* allocator */);
         if (data->vk_fb.color_image)
-                fv_vk.vkDestroyImage(data->vk_device,
+                fv_vk.vkDestroyImage(data->vk_data.device,
                                      data->vk_fb.color_image,
                                      NULL /* allocator */);
 
@@ -787,7 +785,7 @@ create_framebuffer_resources(struct data *data)
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
                 .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
         };
-        res = fv_vk.vkCreateImage(data->vk_device,
+        res = fv_vk.vkCreateImage(data->vk_data.device,
                                   &image_create_info,
                                   NULL, /* allocator */
                                   &data->vk_fb.color_image);
@@ -798,7 +796,7 @@ create_framebuffer_resources(struct data *data)
 
         image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
-        res = fv_vk.vkCreateImage(data->vk_device,
+        res = fv_vk.vkCreateImage(data->vk_data.device,
                                   &image_create_info,
                                   NULL, /* allocator */
                                   &data->vk_fb.linear_image);
@@ -810,7 +808,7 @@ create_framebuffer_resources(struct data *data)
         image_create_info.format = data->vk_depth_format;
         image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
         image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-        res = fv_vk.vkCreateImage(data->vk_device,
+        res = fv_vk.vkCreateImage(data->vk_data.device,
                                   &image_create_info,
                                   NULL, /* allocator */
                                   &data->vk_fb.depth_image);
@@ -819,7 +817,7 @@ create_framebuffer_resources(struct data *data)
                 goto error;
         }
 
-        res = allocate_image_store(data,
+        res = allocate_image_store(&data->vk_data,
                                    0, /* memory_type_flags */
                                    2, /* n_images */
                                    (VkImage[]) {
@@ -833,7 +831,7 @@ create_framebuffer_resources(struct data *data)
                 goto error;
         }
 
-        res = allocate_image_store(data,
+        res = allocate_image_store(&data->vk_data,
                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                                    1, /* n_images */
                                    &data->vk_fb.linear_image,
@@ -845,7 +843,7 @@ create_framebuffer_resources(struct data *data)
         }
 
         data->vk_fb.need_linear_memory_invalidate =
-                (data->vk_memory_properties.
+                (data->vk_data.memory_properties.
                  memoryTypes[linear_memory_type].propertyFlags &
                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0;
 
@@ -855,13 +853,13 @@ create_framebuffer_resources(struct data *data)
                 .arrayLayer = 0
         };
         VkSubresourceLayout linear_layout;
-        fv_vk.vkGetImageSubresourceLayout(data->vk_device,
+        fv_vk.vkGetImageSubresourceLayout(data->vk_data.device,
                                           data->vk_fb.linear_image,
                                           &linear_subresource,
                                           &linear_layout);
         data->vk_fb.linear_memory_stride = linear_layout.rowPitch;
 
-        res = fv_vk.vkMapMemory(data->vk_device,
+        res = fv_vk.vkMapMemory(data->vk_data.device,
                                 data->vk_fb.linear_memory,
                                 0, /* offset */
                                 VK_WHOLE_SIZE,
@@ -891,7 +889,7 @@ create_framebuffer_resources(struct data *data)
                         .layerCount = 1
                 }
         };
-        res = fv_vk.vkCreateImageView(data->vk_device,
+        res = fv_vk.vkCreateImageView(data->vk_data.device,
                                       &image_view_create_info,
                                       NULL, /* allocator */
                                       &data->vk_fb.color_image_view);
@@ -904,7 +902,7 @@ create_framebuffer_resources(struct data *data)
         image_view_create_info.format = data->vk_depth_format;
         image_view_create_info.subresourceRange.aspectMask =
                 VK_IMAGE_ASPECT_DEPTH_BIT;
-        res = fv_vk.vkCreateImageView(data->vk_device,
+        res = fv_vk.vkCreateImageView(data->vk_data.device,
                                       &image_view_create_info,
                                       NULL, /* allocator */
                                       &data->vk_fb.depth_image_view);
@@ -926,7 +924,7 @@ create_framebuffer_resources(struct data *data)
                 .height = data->fb_height,
                 .layers = 1
         };
-        res = fv_vk.vkCreateFramebuffer(data->vk_device,
+        res = fv_vk.vkCreateFramebuffer(data->vk_data.device,
                                         &framebuffer_create_info,
                                         NULL, /* allocator */
                                         &data->vk_fb.framebuffer);
@@ -964,7 +962,7 @@ paint_vk(struct data *data)
                 .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                 .commandBufferCount = 1
         };
-        res = fv_vk.vkAllocateCommandBuffers(data->vk_device,
+        res = fv_vk.vkAllocateCommandBuffers(data->vk_data.device,
                                              &command_buffer_allocate_info,
                                              &command_buffer);
 
@@ -1089,7 +1087,7 @@ paint_vk(struct data *data)
         if (res != VK_SUCCESS)
                 goto error_command_buffer;
 
-        fv_vk.vkResetFences(data->vk_device,
+        fv_vk.vkResetFences(data->vk_data.device,
                             1, /* fenceCount */
                             &data->vk_fence);
 
@@ -1105,7 +1103,7 @@ paint_vk(struct data *data)
         if (res != VK_SUCCESS)
                 goto error_command_buffer;
 
-        res = fv_vk.vkWaitForFences(data->vk_device,
+        res = fv_vk.vkWaitForFences(data->vk_data.device,
                                     1, /* fenceCount */
                                     &data->vk_fence,
                                     VK_TRUE, /* waitAll */
@@ -1120,13 +1118,13 @@ paint_vk(struct data *data)
                         .offset = 0,
                         .size = VK_WHOLE_SIZE
                 };
-                fv_vk.vkInvalidateMappedMemoryRanges(data->vk_device,
+                fv_vk.vkInvalidateMappedMemoryRanges(data->vk_data.device,
                                                      1, /* memoryRangeCount */
                                                      &memory_range);
         }
 
 error_command_buffer:
-        fv_vk.vkFreeCommandBuffers(data->vk_device,
+        fv_vk.vkFreeCommandBuffers(data->vk_data.device,
                                    data->vk_command_pool,
                                    1, /* commandBufferCount */
                                    &command_buffer);
@@ -1549,17 +1547,18 @@ make_window(struct data *data)
 static int
 find_queue_family(struct data *data)
 {
+        VkPhysicalDevice physical_device = data->vk_data.physical_device;
         VkQueueFamilyProperties *queues;
         uint32_t count = 0;
         uint32_t i;
 
-        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(data->vk_physical_device,
+        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
                                                        &count,
                                                        NULL /* queues */);
 
         queues = fv_alloc(sizeof *queues * count);
 
-        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(data->vk_physical_device,
+        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
                                                        &count,
                                                        queues);
 
@@ -1589,7 +1588,7 @@ get_depth_format(struct data *data)
                 VK_FORMAT_D32_SFLOAT
         };
         VkFormatProperties format_properties;
-        VkPhysicalDevice physical_device = data->vk_physical_device;
+        VkPhysicalDevice physical_device = data->vk_data.physical_device;
         int i;
 
         for (i = 0; i < FV_N_ELEMENTS(formats); i++) {
@@ -1607,6 +1606,8 @@ get_depth_format(struct data *data)
 static bool
 init_vk(struct data *data)
 {
+        VkPhysicalDeviceMemoryProperties *memory_properties =
+                &data->vk_data.memory_properties;
         VkResult res;
         uint32_t count = 1;
 
@@ -1631,20 +1632,20 @@ init_vk(struct data *data)
 
         res = fv_vk.vkEnumeratePhysicalDevices(data->vk_instance,
                                                &count,
-                                               &data->vk_physical_device);
+                                               &data->vk_data.physical_device);
         if (res != VK_SUCCESS || count < 1) {
                 fv_error_message("Error enumerating VkPhysicalDevices");
                 goto error_instance;
         }
 
-        fv_vk.vkGetPhysicalDeviceProperties(data->vk_physical_device,
-                                            &data->vk_device_properties);
-        fv_vk.vkGetPhysicalDeviceMemoryProperties(data->vk_physical_device,
-                                                  &data->vk_memory_properties);
+        fv_vk.vkGetPhysicalDeviceProperties(data->vk_data.physical_device,
+                                            &data->vk_data.device_properties);
+        fv_vk.vkGetPhysicalDeviceMemoryProperties(data->vk_data.physical_device,
+                                                  memory_properties);
         data->vk_depth_format = get_depth_format(data);
 
-        data->vk_queue_family = find_queue_family(data);
-        if (data->vk_queue_family == -1) {
+        data->vk_data.queue_family = find_queue_family(data);
+        if (data->vk_data.queue_family == -1) {
                 fv_error_message("No graphics queue found on Vulkan device");
                 goto error_instance;
         }
@@ -1657,33 +1658,33 @@ init_vk(struct data *data)
                 .queueCreateInfoCount = 1,
                 .pQueueCreateInfos = &(VkDeviceQueueCreateInfo) {
                         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                        .queueFamilyIndex = data->vk_queue_family,
+                        .queueFamilyIndex = data->vk_data.queue_family,
                         .queueCount = 1,
                         .pQueuePriorities = (float[]) { 1.0f }
                 },
                 .pEnabledFeatures = &features
         };
-        res = fv_vk.vkCreateDevice(data->vk_physical_device,
+        res = fv_vk.vkCreateDevice(data->vk_data.physical_device,
                                    &device_create_info,
                                    NULL, /* allocator */
-                                   &data->vk_device);
+                                   &data->vk_data.device);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating VkDevice");
                 goto error_instance;
         }
 
-        fv_vk_init_device(data->vk_device);
+        fv_vk_init_device(data->vk_data.device);
 
-        fv_vk.vkGetDeviceQueue(data->vk_device,
-                               data->vk_queue_family,
+        fv_vk.vkGetDeviceQueue(data->vk_data.device,
+                               data->vk_data.queue_family,
                                0, /* queueIndex */
                                &data->vk_queue);
 
         VkCommandPoolCreateInfo command_pool_create_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                .queueFamilyIndex = data->vk_queue_family
+                .queueFamilyIndex = data->vk_data.queue_family
         };
-        res = fv_vk.vkCreateCommandPool(data->vk_device,
+        res = fv_vk.vkCreateCommandPool(data->vk_data.device,
                                         &command_pool_create_info,
                                         NULL, /* allocator */
                                         &data->vk_command_pool);
@@ -1737,7 +1738,7 @@ init_vk(struct data *data)
                 .subpassCount = FV_N_ELEMENTS(subpass_descriptions),
                 .pSubpasses = subpass_descriptions
         };
-        res = fv_vk.vkCreateRenderPass(data->vk_device,
+        res = fv_vk.vkCreateRenderPass(data->vk_data.device,
                                        &render_pass_create_info,
                                        NULL, /* allocator */
                                        &data->vk_render_pass);
@@ -1749,7 +1750,7 @@ init_vk(struct data *data)
         VkFenceCreateInfo fence_create_info = {
                 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
         };
-        res = fv_vk.vkCreateFence(data->vk_device,
+        res = fv_vk.vkCreateFence(data->vk_data.device,
                                   &fence_create_info,
                                   NULL, /* allocator */
                                   &data->vk_fence);
@@ -1763,15 +1764,15 @@ init_vk(struct data *data)
         return true;
 
 error_render_pass:
-        fv_vk.vkDestroyRenderPass(data->vk_device,
+        fv_vk.vkDestroyRenderPass(data->vk_data.device,
                                   data->vk_render_pass,
                                   NULL /* allocator */);
 error_command_pool:
-        fv_vk.vkDestroyCommandPool(data->vk_device,
+        fv_vk.vkDestroyCommandPool(data->vk_data.device,
                                    data->vk_command_pool,
                                    NULL /* allocator */);
 error_device:
-        fv_vk.vkDestroyDevice(data->vk_device,
+        fv_vk.vkDestroyDevice(data->vk_data.device,
                               NULL /* allocator */);
 error_instance:
         fv_vk.vkDestroyInstance(data->vk_instance,
@@ -1782,16 +1783,16 @@ error_instance:
 static void
 deinit_vk(struct data *data)
 {
-        fv_vk.vkDestroyFence(data->vk_device,
+        fv_vk.vkDestroyFence(data->vk_data.device,
                              data->vk_fence,
                              NULL /* allocator */);
-        fv_vk.vkDestroyRenderPass(data->vk_device,
+        fv_vk.vkDestroyRenderPass(data->vk_data.device,
                                   data->vk_render_pass,
                                   NULL /* allocator */);
-        fv_vk.vkDestroyCommandPool(data->vk_device,
+        fv_vk.vkDestroyCommandPool(data->vk_data.device,
                                    data->vk_command_pool,
                                    NULL /* allocator */);
-        fv_vk.vkDestroyDevice(data->vk_device,
+        fv_vk.vkDestroyDevice(data->vk_data.device,
                               NULL /* allocator */);
         fv_vk.vkDestroyInstance(data->vk_instance,
                                 NULL /* allocator */);
@@ -1865,9 +1866,7 @@ main(int argc, char **argv)
                 goto out_logic;
         }
 
-        if (!fv_pipeline_data_init(data.vk_physical_device,
-                                   data.vk_device,
-                                   data.vk_queue_family,
+        if (!fv_pipeline_data_init(&data.vk_data,
                                    data.vk_render_pass,
                                    &data.pipeline_data))
                 goto out_image_data;
@@ -1891,7 +1890,8 @@ main(int argc, char **argv)
         destroy_graphics(&data);
 
 out_pipeline_data:
-        fv_pipeline_data_destroy(&data.pipeline_data);
+        fv_pipeline_data_destroy(&data.vk_data,
+                                 &data.pipeline_data);
 out_image_data:
         fv_image_data_old_free(data.image_data);
 out_logic:

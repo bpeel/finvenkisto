@@ -70,6 +70,7 @@ finvenkisto_SOURCES = \
 	fv-vk.c \
 	fv-vk.h \
 	fv-vk-core-funcs.h \
+	fv-vk-data.h \
 	fv-vk-device-funcs.h \
 	fv-vk-instance-funcs.h \
 	stb_image.h \

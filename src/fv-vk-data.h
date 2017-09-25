@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2014 Neil Roberts
+ * Copyright (C) 2017 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,25 +17,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_MAP_PAINTER_H
-#define FV_MAP_PAINTER_H
+#ifndef FV_VK_DATA_H
+#define FV_VK_DATA_H
 
-#include "fv-pipeline-data.h"
-#include "fv-logic.h"
-#include "fv-paint-state.h"
-#include "fv-vk-data.h"
+#include "fv-vk.h"
 
-struct fv_map_painter *
-fv_map_painter_new(const struct fv_vk_data *vk_data,
-                   const struct fv_pipeline_data *pipeline_data);
+struct fv_vk_data {
+        VkDevice device;
+        VkPhysicalDevice physical_device;
+        VkPhysicalDeviceMemoryProperties memory_properties;
+        VkPhysicalDeviceProperties device_properties;
+        int queue_family;
+};
 
-void
-fv_map_painter_paint(struct fv_map_painter *painter,
-                     struct fv_logic *logic,
-                     VkCommandBuffer command_buffer,
-                     struct fv_paint_state *paint_state);
-
-void
-fv_map_painter_free(struct fv_map_painter *painter);
-
-#endif /* FV_MAP_PAINTER_H */
+#endif /* FV_VK_DATA_H */

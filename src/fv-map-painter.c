@@ -54,7 +54,8 @@ struct fv_map_painter {
         struct fv_map_painter_tile tiles[FV_MAP_TILES_X *
                                          FV_MAP_TILES_Y];
 
-        VkDevice device;
+        const struct fv_vk_data *vk_data;
+
         VkPipeline map_pipeline;
         VkPipelineLayout map_layout;
         VkBuffer map_buffer;
@@ -289,7 +290,8 @@ generate_tile(struct fv_map_painter *painter,
 }
 
 static VkResult
-allocate_buffer_memory(const struct fv_pipeline_data *pipeline_data,
+allocate_buffer_memory(const struct fv_vk_data *vk_data,
+                       const struct fv_pipeline_data *pipeline_data,
                        VkBuffer buffer,
                        VkDeviceMemory *memory_out)
 {
@@ -298,7 +300,7 @@ allocate_buffer_memory(const struct fv_pipeline_data *pipeline_data,
         VkResult res;
         int memory_type_index;
 
-        fv_vk.vkGetBufferMemoryRequirements(pipeline_data->device,
+        fv_vk.vkGetBufferMemoryRequirements(vk_data->device,
                                             buffer,
                                             &reqs);
 
@@ -312,14 +314,14 @@ allocate_buffer_memory(const struct fv_pipeline_data *pipeline_data,
                 .allocationSize = reqs.size,
                 .memoryTypeIndex = memory_type_index
         };
-        res = fv_vk.vkAllocateMemory(pipeline_data->device,
+        res = fv_vk.vkAllocateMemory(vk_data->device,
                                      &allocate_info,
                                      NULL, /* allocator */
                                      &memory);
         if (res != VK_SUCCESS)
                 return res;
 
-        fv_vk.vkBindBufferMemory(pipeline_data->device,
+        fv_vk.vkBindBufferMemory(vk_data->device,
                                  buffer,
                                  memory,
                                  0 /* offset */);
@@ -329,7 +331,8 @@ allocate_buffer_memory(const struct fv_pipeline_data *pipeline_data,
 }
 
 struct fv_map_painter *
-fv_map_painter_new(struct fv_pipeline_data *pipeline_data)
+fv_map_painter_new(const struct fv_vk_data *vk_data,
+                   const struct fv_pipeline_data *pipeline_data)
 {
         struct fv_map_painter *painter;
         struct tile_data data;
@@ -340,7 +343,7 @@ fv_map_painter_new(struct fv_pipeline_data *pipeline_data)
 
         painter = fv_alloc(sizeof *painter);
 
-        painter->device = pipeline_data->device;
+        painter->vk_data = vk_data;
         painter->map_pipeline = pipeline_data->map_pipeline;
         painter->map_layout = pipeline_data->layout;
 
@@ -373,7 +376,7 @@ fv_map_painter_new(struct fv_pipeline_data *pipeline_data)
                           VK_BUFFER_USAGE_INDEX_BUFFER_BIT),
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         };
-        res = fv_vk.vkCreateBuffer(painter->device,
+        res = fv_vk.vkCreateBuffer(vk_data->device,
                                    &buffer_create_info,
                                    NULL, /* allocator */
                                    &painter->map_buffer);
@@ -382,7 +385,8 @@ fv_map_painter_new(struct fv_pipeline_data *pipeline_data)
                 goto error_buffers;
         }
 
-        res = allocate_buffer_memory(pipeline_data,
+        res = allocate_buffer_memory(vk_data,
+                                     pipeline_data,
                                      painter->map_buffer,
                                      &painter->map_memory);
         if (res != VK_SUCCESS) {
@@ -390,7 +394,7 @@ fv_map_painter_new(struct fv_pipeline_data *pipeline_data)
                 goto error_buffer;
         }
 
-        res = fv_vk.vkMapMemory(painter->device,
+        res = fv_vk.vkMapMemory(vk_data->device,
                                 painter->map_memory,
                                 0, /* offset */
                                 VK_WHOLE_SIZE,
@@ -404,7 +408,7 @@ fv_map_painter_new(struct fv_pipeline_data *pipeline_data)
         memcpy((uint8_t *) memory_map + data.indices.length,
                data.vertices.data,
                data.vertices.length);
-        fv_vk.vkUnmapMemory(painter->device, painter->map_memory);
+        fv_vk.vkUnmapMemory(vk_data->device, painter->map_memory);
 
         painter->vertices_offset = data.indices.length;
 
@@ -414,11 +418,11 @@ fv_map_painter_new(struct fv_pipeline_data *pipeline_data)
         return painter;
 
 error_memory:
-        fv_vk.vkFreeMemory(painter->device,
+        fv_vk.vkFreeMemory(vk_data->device,
                            painter->map_memory,
                            NULL /* allocator */);
 error_buffer:
-        fv_vk.vkDestroyBuffer(painter->device,
+        fv_vk.vkDestroyBuffer(vk_data->device,
                               painter->map_buffer,
                               NULL /* allocator */);
 error_buffers:
@@ -513,10 +517,10 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 void
 fv_map_painter_free(struct fv_map_painter *painter)
 {
-        fv_vk.vkFreeMemory(painter->device,
+        fv_vk.vkFreeMemory(painter->vk_data->device,
                            painter->map_memory,
                            NULL /* allocator */);
-        fv_vk.vkDestroyBuffer(painter->device,
+        fv_vk.vkDestroyBuffer(painter->vk_data->device,
                               painter->map_buffer,
                               NULL /* allocator */);
 

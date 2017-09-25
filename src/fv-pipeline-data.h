@@ -22,6 +22,7 @@
 
 #include <stdbool.h>
 #include "fv-vk.h"
+#include "fv-vk-data.h"
 
 enum fv_pipeline_data_program {
         FV_PIPELINE_DATA_PIPELINE_MAP,
@@ -36,23 +37,17 @@ enum fv_pipeline_data_attrib {
 };
 
 struct fv_pipeline_data {
-        VkPhysicalDevice physical_device;
-        VkDevice device;
-        int queue_family;
         VkPipelineLayout layout;
         VkPipeline map_pipeline;
-
-        VkPhysicalDeviceMemoryProperties memory_properties;
 };
 
 bool
-fv_pipeline_data_init(VkPhysicalDevice physical_device,
-                      VkDevice device,
-                      int queue_family,
+fv_pipeline_data_init(const struct fv_vk_data *vk_data,
                       VkRenderPass render_pass,
                       struct fv_pipeline_data *data);
 
 void
-fv_pipeline_data_destroy(struct fv_pipeline_data *data);
+fv_pipeline_data_destroy(const struct fv_vk_data *vk_data,
+                         struct fv_pipeline_data *data);
 
 #endif /* FV_PIPELINE_DATA_H */
