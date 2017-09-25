@@ -648,7 +648,7 @@ need_clear(struct data *data)
         return false;
 }
 
-static bool
+static VkResult
 allocate_image_store(struct data *data,
                      uint32_t memory_type_flags,
                      int n_images,
