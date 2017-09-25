@@ -662,6 +662,7 @@ allocate_image_store(struct data *data,
         int offset = 0;
         int *offsets = alloca(sizeof *offsets * n_images);
         int memory_type_index;
+        uint32_t usable_memory_types = UINT32_MAX;
         VkDeviceSize granularity;
         int i;
 
@@ -676,15 +677,19 @@ allocate_image_store(struct data *data,
                 offsets[i] = offset;
                 offset += reqs.size;
 
-                memory_type_flags |= reqs.memoryTypeBits;
+                usable_memory_types &= reqs.memoryTypeBits;
         }
 
-        for (i = 0; i < data->vk_memory_properties.memoryTypeCount; i++) {
+        while (usable_memory_types) {
+                i = fv_util_ffs(usable_memory_types) - 1;
+
                 if ((data->vk_memory_properties.memoryTypes[i].propertyFlags &
                      memory_type_flags) == memory_type_flags) {
                         memory_type_index = i;
                         goto found_memory_type;
                 }
+
+                usable_memory_types &= ~(1 << i);
         }
 
         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
