@@ -294,27 +294,18 @@ allocate_buffer_memory(const struct fv_pipeline_data *pipeline_data,
                        VkDeviceMemory *memory_out)
 {
         VkDeviceMemory memory;
-        const VkMemoryType *memory_types =
-                pipeline_data->memory_properties.memoryTypes;
         VkMemoryRequirements reqs;
         VkResult res;
         int memory_type_index;
-        int i;
 
         fv_vk.vkGetBufferMemoryRequirements(pipeline_data->device,
                                             buffer,
                                             &reqs);
 
-        for (i = 0; i < pipeline_data->memory_properties.memoryTypeCount; i++) {
-                if ((memory_types[i].propertyFlags & reqs.memoryTypeBits) ==
-                    reqs.memoryTypeBits) {
-                        memory_type_index = i;
-                        goto found_memory_type;
-                }
-        }
+        if (reqs.memoryTypeBits == 0)
+                return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
-        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-found_memory_type: (void) 0;
+        memory_type_index = fv_util_ffs(reqs.memoryTypeBits) - 1;
 
         VkMemoryAllocateInfo allocate_info = {
                 .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
