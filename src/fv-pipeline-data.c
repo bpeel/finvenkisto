@@ -99,8 +99,10 @@ load_shaders(VkDevice device,
 
                 buf = fv_alloc(file_size);
                 got = fread(buf, 1, file_size, file);
-                if (got != file_size)
+                if (got != file_size) {
+                        fv_free(buf);
                         goto error_file;
+                }
 
                 fclose(file);
 
@@ -113,6 +115,9 @@ load_shaders(VkDevice device,
                                                  &shader_module_create_info,
                                                  NULL, /* allocator */
                                                  shaders + i);
+
+                fv_free(buf);
+
                 if (res != VK_SUCCESS) {
                         fv_error_message("Failed to create shader for %s",
                                          shader_data[i].filename);
