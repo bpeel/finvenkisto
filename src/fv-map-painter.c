@@ -378,7 +378,8 @@ fv_map_painter_new(struct fv_pipeline_data *pipeline_data)
         VkBufferCreateInfo buffer_create_info = {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                 .size = data.indices.length + data.vertices.length,
-                .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                .usage = (VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+                          VK_BUFFER_USAGE_INDEX_BUFFER_BIT),
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         };
         res = fv_vk.vkCreateBuffer(painter->device,
