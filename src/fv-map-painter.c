@@ -288,7 +288,7 @@ generate_tile(struct fv_map_painter *painter,
 
 }
 
-static bool
+static VkResult
 allocate_buffer_memory(const struct fv_pipeline_data *pipeline_data,
                        VkBuffer buffer,
                        VkDeviceMemory *memory_out)
