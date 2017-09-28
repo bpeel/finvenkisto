@@ -31,6 +31,7 @@
 #include "fv-vk.h"
 #include "fv-vertex.h"
 #include "fv-error-message.h"
+#include "fv-allocate-store.h"
 
 #define FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE 64
 
@@ -294,47 +295,6 @@ generate_tile(struct fv_map_painter *painter,
 
 }
 
-static VkResult
-allocate_buffer_memory(const struct fv_vk_data *vk_data,
-                       const struct fv_pipeline_data *pipeline_data,
-                       VkBuffer buffer,
-                       VkDeviceMemory *memory_out)
-{
-        VkDeviceMemory memory;
-        VkMemoryRequirements reqs;
-        VkResult res;
-        int memory_type_index;
-
-        fv_vk.vkGetBufferMemoryRequirements(vk_data->device,
-                                            buffer,
-                                            &reqs);
-
-        if (reqs.memoryTypeBits == 0)
-                return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-
-        memory_type_index = fv_util_ffs(reqs.memoryTypeBits) - 1;
-
-        VkMemoryAllocateInfo allocate_info = {
-                .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                .allocationSize = reqs.size,
-                .memoryTypeIndex = memory_type_index
-        };
-        res = fv_vk.vkAllocateMemory(vk_data->device,
-                                     &allocate_info,
-                                     NULL, /* allocator */
-                                     &memory);
-        if (res != VK_SUCCESS)
-                return res;
-
-        fv_vk.vkBindBufferMemory(vk_data->device,
-                                 buffer,
-                                 memory,
-                                 0 /* offset */);
-        *memory_out = memory;
-
-        return VK_SUCCESS;
-}
-
 static bool
 create_texture(struct fv_map_painter *painter,
                const struct fv_image_data *image_data)
@@ -470,6 +430,7 @@ fv_map_painter_new(const struct fv_vk_data *vk_data,
         struct fv_map_painter_tile *tile;
         void *memory_map;
         int tx, ty;
+        int buffer_offset;
         VkResult res;
 
         painter = fv_alloc(sizeof *painter);
@@ -521,10 +482,12 @@ fv_map_painter_new(const struct fv_vk_data *vk_data,
                 goto error_buffers;
         }
 
-        res = allocate_buffer_memory(vk_data,
-                                     pipeline_data,
-                                     painter->map_buffer,
-                                     &painter->map_memory);
+        res = fv_allocate_store_buffer(vk_data,
+                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                       1, /* n_buffers */
+                                       &painter->map_buffer,
+                                       &painter->map_memory,
+                                       &buffer_offset);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating map memory");
                 goto error_buffer;
