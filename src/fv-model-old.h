@@ -17,15 +17,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_MODEL_H
-#define FV_MODEL_H
+#ifndef FV_MODEL_OLD_H
+#define FV_MODEL_OLD_H
 
 #include <stdbool.h>
 #include <GL/gl.h>
 
 #include "fv-array-object.h"
 
-struct fv_model {
+struct fv_model_old {
         struct fv_array_object *array;
         GLuint vertices_buffer;
         GLuint indices_buffer;
@@ -34,13 +34,13 @@ struct fv_model {
 };
 
 bool
-fv_model_load(struct fv_model *model,
+fv_model_old_load(struct fv_model_old *model,
               const char *filename);
 
 void
-fv_model_paint(const struct fv_model *model);
+fv_model_old_paint(const struct fv_model_old *model);
 
 void
-fv_model_destroy(struct fv_model *model);
+fv_model_old_destroy(struct fv_model_old *model);
 
-#endif /* FV_MODEL_H */
+#endif /* FV_MODEL_OLD_H */

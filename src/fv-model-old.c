@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-#include "fv-model.h"
+#include "fv-model-old.h"
 #include "fv-util.h"
 #include "fv-data.h"
 #include "fv-buffer.h"
@@ -56,7 +56,7 @@ properties[] = {
 #define N_PROPERTIES (FV_N_ELEMENTS(properties))
 
 struct data {
-        struct fv_model *model;
+        struct fv_model_old *model;
 
         const char *filename;
 
@@ -260,7 +260,7 @@ set_property_callbacks(struct data *data)
 static void
 create_buffer(struct data *data)
 {
-        struct fv_model *model = data->model;
+        struct fv_model_old *model = data->model;
         GLenum type = GL_FLOAT;
         GLboolean normalized = GL_FALSE;
         GLint attrib;
@@ -318,7 +318,7 @@ create_buffer(struct data *data)
 }
 
 bool
-fv_model_load(struct fv_model *model,
+fv_model_old_load(struct fv_model_old *model,
               const char *filename)
 {
         char *full_filename = fv_data_get_filename(filename);
@@ -368,7 +368,7 @@ fv_model_load(struct fv_model *model,
 }
 
 void
-fv_model_paint(const struct fv_model *model)
+fv_model_old_paint(const struct fv_model_old *model)
 {
         fv_array_object_bind(model->array);
 
@@ -380,7 +380,7 @@ fv_model_paint(const struct fv_model *model)
 }
 
 void
-fv_model_destroy(struct fv_model *model)
+fv_model_old_destroy(struct fv_model_old *model)
 {
         fv_array_object_free(model->array);
         fv_gl.glDeleteBuffers(1, &model->vertices_buffer);

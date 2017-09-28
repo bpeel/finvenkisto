@@ -28,7 +28,7 @@
 #include "fv-util.h"
 #include "fv-matrix.h"
 #include "fv-transform.h"
-#include "fv-model.h"
+#include "fv-model-old.h"
 #include "fv-gl.h"
 #include "fv-error-message.h"
 #include "fv-map-buffer.h"
@@ -47,7 +47,7 @@ textures[] = {
 };
 
 struct fv_person_painter {
-        struct fv_model model;
+        struct fv_model_old model;
 
         GLuint instance_buffer;
 
@@ -263,7 +263,7 @@ fv_person_painter_new(struct fv_image_data_old *image_data,
         painter->program =
                 shader_data->programs[FV_SHADER_DATA_PROGRAM_PERSON];
 
-        if (!fv_model_load(&painter->model, "person.ply"))
+        if (!fv_model_old_load(&painter->model, "person.ply"))
                 goto error;
 
         if (!load_textures(painter, image_data))
@@ -298,7 +298,7 @@ fv_person_painter_new(struct fv_image_data_old *image_data,
         return painter;
 
 error_model:
-        fv_model_destroy(&painter->model);
+        fv_model_old_destroy(&painter->model);
 error:
         fv_free(painter);
 
@@ -406,7 +406,7 @@ paint_person_cb(const struct fv_logic_person *person,
                                          1, /* count */
                                          GL_FALSE, /* transpose */
                                          data->transform.normal_transform);
-                fv_model_paint(&data->painter->model);
+                fv_model_old_paint(&data->painter->model);
         }
 }
 
@@ -447,6 +447,6 @@ fv_person_painter_free(struct fv_person_painter *painter)
         fv_gl.glDeleteTextures(painter->use_instancing
                                ? 1 : FV_N_ELEMENTS(textures),
                                painter->textures);
-        fv_model_destroy(&painter->model);
+        fv_model_old_destroy(&painter->model);
         fv_free(painter);
 }
