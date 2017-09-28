@@ -99,6 +99,7 @@ struct data {
         VkFormat vk_depth_format;
         VkQueue vk_queue;
         VkCommandPool vk_command_pool;
+        VkCommandBuffer vk_command_buffer;
         VkRenderPass vk_render_pass;
         VkFence vk_fence;
 
@@ -923,7 +924,6 @@ error:
 static void
 paint_vk(struct data *data)
 {
-        VkCommandBuffer command_buffer;
         VkResult res;
         int i;
 
@@ -936,26 +936,13 @@ paint_vk(struct data *data)
                 }
         }
 
-        VkCommandBufferAllocateInfo command_buffer_allocate_info = {
-                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                .commandPool = data->vk_command_pool,
-                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                .commandBufferCount = 1
-        };
-        res = fv_vk.vkAllocateCommandBuffers(data->vk_data.device,
-                                             &command_buffer_allocate_info,
-                                             &command_buffer);
-
-        if (res != VK_SUCCESS)
-                return;
-
         VkCommandBufferBeginInfo begin_command_buffer_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
         };
-        res = fv_vk.vkBeginCommandBuffer(command_buffer,
+        res = fv_vk.vkBeginCommandBuffer(data->vk_command_buffer,
                                          &begin_command_buffer_info);
         if (res != VK_SUCCESS)
-                goto error_command_buffer;
+                return;
 
         VkClearValue clear_values[] = {
                 [1] = {
@@ -976,7 +963,7 @@ paint_vk(struct data *data)
                 .clearValueCount = FV_N_ELEMENTS(clear_values),
                 .pClearValues = clear_values
         };
-        fv_vk.vkCmdBeginRenderPass(command_buffer,
+        fv_vk.vkCmdBeginRenderPass(data->vk_command_buffer,
                                    &render_pass_begin_info,
                                    VK_SUBPASS_CONTENTS_INLINE);
 
@@ -998,7 +985,7 @@ paint_vk(struct data *data)
                         .baseArrayLayer = 0,
                         .layerCount = 1
                 };
-                fv_vk.vkCmdClearAttachments(command_buffer,
+                fv_vk.vkCmdClearAttachments(data->vk_command_buffer,
                                             1, /* attachmentCount */
                                             &color_clear_attachment,
                                             1,
@@ -1009,7 +996,7 @@ paint_vk(struct data *data)
                 .offset = { .x = 0, .y = 0 },
                 .extent = { .width = data->fb_width, .height = data->fb_height }
         };
-        fv_vk.vkCmdSetScissor(command_buffer,
+        fv_vk.vkCmdSetScissor(data->vk_command_buffer,
                               0, /* firstScissor */
                               1, /* scissorCount */
                               &scissor);
@@ -1023,7 +1010,7 @@ paint_vk(struct data *data)
                         .minDepth = 0.0f,
                         .maxDepth = 1.0f
                 };
-                fv_vk.vkCmdSetViewport(command_buffer,
+                fv_vk.vkCmdSetViewport(data->vk_command_buffer,
                                        0, /* firstViewport */
                                        1, /* viewportCount */
                                        &viewport);
@@ -1033,10 +1020,10 @@ paint_vk(struct data *data)
                               data->players[i].viewport_width,
                               data->players[i].viewport_height,
                               data->logic,
-                              command_buffer);
+                              data->vk_command_buffer);
         }
 
-        fv_vk.vkCmdEndRenderPass(command_buffer);
+        fv_vk.vkCmdEndRenderPass(data->vk_command_buffer);
 
         VkImageCopy copy_region = {
                 .srcSubresource = {
@@ -1055,7 +1042,7 @@ paint_vk(struct data *data)
                 .dstOffset = { 0, 0, 0 },
                 .extent = { data->fb_width, data->fb_height, 1 }
         };
-        fv_vk.vkCmdCopyImage(command_buffer,
+        fv_vk.vkCmdCopyImage(data->vk_command_buffer,
                              data->vk_fb.color_image,
                              VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                              data->vk_fb.linear_image,
@@ -1063,9 +1050,9 @@ paint_vk(struct data *data)
                              1, /* regionCount */
                              &copy_region);
 
-        res = fv_vk.vkEndCommandBuffer(command_buffer);
+        res = fv_vk.vkEndCommandBuffer(data->vk_command_buffer);
         if (res != VK_SUCCESS)
-                goto error_command_buffer;
+                return;
 
         fv_vk.vkResetFences(data->vk_data.device,
                             1, /* fenceCount */
@@ -1074,14 +1061,14 @@ paint_vk(struct data *data)
         VkSubmitInfo submit_info = {
                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                 .commandBufferCount = 1,
-                .pCommandBuffers = &command_buffer,
+                .pCommandBuffers = &data->vk_command_buffer,
         };
         res = fv_vk.vkQueueSubmit(data->vk_queue,
                                   1, /* submitCount */
                                   &submit_info,
                                   data->vk_fence);
         if (res != VK_SUCCESS)
-                goto error_command_buffer;
+                return;
 
         res = fv_vk.vkWaitForFences(data->vk_data.device,
                                     1, /* fenceCount */
@@ -1089,7 +1076,7 @@ paint_vk(struct data *data)
                                     VK_TRUE, /* waitAll */
                                     UINT64_MAX);
         if (res != VK_SUCCESS)
-                goto error_command_buffer;
+                return;
 
         if (data->vk_fb.need_linear_memory_invalidate) {
                 VkMappedMemoryRange memory_range = {
@@ -1102,12 +1089,6 @@ paint_vk(struct data *data)
                                                      1, /* memoryRangeCount */
                                                      &memory_range);
         }
-
-error_command_buffer:
-        fv_vk.vkFreeCommandBuffers(data->vk_data.device,
-                                   data->vk_command_pool,
-                                   1, /* commandBufferCount */
-                                   &command_buffer);
 }
 
 static GLuint
@@ -1662,6 +1643,7 @@ init_vk(struct data *data)
 
         VkCommandPoolCreateInfo command_pool_create_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
                 .queueFamilyIndex = data->vk_data.queue_family
         };
         res = fv_vk.vkCreateCommandPool(data->vk_data.device,
@@ -1671,6 +1653,21 @@ init_vk(struct data *data)
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating VkCommandPool");
                 goto error_device;
+        }
+
+        VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                .commandPool = data->vk_command_pool,
+                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                .commandBufferCount = 1
+        };
+        res = fv_vk.vkAllocateCommandBuffers(data->vk_data.device,
+                                             &command_buffer_allocate_info,
+                                             &data->vk_command_buffer);
+
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating command buffer");
+                goto error_command_pool;
         }
 
         VkDescriptorPoolSize pool_size = {
@@ -1690,7 +1687,7 @@ init_vk(struct data *data)
                                            &data->vk_data.descriptor_pool);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating VkDescriptorPool");
-                goto error_command_pool;
+                goto error_command_buffer;
         }
 
         VkAttachmentDescription attachment_descriptions[] = {
@@ -1771,6 +1768,11 @@ error_descriptor_pool:
         fv_vk.vkDestroyDescriptorPool(data->vk_data.device,
                                       data->vk_data.descriptor_pool,
                                       NULL /* allocator */);
+error_command_buffer:
+        fv_vk.vkFreeCommandBuffers(data->vk_data.device,
+                                   data->vk_command_pool,
+                                   1, /* commandBufferCount */
+                                   &data->vk_command_buffer);
 error_command_pool:
         fv_vk.vkDestroyCommandPool(data->vk_data.device,
                                    data->vk_command_pool,
@@ -1796,6 +1798,10 @@ deinit_vk(struct data *data)
         fv_vk.vkDestroyDescriptorPool(data->vk_data.device,
                                       data->vk_data.descriptor_pool,
                                       NULL /* allocator */);
+        fv_vk.vkFreeCommandBuffers(data->vk_data.device,
+                                   data->vk_command_pool,
+                                   1, /* commandBufferCount */
+                                   &data->vk_command_buffer);
         fv_vk.vkDestroyCommandPool(data->vk_data.device,
                                    data->vk_command_pool,
                                    NULL /* allocator */);
