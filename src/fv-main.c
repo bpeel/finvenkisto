@@ -30,6 +30,7 @@
 #include "fv-game.h"
 #include "fv-logic.h"
 #include "fv-image-data-old.h"
+#include "fv-image-data.h"
 #include "fv-shader-data.h"
 #include "fv-gl.h"
 #include "fv-vk.h"
@@ -463,6 +464,32 @@ destroy_graphics(struct data *data)
 static bool
 create_graphics(struct data *data)
 {
+        VkCommandBuffer command_buffer;
+        struct fv_image_data *image_data;
+        VkResult res;
+
+        VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                .commandPool = data->vk_command_pool,
+                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                .commandBufferCount = 1
+        };
+        res = fv_vk.vkAllocateCommandBuffers(data->vk_data.device,
+                                             &command_buffer_allocate_info,
+                                             &command_buffer);
+        if (res != VK_SUCCESS)
+                return false;
+
+        VkCommandBufferBeginInfo command_buffer_begin_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+        };
+        fv_vk.vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
+
+        image_data = fv_image_data_new(&data->vk_data, command_buffer);
+        if (image_data == NULL)
+                goto error_command_buffer;
+
         memset(&data->graphics, 0, sizeof data->graphics);
 
         /* All of the painting functions expect to have the default
@@ -488,15 +515,40 @@ create_graphics(struct data *data)
                 goto error;
 
         data->graphics.game = fv_game_new(&data->vk_data,
-                                          &data->pipeline_data);
+                                          &data->pipeline_data,
+                                          image_data);
 
         if (data->graphics.game == NULL)
                 goto error;
+
+        fv_vk.vkEndCommandBuffer(command_buffer);
+
+        VkSubmitInfo submitInfo = {
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                .commandBufferCount = 1,
+                .pCommandBuffers = &command_buffer
+        };
+        fv_vk.vkQueueSubmit(data->vk_queue, 1, &submitInfo, VK_NULL_HANDLE);
+
+        fv_vk.vkQueueWaitIdle(data->vk_queue);
+
+        fv_image_data_free(image_data);
+
+        fv_vk.vkFreeCommandBuffers(data->vk_data.device,
+                                   data->vk_command_pool,
+                                   1, /* commandBufferCount */
+                                   &command_buffer);
 
         return true;
 
 error:
         destroy_graphics(data);
+        fv_image_data_free(image_data);
+error_command_buffer:
+        fv_vk.vkFreeCommandBuffers(data->vk_data.device,
+                                   data->vk_command_pool,
+                                   1, /* commandBufferCount */
+                                   &command_buffer);
         return false;
 }
 

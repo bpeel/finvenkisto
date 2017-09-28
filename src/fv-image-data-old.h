@@ -22,9 +22,11 @@
 
 #include <stdint.h>
 #include <GL/gl.h>
+#include "fv-image-data.h"
 
 enum fv_image_data_old_image {
-#include "data/fv-image-data-enum.h"
+/*#include "data/fv-image-data-enum.h"*/
+        FV_IMAGE_DATA_STUB
 };
 
 struct fv_image_data_old;

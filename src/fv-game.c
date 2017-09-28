@@ -56,7 +56,8 @@ struct fv_game {
 
 struct fv_game *
 fv_game_new(const struct fv_vk_data *vk_data,
-            struct fv_pipeline_data *pipeline_data)
+            struct fv_pipeline_data *pipeline_data,
+            const struct fv_image_data *image_data)
 {
         struct fv_game *game = fv_calloc(sizeof *game);
 
