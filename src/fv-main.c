@@ -41,7 +41,7 @@
 #include "fv-data.h"
 #include "fv-pipeline-data.h"
 #include "fv-vk-data.h"
-#include "fv-allocate-image-store.h"
+#include "fv-allocate-store.h"
 
 #define CORE_GL_MAJOR_VERSION 3
 #define CORE_GL_MINOR_VERSION 3
@@ -745,7 +745,7 @@ create_framebuffer_resources(struct data *data)
                 goto error;
         }
 
-        res = fv_allocate_image_store(&data->vk_data,
+        res = fv_allocate_store_image(&data->vk_data,
                                       0, /* memory_type_flags */
                                       2, /* n_images */
                                       (VkImage[]) {
@@ -759,7 +759,7 @@ create_framebuffer_resources(struct data *data)
                 goto error;
         }
 
-        res = fv_allocate_image_store(&data->vk_data,
+        res = fv_allocate_store_image(&data->vk_data,
                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                                       1, /* n_images */
                                       &data->vk_fb.linear_image,
