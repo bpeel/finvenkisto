@@ -119,6 +119,8 @@ IMAGES = \
 	toiletguy.png \
 	$(NULL)
 
+MIPMAP_IMAGES = $(IMAGES:.png=.mipng)
+
 spirvdir = $(datadir)/finvenkisto/shaders
 dist_spirv_DATA = \
 	$(SPIRV) \
@@ -132,11 +134,12 @@ NON_IMAGES = \
 
 imagesdir = $(datadir)/finvenkisto
 dist_images_DATA = \
-	$(IMAGES) \
+	$(MIPMAP_IMAGES) \
 	$(NON_IMAGES) \
 	$(NULL)
 
 EXTRA_DIST = \
+	$(MIPMAP_IMAGES) \
 	$(HUD_SVGS) \
 	$(HUD_PNGS) \
 	$(OTHER_SVGS) \
@@ -149,6 +152,7 @@ EXTRA_DIST = \
 	make-atlas.py \
 	make-digits.py \
 	make-map-texture.py \
+	make-miping.py \
 	hud/digits-stamp \
 	hud-stamp \
 	$(HUD_DIGITS) \
@@ -161,6 +165,9 @@ EXTRA_DIST = \
 	$(AM_V_GEN)mkdir -p `dirname $@`
 	$(AM_V_at)inkscape -e $@ $<
 
+.png.mipng : make-miping.py
+	$(AM_V_GEN)$(srcdir)/make-miping.py $< $@
+
 hud.png hud-layout.h : hud-stamp
 
 hud-stamp : $(HUD_PNGS) make-atlas.py
@@ -169,19 +176,20 @@ hud-stamp : $(HUD_PNGS) make-atlas.py
 	hud.png hud-layout.h $(filter %.png,$^)
 	$(AM_V_at)touch $@
 
-fv-image-data-stamp : $(IMAGES)
-	$(AM_V_GEN)for x in $(IMAGES); do \
+fv-image-data-stamp : $(MIPMAP_IMAGES)
+	$(AM_V_GEN)for x in $(MIPMAP_IMAGES); do \
 	echo "$$x" | \
 	sed -e 's/\..*$$/,/' -e 's/^/fv_image_data_/' -e 's/-/_/g' \
 	| tr '[a-z]' '[A-Z]'; \
 	done > fv-image-data-enum.h
-	$(AM_V_at)for x in $(IMAGES); \
+	$(AM_V_at)for x in $(MIPMAP_IMAGES); \
 	do echo "\"$$x\"," ; \
 	done > fv-image-data-files.h
 	$(AM_V_at)touch $@
 
 DISTCLEANFILES = \
 	$(HUD_PNGS) \
+	$(MIPMAP_IMAGES) \
 	hud-layout.h \
 	fv-image-data-enum.h \
 	fv-image-data-files.h \

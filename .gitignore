@@ -39,5 +39,6 @@
 /src/data/hud/digits-stamp
 /src/data/hud-stamp
 /src/data/nekrokodilu.png
+/src/data/*.mipng
 *.o
 .deps
