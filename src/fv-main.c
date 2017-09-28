@@ -1673,6 +1673,26 @@ init_vk(struct data *data)
                 goto error_device;
         }
 
+        VkDescriptorPoolSize pool_size = {
+                .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount = 1
+        };
+        VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+                .maxSets = 1,
+                .poolSizeCount = 1,
+                .pPoolSizes = &pool_size
+        };
+        res = fv_vk.vkCreateDescriptorPool(data->vk_data.device,
+                                           &descriptor_pool_create_info,
+                                           NULL, /* allocator */
+                                           &data->vk_data.descriptor_pool);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating VkDescriptorPool");
+                goto error_command_pool;
+        }
+
         VkAttachmentDescription attachment_descriptions[] = {
                 {
                         .format = COLOR_IMAGE_FORMAT,
@@ -1724,7 +1744,7 @@ init_vk(struct data *data)
                                        &data->vk_render_pass);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating render pass");
-                goto error_command_pool;
+                goto error_descriptor_pool;
         }
 
         VkFenceCreateInfo fence_create_info = {
@@ -1747,6 +1767,10 @@ error_render_pass:
         fv_vk.vkDestroyRenderPass(data->vk_data.device,
                                   data->vk_render_pass,
                                   NULL /* allocator */);
+error_descriptor_pool:
+        fv_vk.vkDestroyDescriptorPool(data->vk_data.device,
+                                      data->vk_data.descriptor_pool,
+                                      NULL /* allocator */);
 error_command_pool:
         fv_vk.vkDestroyCommandPool(data->vk_data.device,
                                    data->vk_command_pool,
@@ -1769,6 +1793,9 @@ deinit_vk(struct data *data)
         fv_vk.vkDestroyRenderPass(data->vk_data.device,
                                   data->vk_render_pass,
                                   NULL /* allocator */);
+        fv_vk.vkDestroyDescriptorPool(data->vk_data.device,
+                                      data->vk_data.descriptor_pool,
+                                      NULL /* allocator */);
         fv_vk.vkDestroyCommandPool(data->vk_data.device,
                                    data->vk_command_pool,
                                    NULL /* allocator */);

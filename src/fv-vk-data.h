@@ -27,6 +27,7 @@ struct fv_vk_data {
         VkPhysicalDevice physical_device;
         VkPhysicalDeviceMemoryProperties memory_properties;
         VkPhysicalDeviceProperties device_properties;
+        VkDescriptorPool descriptor_pool;
         int queue_family;
 };
 

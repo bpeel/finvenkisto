@@ -60,6 +60,11 @@ struct fv_map_painter {
         VkPipelineLayout map_layout;
         VkBuffer map_buffer;
         VkDeviceMemory map_memory;
+        VkImage texture_image;
+        VkDeviceMemory texture_memory;
+        VkImageView texture_view;
+        VkSampler sampler;
+        VkDescriptorSet descriptor_set;
 
         VkDeviceSize vertices_offset;
 
@@ -330,9 +335,135 @@ allocate_buffer_memory(const struct fv_vk_data *vk_data,
         return VK_SUCCESS;
 }
 
+static bool
+create_texture(struct fv_map_painter *painter,
+               const struct fv_image_data *image_data)
+{
+        VkResult res;
+
+        fv_image_data_get_size(image_data,
+                               FV_IMAGE_DATA_MAP_TEXTURE,
+                               &painter->texture_width,
+                               &painter->texture_height);
+        res = fv_image_data_create_image_2d(image_data,
+                                            FV_IMAGE_DATA_MAP_TEXTURE,
+                                            &painter->texture_image,
+                                            &painter->texture_memory);
+        if (res != VK_SUCCESS)
+                return false;
+
+        VkImageViewCreateInfo image_view_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = painter->texture_image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = fv_image_data_get_format(image_data,
+                                                   FV_IMAGE_DATA_MAP_TEXTURE),
+                .components = {
+                        .r = VK_COMPONENT_SWIZZLE_R,
+                        .g = VK_COMPONENT_SWIZZLE_G,
+                        .b = VK_COMPONENT_SWIZZLE_B,
+                        .a = VK_COMPONENT_SWIZZLE_A
+                },
+                .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount =
+                        fv_image_data_get_miplevels(image_data,
+                                                    FV_IMAGE_DATA_MAP_TEXTURE),
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                }
+        };
+        res = fv_vk.vkCreateImageView(painter->vk_data->device,
+                                      &image_view_create_info,
+                                      NULL, /* allocator */
+                                      &painter->texture_view);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating image view");
+                fv_vk.vkDestroyImage(painter->vk_data->device,
+                                     painter->texture_image,
+                                     NULL /* allocator */);
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+create_sampler(struct fv_map_painter *painter)
+{
+        VkResult res;
+
+        VkSamplerCreateInfo sampler_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                .magFilter = VK_FILTER_LINEAR,
+                .minFilter = VK_FILTER_LINEAR,
+                .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+                .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .anisotropyEnable = VK_TRUE,
+                .maxAnisotropy = 16
+        };
+        res = fv_vk.vkCreateSampler(painter->vk_data->device,
+                                    &sampler_create_info,
+                                    NULL, /* allocator */
+                                    &painter->sampler);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating sampler");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+create_descriptor_set(struct fv_map_painter *painter,
+                      const struct fv_pipeline_data *pipeline_data)
+{
+        VkResult res;
+
+        VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = painter->vk_data->descriptor_pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &pipeline_data->dsl
+        };
+        res = fv_vk.vkAllocateDescriptorSets(painter->vk_data->device,
+                                             &descriptor_set_allocate_info,
+                                             &painter->descriptor_set);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error allocating descriptor set");
+                return false;
+        }
+
+        VkDescriptorImageInfo descriptor_image_info = {
+                .sampler = painter->sampler,
+                .imageView = painter->texture_view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        };
+        VkWriteDescriptorSet write_descriptor_set = {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = painter->descriptor_set,
+                .dstBinding = 0,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo = &descriptor_image_info
+        };
+        fv_vk.vkUpdateDescriptorSets(painter->vk_data->device,
+                                     1, /* descriptorWriteCount */
+                                     &write_descriptor_set,
+                                     0, /* descriptorCopyCount */
+                                     NULL /* pDescriptorCopies */);
+
+        return true;
+}
+
 struct fv_map_painter *
 fv_map_painter_new(const struct fv_vk_data *vk_data,
-                   const struct fv_pipeline_data *pipeline_data)
+                   const struct fv_pipeline_data *pipeline_data,
+                   const struct fv_image_data *image_data)
 {
         struct fv_map_painter *painter;
         struct tile_data data;
@@ -347,9 +478,14 @@ fv_map_painter_new(const struct fv_vk_data *vk_data,
         painter->map_pipeline = pipeline_data->map_pipeline;
         painter->map_layout = pipeline_data->layout;
 
-        /* STUB */
-        painter->texture_width = 256;
-        painter->texture_height = 256;
+        if (!create_texture(painter, image_data))
+                goto error;
+
+        if (!create_sampler(painter))
+                goto error_image;
+
+        if (!create_descriptor_set(painter, pipeline_data))
+                goto error_sampler;
 
         fv_buffer_init(&data.vertices);
         fv_buffer_init(&data.indices);
@@ -428,7 +564,22 @@ error_buffer:
 error_buffers:
         fv_buffer_destroy(&data.indices);
         fv_buffer_destroy(&data.vertices);
-
+        fv_vk.vkFreeDescriptorSets(painter->vk_data->device,
+                                   painter->vk_data->descriptor_pool,
+                                   1, /* descriptorSetCount */
+                                   &painter->descriptor_set);
+error_sampler:
+        fv_vk.vkDestroySampler(painter->vk_data->device,
+                               painter->sampler,
+                               NULL /* allocator */);
+error_image:
+        fv_vk.vkFreeMemory(painter->vk_data->device,
+                           painter->texture_memory,
+                           NULL /* allocator */);
+        fv_vk.vkDestroyImage(painter->vk_data->device,
+                              painter->texture_image,
+                              NULL /* allocator */);
+error:
         fv_free(painter);
 
         return NULL;
@@ -472,6 +623,14 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         fv_vk.vkCmdBindPipeline(command_buffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 painter->map_pipeline);
+        fv_vk.vkCmdBindDescriptorSets(command_buffer,
+                                      VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                      painter->map_layout,
+                                      0, /* firstSet */
+                                      1, /* descriptorSetCount */
+                                      &painter->descriptor_set,
+                                      0, /* dynamicOffsetCount */
+                                      NULL /* pDynamicOffsets */);
         fv_vk.vkCmdPushConstants(command_buffer,
                                  painter->map_layout,
                                  VK_SHADER_STAGE_VERTEX_BIT,
@@ -522,6 +681,19 @@ fv_map_painter_free(struct fv_map_painter *painter)
                            NULL /* allocator */);
         fv_vk.vkDestroyBuffer(painter->vk_data->device,
                               painter->map_buffer,
+                              NULL /* allocator */);
+        fv_vk.vkFreeDescriptorSets(painter->vk_data->device,
+                                   painter->vk_data->descriptor_pool,
+                                   1, /* descriptorSetCount */
+                                   &painter->descriptor_set);
+        fv_vk.vkDestroySampler(painter->vk_data->device,
+                               painter->sampler,
+                               NULL /* allocator */);
+        fv_vk.vkFreeMemory(painter->vk_data->device,
+                           painter->texture_memory,
+                           NULL /* allocator */);
+        fv_vk.vkDestroyImage(painter->vk_data->device,
+                              painter->texture_image,
                               NULL /* allocator */);
 
         fv_free(painter);

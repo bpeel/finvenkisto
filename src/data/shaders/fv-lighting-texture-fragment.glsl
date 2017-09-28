@@ -3,7 +3,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2014, 2015, 2016 Neil Roberts
+ * Copyright (C) 2014, 2015, 2016, 2017 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,10 +20,12 @@
  */
 
 layout(location = 0) in float tint;
+layout(location = 1) in vec2 tex_coord;
 layout(location = 0) out vec4 frag_color;
+layout(binding = 0) uniform sampler2D tex;
 
 void
 main()
 {
-        frag_color = vec4(vec3(tint), 1.0);
+        frag_color = vec4(texture(tex, tex_coord).rgb * tint, 1.0);
 }

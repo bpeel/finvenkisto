@@ -30,6 +30,7 @@ layout(std140, push_constant) uniform block {
 } matrices;
 
 layout(location = 0) out float tint;
+layout(location = 1) out vec2 tex_coord;
 
 void
 main()
@@ -53,5 +54,6 @@ main()
         tint = get_lighting_tint(matrices.normal_transform, normal);
 
         gl_Position = matrices.transform * vec4(position.xyz, 1.0);
+        tex_coord = tex_coord_attrib;
 }
 

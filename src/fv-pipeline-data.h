@@ -37,6 +37,7 @@ enum fv_pipeline_data_attrib {
 };
 
 struct fv_pipeline_data {
+        VkDescriptorSetLayout dsl;
         VkPipelineLayout layout;
         VkPipeline map_pipeline;
 };
