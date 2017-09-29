@@ -167,13 +167,15 @@ create_pipelines(const struct fv_vk_data *vk_data,
                 .bindingCount = FV_N_ELEMENTS(descriptor_set_layout_bindings),
                 .pBindings = descriptor_set_layout_bindings
         };
+        VkDescriptorSetLayout *dsl = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE;
         res = fv_vk.vkCreateDescriptorSetLayout(vk_data->device,
                                                 &dsl_create_info,
                                                 NULL, /* allocator */
-                                                &data->dsl);
+                                                dsl);
         if (res != VK_SUCCESS) {
+                *dsl = NULL;
                 fv_error_message("Error creating descriptor set layout");
-                goto error;
+                return false;
         }
 
         VkPushConstantRange push_constant_ranges[] = {
@@ -189,15 +191,18 @@ create_pipelines(const struct fv_vk_data *vk_data,
                 .pushConstantRangeCount = FV_N_ELEMENTS(push_constant_ranges),
                 .pPushConstantRanges = push_constant_ranges,
                 .setLayoutCount = 1,
-                .pSetLayouts = &data->dsl
+                .pSetLayouts = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE
         };
+        VkPipelineLayout *layout =
+                data->layouts + FV_PIPELINE_DATA_LAYOUT_MAP;
         res = fv_vk.vkCreatePipelineLayout(vk_data->device,
                                            &pipeline_layout_create_info,
                                            NULL, /* allocator */
-                                           &data->layout);
+                                           layout);
         if (res != VK_SUCCESS) {
+                *layout = NULL;
                 fv_error_message("Error creating pipeline layout");
-                goto error_dsl;
+                return false;
         }
 
         VkPipelineShaderStageCreateInfo stages[] = {
@@ -318,7 +323,7 @@ create_pipelines(const struct fv_vk_data *vk_data,
                         .pDepthStencilState = &depth_stencil_state,
                         .pColorBlendState = &color_blend_state,
                         .pDynamicState = &dynamic_state,
-                        .layout = data->layout,
+                        .layout = data->layouts[FV_PIPELINE_DATA_LAYOUT_MAP],
                         .renderPass = render_pass,
                         .subpass = 0,
                         .basePipelineHandle = NULL,
@@ -332,25 +337,14 @@ create_pipelines(const struct fv_vk_data *vk_data,
                                               n_infos,
                                               pipeline_create_infos,
                                               NULL, /* allocator */
-                                              &data->map_pipeline);
+                                              data->pipelines);
 
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating pipeline");
-                goto error_layout;
+                return false;
         }
 
         return true;
-
-error_layout:
-        fv_vk.vkDestroyPipelineLayout(vk_data->device,
-                                      data->layout,
-                                      NULL /* allocator */);
-error_dsl:
-        fv_vk.vkDestroyDescriptorSetLayout(vk_data->device,
-                                           data->dsl,
-                                           NULL /* allocator */);
-error:
-        return false;
 }
 
 bool
@@ -378,12 +372,16 @@ fv_pipeline_data_init(const struct fv_vk_data *vk_data,
                 fv_error_message("Error creating pipeline cache");
                 ret = false;
         } else {
+                memset(data, 0, sizeof *data);
+
                 if (!create_pipelines(vk_data,
                                       render_pass,
                                       pipeline_cache,
                                       shaders,
-                                      data))
+                                      data)) {
+                        fv_pipeline_data_destroy(vk_data, data);
                         ret = false;
+                }
 
                 fv_vk.vkDestroyPipelineCache(vk_data->device,
                                              pipeline_cache,
@@ -403,13 +401,27 @@ void
 fv_pipeline_data_destroy(const struct fv_vk_data *vk_data,
                          struct fv_pipeline_data *data)
 {
-        fv_vk.vkDestroyDescriptorSetLayout(vk_data->device,
-                                           data->dsl,
-                                           NULL /* allocator */);
-        fv_vk.vkDestroyPipeline(vk_data->device,
-                                data->map_pipeline,
-                                NULL /* allocator */);
-        fv_vk.vkDestroyPipelineLayout(vk_data->device,
-                                      data->layout,
-                                      NULL /* allocator */);
+        int i;
+
+        for (i = 0; i < FV_PIPELINE_DATA_N_DSLS; i++) {
+                if (data->dsls[i] == NULL)
+                        continue;
+                fv_vk.vkDestroyDescriptorSetLayout(vk_data->device,
+                                                   data->dsls[i],
+                                                   NULL /* allocator */);
+        }
+        for (i = 0; i < FV_PIPELINE_DATA_N_LAYOUTS; i++) {
+                if (data->layouts[i] == NULL)
+                        continue;
+                fv_vk.vkDestroyPipelineLayout(vk_data->device,
+                                              data->layouts[i],
+                                              NULL /* allocator */);
+        }
+        for (i = 0; i < FV_PIPELINE_DATA_N_PIPELINES; i++) {
+                if (data->pipelines[i] == NULL)
+                        continue;
+                fv_vk.vkDestroyPipeline(vk_data->device,
+                                        data->pipelines[i],
+                                        NULL /* allocator */);
+        }
 }

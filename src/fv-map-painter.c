@@ -387,7 +387,8 @@ create_descriptor_set(struct fv_map_painter *painter,
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = painter->vk_data->descriptor_pool,
                 .descriptorSetCount = 1,
-                .pSetLayouts = &pipeline_data->dsl
+                .pSetLayouts = (pipeline_data->dsls +
+                                FV_PIPELINE_DATA_DSL_TEXTURE)
         };
         res = fv_vk.vkAllocateDescriptorSets(painter->vk_data->device,
                                              &descriptor_set_allocate_info,
@@ -436,8 +437,10 @@ fv_map_painter_new(const struct fv_vk_data *vk_data,
         painter = fv_alloc(sizeof *painter);
 
         painter->vk_data = vk_data;
-        painter->map_pipeline = pipeline_data->map_pipeline;
-        painter->map_layout = pipeline_data->layout;
+        painter->map_pipeline =
+                pipeline_data->pipelines[FV_PIPELINE_DATA_PIPELINE_MAP];
+        painter->map_layout =
+                pipeline_data->layouts[FV_PIPELINE_DATA_LAYOUT_MAP];
 
         if (!create_texture(painter, image_data))
                 goto error;

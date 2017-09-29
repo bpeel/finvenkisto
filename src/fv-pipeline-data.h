@@ -24,11 +24,6 @@
 #include "fv-vk.h"
 #include "fv-vk-data.h"
 
-enum fv_pipeline_data_program {
-        FV_PIPELINE_DATA_PIPELINE_MAP,
-        FV_PIPELINE_DATA_N_PIPELINES
-};
-
 enum fv_pipeline_data_attrib {
         FV_PIPELINE_DATA_ATTRIB_POSITION,
         FV_PIPELINE_DATA_ATTRIB_TEX_COORD,
@@ -36,10 +31,25 @@ enum fv_pipeline_data_attrib {
         FV_PIPELINE_DATA_ATTRIB_COLOR
 };
 
+enum fv_pipeline_data_dsl {
+        FV_PIPELINE_DATA_DSL_TEXTURE,
+        FV_PIPELINE_DATA_N_DSLS
+};
+
+enum fv_pipeline_data_layout {
+        FV_PIPELINE_DATA_LAYOUT_MAP,
+        FV_PIPELINE_DATA_N_LAYOUTS
+};
+
+enum fv_pipeline_data_pipeline {
+        FV_PIPELINE_DATA_PIPELINE_MAP,
+        FV_PIPELINE_DATA_N_PIPELINES
+};
+
 struct fv_pipeline_data {
-        VkDescriptorSetLayout dsl;
-        VkPipelineLayout layout;
-        VkPipeline map_pipeline;
+        VkDescriptorSetLayout dsls[FV_PIPELINE_DATA_N_DSLS];
+        VkPipelineLayout layouts[FV_PIPELINE_DATA_N_LAYOUTS];
+        VkPipeline pipelines[FV_PIPELINE_DATA_N_PIPELINES];
 };
 
 bool
