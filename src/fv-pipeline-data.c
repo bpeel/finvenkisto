@@ -144,11 +144,8 @@ error:
 }
 
 static bool
-create_pipelines(const struct fv_vk_data *vk_data,
-                 VkRenderPass render_pass,
-                 VkPipelineCache pipeline_cache,
-                 VkShaderModule *shaders,
-                 struct fv_pipeline_data *data)
+create_texture_dsl(const struct fv_vk_data *vk_data,
+                   struct fv_pipeline_data *data)
 {
         VkResult res;
 
@@ -178,6 +175,15 @@ create_pipelines(const struct fv_vk_data *vk_data,
                 return false;
         }
 
+        return true;
+}
+
+static bool
+create_map_layout(const struct fv_vk_data *vk_data,
+                  struct fv_pipeline_data *data)
+{
+        VkResult res;
+
         VkPushConstantRange push_constant_ranges[] = {
                 {
                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
@@ -204,6 +210,18 @@ create_pipelines(const struct fv_vk_data *vk_data,
                 fv_error_message("Error creating pipeline layout");
                 return false;
         }
+
+        return true;
+}
+
+static bool
+create_map_pipeline(const struct fv_vk_data *vk_data,
+                    VkRenderPass render_pass,
+                    VkPipelineCache pipeline_cache,
+                    VkShaderModule *shaders,
+                    struct fv_pipeline_data *data)
+{
+        VkResult res;
 
         VkPipelineShaderStageCreateInfo stages[] = {
                 {
@@ -374,11 +392,13 @@ fv_pipeline_data_init(const struct fv_vk_data *vk_data,
         } else {
                 memset(data, 0, sizeof *data);
 
-                if (!create_pipelines(vk_data,
-                                      render_pass,
-                                      pipeline_cache,
-                                      shaders,
-                                      data)) {
+                if (!create_texture_dsl(vk_data, data) ||
+                    !create_map_layout(vk_data, data) ||
+                    !create_map_pipeline(vk_data,
+                                         render_pass,
+                                         pipeline_cache,
+                                         shaders,
+                                         data)) {
                         fv_pipeline_data_destroy(vk_data, data);
                         ret = false;
                 }
