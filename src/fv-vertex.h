@@ -51,4 +51,9 @@ struct fv_vertex_model_texture {
         float s, t;
 };
 
+struct fv_instance_special {
+        float modelview[4 * 4];
+        float normal_transform[3 * 3];
+};
+
 #endif /* FV_VERTEX_H */

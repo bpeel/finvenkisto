@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2016 Neil Roberts
+ * Copyright (C) 2016, 2017 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,11 +38,15 @@ enum fv_pipeline_data_dsl {
 
 enum fv_pipeline_data_layout {
         FV_PIPELINE_DATA_LAYOUT_MAP,
+        FV_PIPELINE_DATA_LAYOUT_EMPTY,
+        FV_PIPELINE_DATA_LAYOUT_SPECIAL_TEXTURE,
         FV_PIPELINE_DATA_N_LAYOUTS
 };
 
 enum fv_pipeline_data_pipeline {
         FV_PIPELINE_DATA_PIPELINE_MAP,
+        FV_PIPELINE_DATA_PIPELINE_SPECIAL_COLOR,
+        FV_PIPELINE_DATA_PIPELINE_SPECIAL_TEXTURE,
         FV_PIPELINE_DATA_N_PIPELINES
 };
 

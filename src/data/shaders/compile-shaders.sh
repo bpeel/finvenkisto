@@ -10,9 +10,12 @@ fi
 
 VERTEX_SHADERS=( \
     fv-map-vertex.glsl \
+    fv-special-color-vertex.glsl \
+    fv-special-texture-vertex.glsl \
 )
 
 FRAGMENT_SHADERS=( \
+    fv-color-fragment.glsl \
     fv-lighting-texture-fragment.glsl \
 )
 
