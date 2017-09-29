@@ -39,4 +39,16 @@ struct fv_vertex_map_push_constants {
         float normal_transform[9];
 };
 
+struct fv_vertex_model_color {
+        float x, y, z;
+        float nx, ny, nz;
+        uint8_t r, g, b;
+};
+
+struct fv_vertex_model_texture {
+        float x, y, z;
+        float nx, ny, nz;
+        float s, t;
+};
+
 #endif /* FV_VERTEX_H */
