@@ -1692,12 +1692,12 @@ init_vk(struct data *data)
 
         VkDescriptorPoolSize pool_size = {
                 .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .descriptorCount = 3
+                .descriptorCount = 4
         };
         VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
                 .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-                .maxSets = 3,
+                .maxSets = 4,
                 .poolSizeCount = 1,
                 .pPoolSizes = &pool_size
         };

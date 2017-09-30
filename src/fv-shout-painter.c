@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2015 Neil Roberts
+ * Copyright (C) 2015, 2017 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,120 +22,245 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 #include "fv-shout-painter.h"
 #include "fv-logic.h"
 #include "fv-util.h"
 #include "fv-matrix.h"
 #include "fv-transform.h"
-#include "fv-gl.h"
-#include "fv-array-object.h"
-#include "fv-map-buffer.h"
-
-struct fv_shout_painter_vertex {
-        float x, y, z;
-        float s, t;
-};
+#include "fv-error-message.h"
+#include "fv-vertex.h"
+#include "fv-allocate-store.h"
 
 struct fv_shout_painter {
-        GLuint program;
-        GLuint transform_uniform;
+        const struct fv_vk_data *vk_data;
 
-        GLuint texture;
-        struct fv_array_object *array;
-        GLuint vertex_buffer;
+        VkPipeline pipeline;
+        VkPipelineLayout layout;
+        VkImage texture_image;
+        VkDeviceMemory texture_memory;
+        VkImageView texture_view;
+        VkSampler sampler;
+        VkDescriptorSet descriptor_set;
+        VkBuffer vertex_buffer;
+        VkDeviceMemory vertex_memory;
+
+        struct fv_vertex_shout *vertex_memory_map;
 };
 
-static void
-load_texture(struct fv_shout_painter *painter,
-             struct fv_image_data_old *image_data)
+static bool
+create_texture(struct fv_shout_painter *painter,
+               const struct fv_image_data *image_data)
 {
-        fv_gl.glGenTextures(1, &painter->texture);
-        fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
+        VkResult res;
 
-        fv_image_data_old_set_2d(image_data,
-                             GL_TEXTURE_2D,
-                             0, /* level */
-                             GL_RGBA,
-                             FV_IMAGE_DATA_NEKROKODILU);
+        res = fv_image_data_create_image_2d(image_data,
+                                            FV_IMAGE_DATA_NEKROKODILU,
+                                            &painter->texture_image,
+                                            &painter->texture_memory);
+        if (res != VK_SUCCESS) {
+                painter->texture_image = NULL;
+                painter->texture_memory = NULL;
+                fv_error_message("Error creating shout texture");
+                return false;
+        }
 
-        fv_gl.glGenerateMipmap(GL_TEXTURE_2D);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_MIN_FILTER,
-                              GL_LINEAR_MIPMAP_NEAREST);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_MAG_FILTER,
-                              GL_LINEAR);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_WRAP_S,
-                              GL_CLAMP_TO_EDGE);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_WRAP_T,
-                              GL_CLAMP_TO_EDGE);
+        VkImageViewCreateInfo image_view_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = painter->texture_image,
+                .viewType =  VK_IMAGE_VIEW_TYPE_2D,
+                .format = fv_image_data_get_format(image_data,
+                                                   FV_IMAGE_DATA_NEKROKODILU),
+                .components = {
+                        .r = VK_COMPONENT_SWIZZLE_R,
+                        .g = VK_COMPONENT_SWIZZLE_G,
+                        .b = VK_COMPONENT_SWIZZLE_B,
+                        .a = VK_COMPONENT_SWIZZLE_A
+                },
+                .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount =
+                        fv_image_data_get_miplevels(image_data,
+                                                    FV_IMAGE_DATA_NEKROKODILU),
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                }
+        };
+        res = fv_vk.vkCreateImageView(painter->vk_data->device,
+                                      &image_view_create_info,
+                                      NULL, /* allocator */
+                                      &painter->texture_view);
+        if (res != VK_SUCCESS) {
+                painter->texture_view = NULL;
+                fv_error_message("Error creating image view");
+                return false;
+        }
+
+        return true;
 }
 
-static void
-make_buffer(struct fv_shout_painter *painter)
+static bool
+create_sampler(struct fv_shout_painter *painter)
 {
-        typedef struct fv_shout_painter_vertex vertex;
+        VkResult res;
 
-        painter->array = fv_array_object_new();
+        VkSamplerCreateInfo sampler_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                .magFilter = VK_FILTER_LINEAR,
+                .minFilter = VK_FILTER_LINEAR,
+                .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+                .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .anisotropyEnable = VK_FALSE,
+                .maxAnisotropy = 1,
+                .minLod = -1000.0f,
+                .maxLod = 1000.0f
+        };
+        res = fv_vk.vkCreateSampler(painter->vk_data->device,
+                                    &sampler_create_info,
+                                    NULL, /* allocator */
+                                    &painter->sampler);
+        if (res != VK_SUCCESS) {
+                painter->sampler = NULL;
+                fv_error_message("Error creating sampler");
+                return false;
+        }
 
-        fv_gl.glGenBuffers(1, &painter->vertex_buffer);
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->vertex_buffer);
-        fv_gl.glBufferData(GL_ARRAY_BUFFER,
-                           sizeof (vertex) * FV_LOGIC_MAX_PLAYERS * 3,
-                           NULL,
-                           GL_DYNAMIC_DRAW);
+        return true;
+}
 
-        fv_array_object_set_attribute(painter->array,
-                                      FV_SHADER_DATA_ATTRIB_POSITION,
-                                      3, /* size */
-                                      GL_FLOAT,
-                                      GL_FALSE, /* normalized */
-                                      sizeof (vertex),
-                                      0, /* divisor */
-                                      painter->vertex_buffer,
-                                      offsetof(vertex, x));
+static bool
+create_descriptor_set(struct fv_shout_painter *painter,
+                      const struct fv_pipeline_data *pipeline_data)
+{
+        VkResult res;
 
-        fv_array_object_set_attribute(painter->array,
-                                      FV_SHADER_DATA_ATTRIB_TEX_COORD,
-                                      2, /* size */
-                                      GL_FLOAT,
-                                      GL_FALSE, /* normalized */
-                                      sizeof (vertex),
-                                      0, /* divisor */
-                                      painter->vertex_buffer,
-                                      offsetof(vertex, s));
+        VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = painter->vk_data->descriptor_pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = (pipeline_data->dsls +
+                                FV_PIPELINE_DATA_DSL_TEXTURE)
+        };
+        res = fv_vk.vkAllocateDescriptorSets(painter->vk_data->device,
+                                             &descriptor_set_allocate_info,
+                                             &painter->descriptor_set);
+        if (res != VK_SUCCESS) {
+                painter->descriptor_set = NULL;
+                fv_error_message("Error allocating descriptor set");
+                return false;
+        }
+
+        VkDescriptorImageInfo descriptor_image_info = {
+                .sampler = painter->sampler,
+                .imageView = painter->texture_view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        };
+        VkWriteDescriptorSet write_descriptor_set = {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = painter->descriptor_set,
+                .dstBinding = 0,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo = &descriptor_image_info
+        };
+        fv_vk.vkUpdateDescriptorSets(painter->vk_data->device,
+                                     1, /* descriptorWriteCount */
+                                     &write_descriptor_set,
+                                     0, /* descriptorCopyCount */
+                                     NULL /* pDescriptorCopies */);
+
+        return true;
+}
+
+static bool
+create_buffer(struct fv_shout_painter *painter)
+{
+        int buffer_offset;
+        VkResult res;
+
+        VkBufferCreateInfo buffer_create_info = {
+                .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                .size = (sizeof (struct fv_vertex_shout) *
+                         FV_LOGIC_MAX_PLAYERS * 3),
+                .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        };
+        res = fv_vk.vkCreateBuffer(painter->vk_data->device,
+                                   &buffer_create_info,
+                                   NULL, /* allocator */
+                                   &painter->vertex_buffer);
+        if (res != VK_SUCCESS) {
+                painter->vertex_buffer = NULL;
+                fv_error_message("Error creating shout vertex buffer");
+                return false;
+        }
+
+        res = fv_allocate_store_buffer(painter->vk_data,
+                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                       1, /* n_buffers */
+                                       &painter->vertex_buffer,
+                                       &painter->vertex_memory,
+                                       &buffer_offset);
+        if (res != VK_SUCCESS) {
+                painter->vertex_memory = NULL;
+                fv_error_message("Error creating shout vertex memory");
+                return false;
+        }
+
+        res = fv_vk.vkMapMemory(painter->vk_data->device,
+                                painter->vertex_memory,
+                                0, /* offset */
+                                VK_WHOLE_SIZE,
+                                0, /* flags */
+                                (void **) &painter->vertex_memory_map);
+        if (res != VK_SUCCESS) {
+                painter->vertex_memory_map = NULL;
+                fv_error_message("Error mapping shout vertex memory");
+                return false;
+        }
+
+        return true;
 }
 
 struct fv_shout_painter *
-fv_shout_painter_new(struct fv_image_data_old *image_data,
-                     struct fv_shader_data *shader_data)
+fv_shout_painter_new(const struct fv_vk_data *vk_data,
+                     const struct fv_pipeline_data *pipeline_data,
+                     const struct fv_image_data *image_data)
 {
         struct fv_shout_painter *painter = fv_calloc(sizeof *painter);
-        GLuint tex_uniform;
 
-        painter->program =
-                shader_data->programs[FV_SHADER_DATA_PROGRAM_TEXTURE];
+        painter->vk_data = vk_data;
+        painter->pipeline =
+                pipeline_data->pipelines[FV_PIPELINE_DATA_PIPELINE_SHOUT];
+        painter->layout =
+                pipeline_data->layouts[FV_PIPELINE_DATA_LAYOUT_SHOUT];
 
-        load_texture(painter, image_data);
+        if (!create_texture(painter, image_data))
+                goto error;
 
-        make_buffer(painter);
+        if (!create_buffer(painter))
+                goto error;
 
-        tex_uniform = fv_gl.glGetUniformLocation(painter->program, "tex");
-        fv_gl.glUseProgram(painter->program);
-        fv_gl.glUniform1i(tex_uniform, 0);
+        if (!create_sampler(painter))
+                goto error;
 
-        painter->transform_uniform =
-                fv_gl.glGetUniformLocation(painter->program, "transform");
+        if (!create_descriptor_set(painter, pipeline_data))
+                goto error;
 
         return painter;
+
+error:
+        fv_shout_painter_free(painter);
+        return NULL;
 }
 
 struct paint_closure {
         struct fv_shout_painter *painter;
-        struct fv_shout_painter_vertex *buffer_map;
         int n_shouts;
 };
 
@@ -145,26 +270,17 @@ paint_cb(const struct fv_logic_shout *shout,
 {
         struct paint_closure *data = user_data;
         struct fv_shout_painter *painter = data->painter;
-        struct fv_shout_painter_vertex *vertex;
+        struct fv_vertex_shout *vertex;
         float cx, cy, ccx, ccy;
 
-        if (data->n_shouts == 0) {
-                fv_gl.glBindBuffer(GL_ARRAY_BUFFER,
-                                   painter->vertex_buffer);
-                data->buffer_map =
-                        fv_map_buffer_map(GL_ARRAY_BUFFER,
-                                          FV_LOGIC_MAX_PLAYERS *
-                                          sizeof *vertex * 3,
-                                          true /* flush_explicit */,
-                                          GL_STREAM_DRAW);
-        }
+        assert(data->n_shouts < FV_LOGIC_MAX_PLAYERS);
 
         cx = cosf(shout->direction - FV_LOGIC_SHOUT_ANGLE / 2.0f);
         cy = sinf(shout->direction - FV_LOGIC_SHOUT_ANGLE / 2.0f);
         ccx = cosf(shout->direction + FV_LOGIC_SHOUT_ANGLE / 2.0f);
         ccy = sinf(shout->direction + FV_LOGIC_SHOUT_ANGLE / 2.0f);
 
-        vertex = data->buffer_map + data->n_shouts * 3;
+        vertex = painter->vertex_memory_map + data->n_shouts * 3;
 
         vertex->x = shout->x;
         vertex->y = shout->y;
@@ -192,10 +308,12 @@ paint_cb(const struct fv_logic_shout *shout,
 
 void
 fv_shout_painter_paint(struct fv_shout_painter *painter,
-                        struct fv_logic *logic,
-                        const struct fv_paint_state *paint_state)
+                       struct fv_logic *logic,
+                       VkCommandBuffer command_buffer,
+                       const struct fv_paint_state *paint_state)
 {
         struct paint_closure data;
+        VkDeviceSize vertices_offset = 0;
 
         data.painter = painter;
         data.n_shouts = 0;
@@ -205,29 +323,73 @@ fv_shout_painter_paint(struct fv_shout_painter *painter,
         if (data.n_shouts <= 0)
                 return;
 
-        fv_map_buffer_flush(0, /* offset */
-                            sizeof *data.buffer_map *
-                            data.n_shouts * 3);
-        fv_map_buffer_unmap();
-
-        fv_gl.glUseProgram(painter->program);
-        fv_gl.glUniformMatrix4fv(painter->transform_uniform,
-                                 1, /* count */
-                                 GL_FALSE, /* transpose */
-                                 &paint_state->transform.mvp.xx);
-        fv_array_object_bind(painter->array);
-        fv_gl.glBindTexture(GL_TEXTURE_2D, painter->texture);
-        fv_gl.glEnable(GL_BLEND);
-        fv_gl.glDrawArrays(GL_TRIANGLES, 0, data.n_shouts * 3);
-        fv_gl.glDisable(GL_BLEND);
+        fv_vk.vkCmdBindPipeline(command_buffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                painter->pipeline);
+        fv_vk.vkCmdBindDescriptorSets(command_buffer,
+                                      VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                      painter->layout,
+                                      0, /* firstSet */
+                                      1, /* descriptorSetCount */
+                                      &painter->descriptor_set,
+                                      0, /* dynamicOffsetCount */
+                                      NULL /* pDynamicOffsets */);
+        fv_vk.vkCmdBindVertexBuffers(command_buffer,
+                                     0, /* firstBinding */
+                                     1, /* bindingCount */
+                                     &painter->vertex_buffer,
+                                     &vertices_offset);
+        fv_vk.vkCmdDraw(command_buffer,
+                        data.n_shouts * 3,
+                        1, /* instanceCount */
+                        0, /* firstVertex */
+                        0 /* firstInstance */);
 }
 
 void
 fv_shout_painter_free(struct fv_shout_painter *painter)
 {
-        fv_array_object_free(painter->array);
-        fv_gl.glDeleteBuffers(1, &painter->vertex_buffer);
-        fv_gl.glDeleteTextures(1, &painter->texture);
+        if (painter->vertex_memory_map) {
+                fv_vk.vkUnmapMemory(painter->vk_data->device,
+                                    painter->vertex_memory);
+        }
+
+        if (painter->vertex_memory) {
+                fv_vk.vkFreeMemory(painter->vk_data->device,
+                                   painter->vertex_memory,
+                                   NULL /* allocator */);
+        }
+        if (painter->vertex_buffer) {
+                fv_vk.vkDestroyBuffer(painter->vk_data->device,
+                                      painter->vertex_buffer,
+                                      NULL /* allocator */);
+        }
+        if (painter->descriptor_set) {
+                fv_vk.vkFreeDescriptorSets(painter->vk_data->device,
+                                           painter->vk_data->descriptor_pool,
+                                           1, /* descriptorSetCount */
+                                           &painter->descriptor_set);
+        }
+        if (painter->sampler) {
+                fv_vk.vkDestroySampler(painter->vk_data->device,
+                                       painter->sampler,
+                                       NULL /* allocator */);
+        }
+        if (painter->texture_view) {
+                fv_vk.vkDestroyImageView(painter->vk_data->device,
+                                         painter->texture_view,
+                                         NULL /* allocator */);
+        }
+        if (painter->texture_image) {
+                fv_vk.vkDestroyImage(painter->vk_data->device,
+                                     painter->texture_image,
+                                     NULL /* allocator */);
+        }
+        if (painter->texture_memory) {
+                fv_vk.vkFreeMemory(painter->vk_data->device,
+                                   painter->texture_memory,
+                                   NULL /* allocator */);
+        }
 
         fv_free(painter);
 }
