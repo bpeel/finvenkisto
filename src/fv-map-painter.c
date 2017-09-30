@@ -847,6 +847,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         const struct fv_map_painter_tile *tile = NULL;
         int count;
         int y, x, i;
+        float normal_transform[12];
 
         x_min = floorf((paint_state->center_x - paint_state->visible_w / 2.0f) /
                        FV_MAP_TILE_WIDTH);
@@ -894,6 +895,13 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         fv_transform_ensure_mvp(&paint_state->transform);
         fv_transform_ensure_normal_transform(&paint_state->transform);
 
+        for (i = 0; i < 3; i++) {
+                memcpy(normal_transform + i * 4,
+                       paint_state->transform.normal_transform + i * 3,
+                       sizeof (float) * 3);
+                normal_transform[i * 4 + 3] = 0.0f;
+        }
+
         fv_vk.vkCmdBindPipeline(command_buffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 painter->map_pipeline);
@@ -917,8 +925,8 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                                  VK_SHADER_STAGE_VERTEX_BIT,
                                  offsetof(struct fv_vertex_map_push_constants,
                                           normal_transform),
-                                 sizeof (float) * 9,
-                                 paint_state->transform.normal_transform);
+                                 sizeof (float) * 12,
+                                 normal_transform);
         fv_vk.vkCmdBindVertexBuffers(command_buffer,
                                      0, /* firstBinding */
                                      1, /* bindingCount */
