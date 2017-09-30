@@ -68,10 +68,12 @@ SPIRV = \
 	shaders/fv-color-fragment.spirv \
 	shaders/fv-texture-fragment.spirv \
 	shaders/fv-lighting-texture-fragment.spirv \
+	shaders/fv-person-fragment.spirv \
 	shaders/fv-map-vertex.spirv \
 	shaders/fv-hud-vertex.spirv \
 	shaders/fv-special-color-vertex.spirv \
 	shaders/fv-special-texture-vertex.spirv \
+	shaders/fv-person-vertex.spirv \
 	$(NULL)
 
 MODELS = \

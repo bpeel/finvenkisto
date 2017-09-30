@@ -287,7 +287,7 @@ fv_hud_new(const struct fv_vk_data *vk_data,
 
         hud->vk_data = vk_data;
         hud->pipeline = pipeline_data->pipelines[FV_PIPELINE_DATA_PIPELINE_HUD];
-        hud->layout = pipeline_data->layouts[FV_PIPELINE_DATA_LAYOUT_HUD];
+        hud->layout = pipeline_data->layouts[FV_PIPELINE_DATA_LAYOUT_TEXTURE];
 
         if (!create_texture(hud, image_data))
                 goto error;

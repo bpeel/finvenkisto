@@ -56,6 +56,13 @@ struct fv_instance_special {
         float normal_transform[3 * 3];
 };
 
+struct fv_instance_person {
+        float mvp[16];
+        float normal_transform[3 * 3];
+        uint8_t tex_layer;
+        uint8_t green_tint;
+};
+
 struct fv_vertex_hud {
         float x, y;
         float s, t;

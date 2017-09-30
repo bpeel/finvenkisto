@@ -13,12 +13,14 @@ VERTEX_SHADERS=( \
     fv-hud-vertex.glsl \
     fv-special-color-vertex.glsl \
     fv-special-texture-vertex.glsl \
+    fv-person-vertex.glsl \
 )
 
 FRAGMENT_SHADERS=( \
     fv-texture-fragment.glsl \
     fv-color-fragment.glsl \
     fv-lighting-texture-fragment.glsl \
+    fv-person-fragment.glsl \
 )
 
 function compile_shaders() {
