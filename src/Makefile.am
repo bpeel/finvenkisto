@@ -38,8 +38,6 @@ finvenkisto_SOURCES = \
 	fv-hud.h \
 	fv-image-data.c \
 	fv-image-data.h \
-	fv-image-data-old.c \
-	fv-image-data-old.h \
 	fv-list.c \
 	fv-list.h \
 	fv-logic.c \
