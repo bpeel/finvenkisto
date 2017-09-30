@@ -109,6 +109,10 @@ map-texture.png : make-map-texture.py $(BLOCK_IMAGES)
 	$(AM_V_GEN)python3 $(srcdir)/make-map-texture.py $@ \
 	$(BLOCK_IMAGES:%=$(srcdir)/%)
 
+NO_MIPMAP_IMAGES = \
+	hud.png \
+	$(NULL)
+
 IMAGES = \
 	$(OTHER_PNGS) \
 	bambo1.png \
@@ -118,11 +122,15 @@ IMAGES = \
 	gufujestro.png \
 	map-texture.png \
 	pyjamas.png \
-	hud.png \
 	toiletguy.png \
 	$(NULL)
 
 MIPMAP_IMAGES = $(IMAGES:.png=.mipng)
+
+ALL_IMAGES = \
+	$(MIPMAP_IMAGES) \
+	$(NO_MIPMAP_IMAGES) \
+	$(NULL)
 
 spirvdir = $(datadir)/finvenkisto/shaders
 dist_spirv_DATA = \
@@ -137,7 +145,7 @@ NON_IMAGES = \
 
 imagesdir = $(datadir)/finvenkisto
 dist_images_DATA = \
-	$(MIPMAP_IMAGES) \
+	$(ALL_IMAGES) \
 	$(NON_IMAGES) \
 	$(NULL)
 
@@ -179,13 +187,13 @@ hud-stamp : $(HUD_PNGS) make-atlas.py
 	hud.png hud-layout.h $(filter %.png,$^)
 	$(AM_V_at)touch $@
 
-fv-image-data-stamp : $(MIPMAP_IMAGES)
-	$(AM_V_GEN)for x in $(MIPMAP_IMAGES); do \
+fv-image-data-stamp : $(ALL_IMAGES)
+	$(AM_V_GEN)for x in $(ALL_IMAGES); do \
 	echo "$$x" | \
 	sed -e 's/\..*$$/,/' -e 's/^/fv_image_data_/' -e 's/-/_/g' \
 	| tr '[a-z]' '[A-Z]'; \
 	done > fv-image-data-enum.h
-	$(AM_V_at)for x in $(MIPMAP_IMAGES); \
+	$(AM_V_at)for x in $(ALL_IMAGES); \
 	do echo "\"$$x\"," ; \
 	done > fv-image-data-files.h
 	$(AM_V_at)touch $@
