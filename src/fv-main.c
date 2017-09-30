@@ -1568,6 +1568,45 @@ get_depth_format(struct data *data)
         assert(false);
 }
 
+static void
+deinit_vk(struct data *data)
+{
+        if (data->vk_fence) {
+                fv_vk.vkDestroyFence(data->vk_data.device,
+                                     data->vk_fence,
+                                     NULL /* allocator */);
+        }
+        if (data->vk_render_pass) {
+                fv_vk.vkDestroyRenderPass(data->vk_data.device,
+                                          data->vk_render_pass,
+                                          NULL /* allocator */);
+        }
+        if (data->vk_data.descriptor_pool) {
+                fv_vk.vkDestroyDescriptorPool(data->vk_data.device,
+                                              data->vk_data.descriptor_pool,
+                                              NULL /* allocator */);
+        }
+        if (data->vk_command_buffer) {
+                fv_vk.vkFreeCommandBuffers(data->vk_data.device,
+                                           data->vk_command_pool,
+                                           1, /* commandBufferCount */
+                                           &data->vk_command_buffer);
+        }
+        if (data->vk_command_pool) {
+                fv_vk.vkDestroyCommandPool(data->vk_data.device,
+                                           data->vk_command_pool,
+                                           NULL /* allocator */);
+        }
+        if (data->vk_data.device) {
+                fv_vk.vkDestroyDevice(data->vk_data.device,
+                                      NULL /* allocator */);
+        }
+        if (data->vk_instance) {
+                fv_vk.vkDestroyInstance(data->vk_instance,
+                                        NULL /* allocator */);
+        }
+}
+
 static bool
 init_vk(struct data *data)
 {
@@ -1590,7 +1629,7 @@ init_vk(struct data *data)
 
         if (res != VK_SUCCESS) {
                 fv_error_message("Failed to create VkInstance");
-                return false;
+                goto error;
         }
 
         fv_vk_init_instance(data->vk_instance);
@@ -1600,7 +1639,7 @@ init_vk(struct data *data)
                                                &data->vk_data.physical_device);
         if (res != VK_SUCCESS || count < 1) {
                 fv_error_message("Error enumerating VkPhysicalDevices");
-                goto error_instance;
+                goto error;
         }
 
         fv_vk.vkGetPhysicalDeviceProperties(data->vk_data.physical_device,
@@ -1612,7 +1651,7 @@ init_vk(struct data *data)
         data->vk_data.queue_family = find_queue_family(data);
         if (data->vk_data.queue_family == -1) {
                 fv_error_message("No graphics queue found on Vulkan device");
-                goto error_instance;
+                goto error;
         }
 
         VkPhysicalDeviceFeatures features;
@@ -1635,7 +1674,7 @@ init_vk(struct data *data)
                                    &data->vk_data.device);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating VkDevice");
-                goto error_instance;
+                goto error;
         }
 
         fv_vk_init_device(data->vk_data.device);
@@ -1656,7 +1695,7 @@ init_vk(struct data *data)
                                         &data->vk_command_pool);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating VkCommandPool");
-                goto error_device;
+                goto error;
         }
 
         VkCommandBufferAllocateInfo command_buffer_allocate_info = {
@@ -1671,7 +1710,7 @@ init_vk(struct data *data)
 
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating command buffer");
-                goto error_command_pool;
+                goto error;
         }
 
         VkDescriptorPoolSize pool_size = {
@@ -1691,7 +1730,7 @@ init_vk(struct data *data)
                                            &data->vk_data.descriptor_pool);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating VkDescriptorPool");
-                goto error_command_buffer;
+                goto error;
         }
 
         VkAttachmentDescription attachment_descriptions[] = {
@@ -1746,7 +1785,7 @@ init_vk(struct data *data)
                                        &data->vk_render_pass);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating render pass");
-                goto error_descriptor_pool;
+                goto error;
         }
 
         VkFenceCreateInfo fence_create_info = {
@@ -1758,62 +1797,16 @@ init_vk(struct data *data)
                                   &data->vk_fence);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating fence");
-                goto error_render_pass;
+                goto error;
         }
 
         memset(&data->vk_fb, 0, sizeof data->vk_fb);
 
         return true;
 
-error_render_pass:
-        fv_vk.vkDestroyRenderPass(data->vk_data.device,
-                                  data->vk_render_pass,
-                                  NULL /* allocator */);
-error_descriptor_pool:
-        fv_vk.vkDestroyDescriptorPool(data->vk_data.device,
-                                      data->vk_data.descriptor_pool,
-                                      NULL /* allocator */);
-error_command_buffer:
-        fv_vk.vkFreeCommandBuffers(data->vk_data.device,
-                                   data->vk_command_pool,
-                                   1, /* commandBufferCount */
-                                   &data->vk_command_buffer);
-error_command_pool:
-        fv_vk.vkDestroyCommandPool(data->vk_data.device,
-                                   data->vk_command_pool,
-                                   NULL /* allocator */);
-error_device:
-        fv_vk.vkDestroyDevice(data->vk_data.device,
-                              NULL /* allocator */);
-error_instance:
-        fv_vk.vkDestroyInstance(data->vk_instance,
-                                NULL /* allocator */);
+error:
+        deinit_vk(data);
         return false;
-}
-
-static void
-deinit_vk(struct data *data)
-{
-        fv_vk.vkDestroyFence(data->vk_data.device,
-                             data->vk_fence,
-                             NULL /* allocator */);
-        fv_vk.vkDestroyRenderPass(data->vk_data.device,
-                                  data->vk_render_pass,
-                                  NULL /* allocator */);
-        fv_vk.vkDestroyDescriptorPool(data->vk_data.device,
-                                      data->vk_data.descriptor_pool,
-                                      NULL /* allocator */);
-        fv_vk.vkFreeCommandBuffers(data->vk_data.device,
-                                   data->vk_command_pool,
-                                   1, /* commandBufferCount */
-                                   &data->vk_command_buffer);
-        fv_vk.vkDestroyCommandPool(data->vk_data.device,
-                                   data->vk_command_pool,
-                                   NULL /* allocator */);
-        fv_vk.vkDestroyDevice(data->vk_data.device,
-                              NULL /* allocator */);
-        fv_vk.vkDestroyInstance(data->vk_instance,
-                                NULL /* allocator */);
 }
 
 int
@@ -1821,6 +1814,8 @@ main(int argc, char **argv)
 {
         struct data data;
         int ret = EXIT_SUCCESS;
+
+        memset(&data, 0, sizeof data);
 
         data.is_fullscreen = true;
         data.window_mapped = false;
