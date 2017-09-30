@@ -418,20 +418,77 @@ fv_image_data_get_format(const struct fv_image_data *data,
         return data->images[image].format;
 }
 
-VkResult
-fv_image_data_create_image_2d(const struct fv_image_data *data,
-                              enum fv_image_data_image image_num,
-                              VkImage *image_out,
-                              VkDeviceMemory *memory_out)
+static void
+copy_image_from_buffer(const struct fv_image_data *data,
+                       VkImage image,
+                       enum fv_image_data_image image_num,
+                       int array_layer)
 {
         const struct image_details *image_details = data->images + image_num;
-        VkImage image;
-        int w, h, i;
-        size_t offset;
+        int w = image_details->width;
+        int h = image_details->height;
         int miplevels = image_details->miplevels;
+        int offset = 0;
         VkBufferImageCopy *regions = alloca(sizeof *regions * miplevels);
         VkBufferImageCopy *region;
+        int i;
+
+        for (i = 0; i < miplevels; i++) {
+                region = regions + i;
+
+                region->bufferOffset = offset;
+                region->bufferRowLength = 0;
+                region->imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                region->imageSubresource.mipLevel = i;
+                region->imageSubresource.baseArrayLayer = array_layer;
+                region->imageSubresource.layerCount = 1;
+                memset(&region->imageOffset, 0, sizeof region->imageOffset);
+                region->imageExtent.width = w;
+                region->imageExtent.height = h;
+                region->imageExtent.depth = 1;
+
+                offset += get_next_image_offset(w, h, image_details->format);
+                w = MAX(w / 2, 1);
+                h = MAX(h / 2, 1);
+        }
+
+        fv_vk.vkCmdCopyBufferToImage(data->command_buffer,
+                                     data->buffers[image_num],
+                                     image,
+                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                     miplevels,
+                                     regions);
+}
+
+static VkResult
+create_image(const struct fv_image_data *data,
+             int n_images,
+             const enum fv_image_data_image *image_nums,
+             VkImage *image_out,
+             VkDeviceMemory *memory_out)
+{
+        const struct image_details *image_details =
+                data->images + image_nums[0];
+        const struct image_details *other_image;
+        VkImage image;
+        int i, image_index;
+        int miplevels = image_details->miplevels;
         VkResult res;
+
+        /* Verify that all of the images have the same size and
+         * format */
+        for (i = 1; i < n_images; i++) {
+                other_image = data->images + image_nums[i];
+
+                if (image_details->format != other_image->format ||
+                    image_details->width != other_image->width ||
+                    image_details->height != other_image->height ||
+                    image_details->miplevels != other_image->miplevels) {
+                        fv_error_message("Images in texture array do not all "
+                                         "have the same size or format");
+                        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+                }
+        }
 
         VkImageCreateInfo image_create_info = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -443,7 +500,7 @@ fv_image_data_create_image_2d(const struct fv_image_data *data,
                         .depth = 1
                 },
                 .mipLevels = miplevels,
-                .arrayLayers = 1,
+                .arrayLayers = n_images,
                 .samples = VK_SAMPLE_COUNT_1_BIT,
                 .tiling = VK_IMAGE_TILING_OPTIMAL,
                 .usage = (VK_IMAGE_USAGE_TRANSFER_DST_BIT |
@@ -486,7 +543,7 @@ fv_image_data_create_image_2d(const struct fv_image_data *data,
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .baseMipLevel = 0,
                         .levelCount = miplevels,
-                        .layerCount = 1
+                        .layerCount = n_images
                 }
         };
         fv_vk.vkCmdPipelineBarrier(data->command_buffer,
@@ -500,36 +557,12 @@ fv_image_data_create_image_2d(const struct fv_image_data *data,
                                    1, /* imageMemoryBarrierCount */
                                    &image_memory_barrier);
 
-        w = image_details->width;
-        h = image_details->height;
-        offset = 0;
-
-        for (i = 0; i < miplevels; i++) {
-                region = regions + i;
-
-                region->bufferOffset = offset;
-                region->bufferRowLength = 0;
-                region->imageSubresource.aspectMask =
-                        VK_IMAGE_ASPECT_COLOR_BIT;
-                region->imageSubresource.mipLevel = i;
-                region->imageSubresource.baseArrayLayer = 0;
-                region->imageSubresource.layerCount = 1;
-                memset(&region->imageOffset, 0, sizeof region->imageOffset);
-                region->imageExtent.width = w;
-                region->imageExtent.height = h;
-                region->imageExtent.depth = 1;
-
-                offset += get_next_image_offset(w, h, image_details->format);
-                w = MAX(w / 2, 1);
-                h = MAX(h / 2, 1);
+        for (image_index = 0; image_index < n_images; image_index++) {
+                copy_image_from_buffer(data,
+                                       image,
+                                       image_nums[image_index],
+                                       image_index);
         }
-
-        fv_vk.vkCmdCopyBufferToImage(data->command_buffer,
-                                     data->buffers[image_num],
-                                     image,
-                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                     miplevels,
-                                     regions);
 
         image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -551,6 +584,33 @@ fv_image_data_create_image_2d(const struct fv_image_data *data,
         *image_out = image;
 
         return VK_SUCCESS;
+}
+
+VkResult
+fv_image_data_create_image_2d(const struct fv_image_data *data,
+                              enum fv_image_data_image image_num,
+                              VkImage *image_out,
+                              VkDeviceMemory *memory_out)
+{
+        return create_image(data,
+                            1, /* n_images */
+                            &image_num,
+                            image_out,
+                            memory_out);
+}
+
+VkResult
+fv_image_data_create_image_2d_array(const struct fv_image_data *data,
+                                    int n_images,
+                                    const enum fv_image_data_image *image_nums,
+                                    VkImage *image_out,
+                                    VkDeviceMemory *memory_out)
+{
+        return create_image(data,
+                            n_images, /* n_images */
+                            image_nums,
+                            image_out,
+                            memory_out);
 }
 
 void

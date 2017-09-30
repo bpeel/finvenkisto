@@ -54,6 +54,13 @@ fv_image_data_create_image_2d(const struct fv_image_data *data,
                               VkImage *image_out,
                               VkDeviceMemory *memory_out);
 
+VkResult
+fv_image_data_create_image_2d_array(const struct fv_image_data *data,
+                                    int n_images,
+                                    const enum fv_image_data_image *image_nums,
+                                    VkImage *image_out,
+                                    VkDeviceMemory *memory_out);
+
 void
 fv_image_data_free(struct fv_image_data *data);
 
