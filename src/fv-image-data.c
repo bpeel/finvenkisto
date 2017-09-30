@@ -89,6 +89,48 @@ format_to_components(VkFormat format)
         }
 }
 
+static size_t
+get_next_image_offset(int width, int height, VkFormat format)
+{
+        int components = format_to_components(format);
+        size_t size = components * width * height;
+        size_t ma, mb;
+
+        /* The buffer offsets must all be aligned to 4 and the size of
+         * the format according to the Vulkan spec. So we’ll pick an
+         * alignment that is the least common multiple of the two */
+        ma = 4;
+        mb = components;
+
+        while (ma != mb) {
+                if (ma < mb)
+                        ma += 4;
+                else
+                        mb += components;
+        }
+
+        if (size % ma)
+                size += ma - (size % ma);
+
+        return size;
+}
+
+static size_t
+get_buffer_size(int width, int height, VkFormat format)
+{
+        int miplevels = count_miplevels(width, height);
+        size_t size = 0;
+        int i;
+
+        for (i = 0; i < miplevels; i++) {
+                size += get_next_image_offset(width, height, format);
+                width = MAX(width / 2, 1);
+                height = MAX(height / 2, 1);
+        }
+
+        return size;
+}
+
 static uint8_t *
 load_image(const char *name,
            int expected_width,
@@ -178,9 +220,9 @@ create_buffers(struct fv_image_data *data)
         for (i = 0; i < FV_N_ELEMENTS(data->images); i++) {
                 VkBufferCreateInfo buffer_create_info = {
                         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                        .size = (data->images[i].height *
-                                 data->images[i].full_width *
-                                 format_to_components(data->images[i].format)),
+                        .size = get_buffer_size(data->images[i].width,
+                                                data->images[i].height,
+                                                data->images[i].format),
                         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
                 };
@@ -209,7 +251,32 @@ copy_image(const struct image_details *image,
            const uint8_t *src)
 {
         int components = format_to_components(image->format);
-        memcpy(dst, src, image->height * image->full_width * components);
+        int w = image->width;
+        int h = image->height;
+        int miplevels = count_miplevels(w, h);
+        int x = 0;
+        int y = 0;
+        bool go_right = true;
+        int i, j;
+
+        for (i = 0; i < miplevels; i++) {
+                for (j = 0; j < h; j++) {
+                        memcpy(dst + j * w * components,
+                               src + (x + j * image->full_width) * components,
+                               w * components);
+                }
+
+                dst += get_next_image_offset(w, h, image->format);
+
+                if (go_right)
+                        x += w;
+                else
+                        y += h;
+                go_right = !go_right;
+
+                w = MAX(w / 2, 1);
+                h = MAX(h / 2, 1);
+        }
 }
 
 static bool
@@ -343,13 +410,12 @@ fv_image_data_create_image_2d(const struct fv_image_data *data,
 {
         const struct image_details *image_details = data->images + image_num;
         VkImage image;
-        int w, h, x, y, i;
-        bool go_right;
+        int w, h, i;
+        size_t offset;
         int miplevels = count_miplevels(image_details->width,
                                         image_details->height);
         VkBufferImageCopy *regions = alloca(sizeof *regions * miplevels);
         VkBufferImageCopy *region;
-        int components = format_to_components(image_details->format);
         VkResult res;
 
         VkImageCreateInfo image_create_info = {
@@ -421,16 +487,13 @@ fv_image_data_create_image_2d(const struct fv_image_data *data,
 
         w = image_details->width;
         h = image_details->height;
-        x = 0;
-        y = 0;
-        go_right = true;
+        offset = 0;
 
         for (i = 0; i < miplevels; i++) {
                 region = regions + i;
 
-                region->bufferOffset =
-                        (x + y * image_details->full_width) * components;
-                region->bufferRowLength = image_details->full_width;
+                region->bufferOffset = offset;
+                region->bufferRowLength = 0;
                 region->imageSubresource.aspectMask =
                         VK_IMAGE_ASPECT_COLOR_BIT;
                 region->imageSubresource.mipLevel = i;
@@ -441,12 +504,7 @@ fv_image_data_create_image_2d(const struct fv_image_data *data,
                 region->imageExtent.height = h;
                 region->imageExtent.depth = 1;
 
-                if (go_right)
-                        x += w;
-                else
-                        y += h;
-                go_right = !go_right;
-
+                offset += get_next_image_offset(w, h, image_details->format);
                 w = MAX(w / 2, 1);
                 h = MAX(h / 2, 1);
         }
