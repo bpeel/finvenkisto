@@ -39,6 +39,10 @@ struct fv_vertex_map_push_constants {
         float normal_transform[4 * 3];
 };
 
+struct fv_vertex_shout_push_constants {
+        float transform[16];
+};
+
 struct fv_vertex_model_color {
         float x, y, z;
         float nx, ny, nz;
@@ -65,6 +69,11 @@ struct fv_instance_person {
 
 struct fv_vertex_hud {
         float x, y;
+        float s, t;
+};
+
+struct fv_vertex_shout {
+        float x, y, z;
         float s, t;
 };
 

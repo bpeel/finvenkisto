@@ -74,6 +74,7 @@ SPIRV = \
 	shaders/fv-special-color-vertex.spirv \
 	shaders/fv-special-texture-vertex.spirv \
 	shaders/fv-person-vertex.spirv \
+	shaders/fv-texture-vertex.spirv \
 	$(NULL)
 
 MODELS = \
