@@ -402,8 +402,8 @@ create_sampler(struct fv_map_painter *painter)
                 .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
                 .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
                 .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-                .anisotropyEnable = VK_TRUE,
-                .maxAnisotropy = 16
+                .anisotropyEnable = VK_FALSE,
+                .maxAnisotropy = 1
         };
         res = fv_vk.vkCreateSampler(painter->vk_data->device,
                                     &sampler_create_info,
