@@ -150,6 +150,7 @@ EXTRA_DIST = \
 	make-miping.py \
 	hud/digits-stamp \
 	hud-stamp \
+	map-texture.png \
 	$(HUD_DIGITS) \
 	$(MODELS:.ply=.blend) \
 	$(BLOCK_IMAGES) \
