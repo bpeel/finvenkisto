@@ -509,8 +509,9 @@ create_graphics(struct data *data)
 
         data->graphics.shader_data_loaded = true;
 
-        data->graphics.hud = fv_hud_new(data->image_data,
-                                        &data->graphics.shader_data);
+        data->graphics.hud = fv_hud_new(&data->vk_data,
+                                        &data->pipeline_data,
+                                        image_data);
 
         if (data->graphics.hud == NULL)
                 goto error;
@@ -591,10 +592,13 @@ paint_hud(struct data *data,
 {
         switch (data->menu_state) {
         case MENU_STATE_CHOOSING_N_PLAYERS:
-                fv_hud_paint_player_select(data->graphics.hud, w, h);
+                fv_hud_paint_player_select(data->graphics.hud,
+                                           data->vk_command_buffer,
+                                           w, h);
                 break;
         case MENU_STATE_CHOOSING_KEYS:
                 fv_hud_paint_key_select(data->graphics.hud,
+                                        data->vk_command_buffer,
                                         w, h,
                                         data->next_player,
                                         data->next_key,
@@ -602,6 +606,7 @@ paint_hud(struct data *data,
                 break;
         case MENU_STATE_PLAYING:
                 fv_hud_paint_game_state(data->graphics.hud,
+                                        data->vk_command_buffer,
                                         w, h,
                                         data->logic);
                 break;
@@ -1023,6 +1028,23 @@ paint_vk(struct data *data)
                               data->vk_command_buffer);
         }
 
+        if (data->n_viewports != 1) {
+                VkViewport viewport = {
+                        .x = 0,
+                        .y = 0,
+                        .width = data->fb_width,
+                        .height = data->fb_height,
+                        .minDepth = 0.0f,
+                        .maxDepth = 1.0f
+                };
+                fv_vk.vkCmdSetViewport(data->vk_command_buffer,
+                                       0, /* firstViewport */
+                                       1, /* viewportCount */
+                                       &viewport);
+        }
+
+        paint_hud(data, data->fb_width, data->fb_height);
+
         fv_vk.vkCmdEndRenderPass(data->vk_command_buffer);
 
         VkImageCopy copy_region = {
@@ -1243,8 +1265,6 @@ paint(struct data *data)
 
         if (data->n_viewports != 1)
                 fv_gl.glViewport(0, 0, data->fb_width, data->fb_height);
-
-        paint_hud(data, data->fb_width, data->fb_height);
 
         paint_vk(data);
 
@@ -1672,12 +1692,12 @@ init_vk(struct data *data)
 
         VkDescriptorPoolSize pool_size = {
                 .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .descriptorCount = 1
+                .descriptorCount = 2
         };
         VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
                 .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-                .maxSets = 1,
+                .maxSets = 2,
                 .poolSizeCount = 1,
                 .pPoolSizes = &pool_size
         };

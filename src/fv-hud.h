@@ -1,7 +1,7 @@
 /*
- * Regular Octagon
+ * Finvenkisto
  *
- * Copyright (C) 2013, 2015 Neil Roberts
+ * Copyright (C) 2013, 2015, 2017 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,20 +21,24 @@
 #define FV_HUD_H
 
 #include "fv-logic.h"
-#include "fv-image-data-old.h"
-#include "fv-shader-data.h"
+#include "fv-image-data.h"
+#include "fv-pipeline-data.h"
+#include "fv-vk-data.h"
 
 struct fv_hud *
-fv_hud_new(struct fv_image_data_old *image_data,
-           struct fv_shader_data *shader_data);
+fv_hud_new(const struct fv_vk_data *vk_data,
+           const struct fv_pipeline_data *pipeline_data,
+           const struct fv_image_data *image_data);
 
 void
 fv_hud_paint_player_select(struct fv_hud *hud,
+                           VkCommandBuffer command_buffer,
                            int screen_width,
                            int screen_height);
 
 void
 fv_hud_paint_key_select(struct fv_hud *hud,
+                        VkCommandBuffer command_buffer,
                         int screen_width,
                         int screen_height,
                         int player_num,
@@ -43,6 +47,7 @@ fv_hud_paint_key_select(struct fv_hud *hud,
 
 void
 fv_hud_paint_game_state(struct fv_hud *hud,
+                        VkCommandBuffer command_buffer,
                         int screen_width,
                         int screen_height,
                         struct fv_logic *logic);

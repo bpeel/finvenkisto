@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2014, 2015 Neil Roberts
+ * Copyright (C) 2014, 2015, 2017 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,31 +23,30 @@
 #include <stdarg.h>
 
 #include "fv-hud.h"
-#include "fv-shader-data.h"
 #include "fv-util.h"
-#include "fv-logic.h"
-#include "fv-gl.h"
-#include "fv-array-object.h"
 #include "fv-ease.h"
-#include "fv-map-buffer.h"
-
-struct fv_hud_vertex {
-        float x, y;
-        float s, t;
-};
+#include "fv-vertex.h"
+#include "fv-error-message.h"
+#include "fv-allocate-store.h"
 
 struct fv_hud {
-        GLuint tex;
+        const struct fv_vk_data *vk_data;
+
+        VkPipeline pipeline;
+        VkPipelineLayout layout;
+        VkBuffer buffer;
+        VkDeviceMemory memory;
+        void *memory_map;
+        VkImage texture_image;
+        VkDeviceMemory texture_memory;
+        VkImageView texture_view;
+        VkSampler sampler;
+        VkDescriptorSet descriptor_set;
+
         int tex_width, tex_height;
 
-        GLuint program;
-
-        GLuint vertex_buffer;
-        GLuint element_buffer;
-        struct fv_array_object *array;
-
         int n_rectangles;
-        struct fv_hud_vertex *vertex;
+        struct fv_vertex_hud *vertex;
         int screen_width, screen_height;
 };
 
@@ -87,107 +86,238 @@ fv_hud_digit_images[] = {
 };
 
 #define FV_HUD_MAX_RECTANGLES 16
+#define FV_HUD_INDICES_OFFSET (sizeof (struct fv_vertex_hud) * 4 * \
+                               FV_HUD_MAX_RECTANGLES)
 
 #define FV_HUD_FINA_VENKO_SLIDE_TIME 1.0f
 
-struct fv_hud *
-fv_hud_new(struct fv_image_data_old *image_data,
-           struct fv_shader_data *shader_data)
+static bool
+create_texture(struct fv_hud *hud,
+               const struct fv_image_data *image_data)
 {
-        struct fv_hud *hud;
-        uint8_t *elements;
-        GLuint tex_location;
-        size_t element_buffer_size;
-        int i;
+        VkResult res;
 
-        hud = fv_alloc(sizeof *hud);
-
-        fv_image_data_old_get_size(image_data,
+        fv_image_data_get_size(image_data,
                                FV_IMAGE_DATA_HUD,
                                &hud->tex_width,
                                &hud->tex_height);
-
-        hud->program = shader_data->programs[FV_SHADER_DATA_PROGRAM_HUD];
-
-        fv_gl.glUseProgram(hud->program);
-        tex_location = fv_gl.glGetUniformLocation(hud->program, "tex");
-        fv_gl.glUniform1i(tex_location, 0);
-
-        fv_gl.glGenTextures(1, &hud->tex);
-        fv_gl.glBindTexture(GL_TEXTURE_2D, hud->tex);
-        fv_image_data_old_set_2d(image_data,
-                             GL_TEXTURE_2D,
-                             0, /* level */
-                             GL_RGBA,
-                             FV_IMAGE_DATA_HUD);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_MIN_FILTER,
-                              GL_NEAREST);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_MAG_FILTER,
-                              GL_LINEAR);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_WRAP_S,
-                              GL_CLAMP_TO_EDGE);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_WRAP_T,
-                              GL_CLAMP_TO_EDGE);
-
-        hud->array = fv_array_object_new();
-
-        fv_gl.glGenBuffers(1, &hud->element_buffer);
-        fv_array_object_set_element_buffer(hud->array, hud->element_buffer);
-        element_buffer_size = FV_HUD_MAX_RECTANGLES * 6 * sizeof (GLubyte);
-        fv_gl.glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                           element_buffer_size,
-                           NULL, /* data */
-                           GL_STATIC_DRAW);
-
-        elements = fv_map_buffer_map(GL_ELEMENT_ARRAY_BUFFER,
-                                     element_buffer_size,
-                                     false /* flush_explicit */,
-                                     GL_STATIC_DRAW);
-
-        for (i = 0; i < FV_HUD_MAX_RECTANGLES; i++) {
-                elements[i * 6 + 0] = i * 4 + 0;
-                elements[i * 6 + 1] = i * 4 + 1;
-                elements[i * 6 + 2] = i * 4 + 3;
-                elements[i * 6 + 3] = i * 4 + 3;
-                elements[i * 6 + 4] = i * 4 + 1;
-                elements[i * 6 + 5] = i * 4 + 2;
+        res = fv_image_data_create_image_2d(image_data,
+                                            FV_IMAGE_DATA_HUD,
+                                            &hud->texture_image,
+                                            &hud->texture_memory);
+        if (res != VK_SUCCESS) {
+                hud->texture_image = NULL;
+                hud->texture_memory = NULL;
+                fv_error_message("Error creating hud texture");
+                return false;
         }
 
-        fv_map_buffer_unmap();
+        VkImageViewCreateInfo image_view_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = hud->texture_image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = fv_image_data_get_format(image_data,
+                                                   FV_IMAGE_DATA_HUD),
+                .components = {
+                        .r = VK_COMPONENT_SWIZZLE_R,
+                        .g = VK_COMPONENT_SWIZZLE_G,
+                        .b = VK_COMPONENT_SWIZZLE_B,
+                        .a = VK_COMPONENT_SWIZZLE_A
+                },
+                .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount =
+                        fv_image_data_get_miplevels(image_data,
+                                                    FV_IMAGE_DATA_HUD),
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                }
+        };
+        res = fv_vk.vkCreateImageView(hud->vk_data->device,
+                                      &image_view_create_info,
+                                      NULL, /* allocator */
+                                      &hud->texture_view);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating hud image view");
+                hud->texture_view = NULL;
+                return false;
+        }
 
-        fv_gl.glGenBuffers(1, &hud->vertex_buffer);
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, hud->vertex_buffer);
-        fv_gl.glBufferData(GL_ARRAY_BUFFER,
-                           FV_HUD_MAX_RECTANGLES * 4 *
-                           sizeof (struct fv_hud_vertex),
-                           NULL, /* data */
-                           GL_DYNAMIC_DRAW);
+        return true;
+}
 
-        fv_array_object_set_attribute(hud->array,
-                                      FV_SHADER_DATA_ATTRIB_POSITION,
-                                      2, /* size */
-                                      GL_FLOAT,
-                                      GL_FALSE, /* normalized */
-                                      sizeof (struct fv_hud_vertex),
-                                      0, /* divisor */
-                                      hud->vertex_buffer,
-                                      offsetof(struct fv_hud_vertex, x));
+static bool
+create_sampler(struct fv_hud *hud)
+{
+        VkResult res;
 
-        fv_array_object_set_attribute(hud->array,
-                                      FV_SHADER_DATA_ATTRIB_TEX_COORD,
-                                      2, /* size */
-                                      GL_FLOAT,
-                                      GL_FALSE, /* normalized */
-                                      sizeof (struct fv_hud_vertex),
-                                      0, /* divisor */
-                                      hud->vertex_buffer,
-                                      offsetof(struct fv_hud_vertex, s));
+        VkSamplerCreateInfo sampler_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                .magFilter = VK_FILTER_NEAREST,
+                .minFilter = VK_FILTER_NEAREST,
+                .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+                .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .anisotropyEnable = VK_FALSE,
+                .maxAnisotropy = 1
+        };
+        res = fv_vk.vkCreateSampler(hud->vk_data->device,
+                                    &sampler_create_info,
+                                    NULL, /* allocator */
+                                    &hud->sampler);
+        if (res != VK_SUCCESS) {
+                hud->sampler = NULL;
+                fv_error_message("Error creating sampler");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+create_descriptor_set(struct fv_hud *hud,
+                      const struct fv_pipeline_data *pipeline_data)
+{
+        VkResult res;
+
+        VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = hud->vk_data->descriptor_pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = (pipeline_data->dsls +
+                                FV_PIPELINE_DATA_DSL_TEXTURE)
+        };
+        res = fv_vk.vkAllocateDescriptorSets(hud->vk_data->device,
+                                             &descriptor_set_allocate_info,
+                                             &hud->descriptor_set);
+        if (res != VK_SUCCESS) {
+                hud->descriptor_set = NULL;
+                fv_error_message("Error allocating descriptor set");
+                return false;
+        }
+
+        VkDescriptorImageInfo descriptor_image_info = {
+                .sampler = hud->sampler,
+                .imageView = hud->texture_view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        };
+        VkWriteDescriptorSet write_descriptor_set = {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = hud->descriptor_set,
+                .dstBinding = 0,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo = &descriptor_image_info
+        };
+        fv_vk.vkUpdateDescriptorSets(hud->vk_data->device,
+                                     1, /* descriptorWriteCount */
+                                     &write_descriptor_set,
+                                     0, /* descriptorCopyCount */
+                                     NULL /* pDescriptorCopies */);
+
+        return true;
+}
+
+static bool
+create_buffer(struct fv_hud *hud)
+{
+        VkResult res;
+        int buffer_offset;
+
+        VkBufferCreateInfo buffer_create_info = {
+                .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                .size = (FV_HUD_INDICES_OFFSET +
+                         sizeof (uint16_t) *
+                         FV_HUD_MAX_RECTANGLES * 6),
+                .usage = (VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+                          VK_BUFFER_USAGE_INDEX_BUFFER_BIT),
+                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        };
+        res = fv_vk.vkCreateBuffer(hud->vk_data->device,
+                                   &buffer_create_info,
+                                   NULL, /* allocator */
+                                   &hud->buffer);
+        if (res != VK_SUCCESS) {
+                hud->buffer = NULL;
+                fv_error_message("Error creating hud buffer");
+                return false;
+        }
+
+        res = fv_allocate_store_buffer(hud->vk_data,
+                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                       1, /* n_buffers */
+                                       &hud->buffer,
+                                       &hud->memory,
+                                       &buffer_offset);
+        if (res != VK_SUCCESS) {
+                hud->memory = NULL;
+                fv_error_message("Error creating hud memory");
+                return false;
+        }
+
+        res = fv_vk.vkMapMemory(hud->vk_data->device,
+                                hud->memory,
+                                0, /* offset */
+                                VK_WHOLE_SIZE,
+                                0, /* flags */
+                                &hud->memory_map);
+        if (res != VK_SUCCESS) {
+                hud->memory_map = NULL;
+                fv_error_message("Error mapping hud memory");
+                return false;
+        }
+
+        return true;
+}
+
+struct fv_hud *
+fv_hud_new(const struct fv_vk_data *vk_data,
+           const struct fv_pipeline_data *pipeline_data,
+           const struct fv_image_data *image_data)
+{
+        struct fv_hud *hud;
+        uint16_t *indices;
+        int i;
+
+        hud = fv_alloc(sizeof *hud);
+        memset(hud, 0, sizeof *hud);
+
+        hud->vk_data = vk_data;
+        hud->pipeline = pipeline_data->pipelines[FV_PIPELINE_DATA_PIPELINE_HUD];
+        hud->layout = pipeline_data->layouts[FV_PIPELINE_DATA_LAYOUT_HUD];
+
+        if (!create_texture(hud, image_data))
+                goto error;
+
+        if (!create_sampler(hud))
+                goto error;
+
+        if (!create_descriptor_set(hud, pipeline_data))
+                goto error;
+
+        if (!create_buffer(hud))
+                goto error;
+
+        indices = (uint16_t *) ((uint8_t *) hud->memory_map +
+                                FV_HUD_INDICES_OFFSET);
+
+        for (i = 0; i < FV_HUD_MAX_RECTANGLES; i++) {
+                indices[i * 6 + 0] = i * 4 + 0;
+                indices[i * 6 + 1] = i * 4 + 1;
+                indices[i * 6 + 2] = i * 4 + 3;
+                indices[i * 6 + 3] = i * 4 + 3;
+                indices[i * 6 + 4] = i * 4 + 1;
+                indices[i * 6 + 5] = i * 4 + 2;
+        }
 
         return hud;
+
+error:
+        fv_hud_free(hud);
+        return NULL;
 }
 
 static void
@@ -195,12 +325,7 @@ fv_hud_begin_rectangles(struct fv_hud *hud,
                         int screen_width,
                         int screen_height)
 {
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, hud->vertex_buffer);
-        hud->vertex = fv_map_buffer_map(GL_ARRAY_BUFFER,
-                                        sizeof (struct fv_hud_vertex) *
-                                        FV_HUD_MAX_RECTANGLES * 4,
-                                        true /* flush_explicit */,
-                                        GL_DYNAMIC_DRAW);
+        hud->vertex = hud->memory_map;
         hud->n_rectangles = 0;
         hud->screen_width = screen_width;
         hud->screen_height = screen_height;
@@ -252,37 +377,37 @@ fv_hud_add_rectangle(struct fv_hud *hud,
 }
 
 static void
-fv_hud_end_rectangles(struct fv_hud *hud)
+fv_hud_end_rectangles(struct fv_hud *hud,
+                      VkCommandBuffer command_buffer)
 {
-        fv_map_buffer_flush(0, /* offset */
-                            hud->n_rectangles * 4 *
-                            sizeof (struct fv_hud_vertex));
-        fv_map_buffer_unmap();
+        VkDeviceSize vertices_offset = 0;
 
-        /* There's no benefit to using multisampling for the HUD
-         * because it is only drawing screen-aligned rectangles */
-        if (fv_gl.have_multisampling)
-                fv_gl.glDisable(GL_MULTISAMPLE);
-
-        fv_gl.glEnable(GL_BLEND);
-
-        fv_gl.glUseProgram(hud->program);
-
-        fv_gl.glBindTexture(GL_TEXTURE_2D, hud->tex);
-
-        fv_array_object_bind(hud->array);
-
-        fv_gl_draw_range_elements(GL_TRIANGLES,
-                                  0, /* start */
-                                  hud->n_rectangles * 4 - 1, /* end */
-                                  hud->n_rectangles * 6, /* count */
-                                  GL_UNSIGNED_BYTE,
-                                  NULL);
-
-        if (fv_gl.have_multisampling)
-                fv_gl.glEnable(GL_MULTISAMPLE);
-
-        fv_gl.glDisable(GL_BLEND);
+        fv_vk.vkCmdBindPipeline(command_buffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                hud->pipeline);
+        fv_vk.vkCmdBindDescriptorSets(command_buffer,
+                                      VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                      hud->layout,
+                                      0, /* firstSet */
+                                      1, /* descriptorSetCount */
+                                      &hud->descriptor_set,
+                                      0, /* dynamicOffsetCount */
+                                      NULL /* pDynamicOffsets */);
+        fv_vk.vkCmdBindVertexBuffers(command_buffer,
+                                     0, /* firstBinding */
+                                     1, /* bindingCount */
+                                     &hud->buffer,
+                                     &vertices_offset);
+        fv_vk.vkCmdBindIndexBuffer(command_buffer,
+                                   hud->buffer,
+                                   FV_HUD_INDICES_OFFSET,
+                                   VK_INDEX_TYPE_UINT16);
+        fv_vk.vkCmdDrawIndexed(command_buffer,
+                               hud->n_rectangles * 6,
+                               1, /* instanceCount */
+                               0, /* firstIndex */
+                               0, /* vertexOffset */
+                               0 /* firstInstance */);
 }
 
 static void
@@ -296,6 +421,7 @@ fv_hud_add_title(struct fv_hud *hud)
 
 void
 fv_hud_paint_player_select(struct fv_hud *hud,
+                           VkCommandBuffer command_buffer,
                            int screen_width,
                            int screen_height)
 {
@@ -308,11 +434,12 @@ fv_hud_paint_player_select(struct fv_hud *hud,
                              fv_hud_image_player_select.h -
                              10,
                              &fv_hud_image_player_select);
-        fv_hud_end_rectangles(hud);
+        fv_hud_end_rectangles(hud, command_buffer);
 }
 
 void
 fv_hud_paint_key_select(struct fv_hud *hud,
+                        VkCommandBuffer command_buffer,
                         int screen_width,
                         int screen_height,
                         int player_num,
@@ -352,7 +479,7 @@ fv_hud_paint_key_select(struct fv_hud *hud,
         }
 
 
-        fv_hud_end_rectangles(hud);
+        fv_hud_end_rectangles(hud, command_buffer);
 }
 
 static void
@@ -508,6 +635,7 @@ fv_hud_add_fina_venko(struct fv_hud *hud,
 
 void
 fv_hud_paint_game_state(struct fv_hud *hud,
+                        VkCommandBuffer command_buffer,
                         int screen_width,
                         int screen_height,
                         struct fv_logic *logic)
@@ -550,15 +678,52 @@ fv_hud_paint_game_state(struct fv_hud *hud,
                                       time_since_fina_venko);
         }
 
-        fv_hud_end_rectangles(hud);
+        fv_hud_end_rectangles(hud, command_buffer);
 }
 
 void
 fv_hud_free(struct fv_hud *hud)
 {
-        fv_gl.glDeleteBuffers(1, &hud->vertex_buffer);
-        fv_gl.glDeleteBuffers(1, &hud->element_buffer);
-        fv_array_object_free(hud->array);
-        fv_gl.glDeleteTextures(1, &hud->tex);
+        if (hud->memory_map) {
+                fv_vk.vkUnmapMemory(hud->vk_data->device,
+                                    hud->memory);
+        }
+        if (hud->memory) {
+                fv_vk.vkFreeMemory(hud->vk_data->device,
+                                   hud->memory,
+                                   NULL /* allocator */);
+        }
+        if (hud->buffer) {
+                fv_vk.vkDestroyBuffer(hud->vk_data->device,
+                                      hud->buffer,
+                                      NULL /* allocator */);
+        }
+        if (hud->descriptor_set) {
+                fv_vk.vkFreeDescriptorSets(hud->vk_data->device,
+                                           hud->vk_data->descriptor_pool,
+                                           1, /* descriptorSetCount */
+                                           &hud->descriptor_set);
+        }
+        if (hud->sampler) {
+                fv_vk.vkDestroySampler(hud->vk_data->device,
+                                       hud->sampler,
+                                       NULL /* allocator */);
+        }
+        if (hud->texture_view) {
+                fv_vk.vkDestroyImageView(hud->vk_data->device,
+                                         hud->texture_view,
+                                         NULL /* allocator */);
+        }
+        if (hud->texture_image) {
+                fv_vk.vkDestroyImage(hud->vk_data->device,
+                                     hud->texture_image,
+                                     NULL /* allocator */);
+        }
+        if (hud->texture_memory) {
+                fv_vk.vkFreeMemory(hud->vk_data->device,
+                                   hud->texture_memory,
+                                   NULL /* allocator */);
+        }
+
         fv_free(hud);
 }
