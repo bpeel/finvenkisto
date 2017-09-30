@@ -986,6 +986,9 @@ fv_map_painter_free(struct fv_map_painter *painter)
         fv_vk.vkFreeMemory(painter->vk_data->device,
                            painter->texture_memory,
                            NULL /* allocator */);
+        fv_vk.vkDestroyImageView(painter->vk_data->device,
+                                 painter->texture_view,
+                                 NULL /* allocator */);
         fv_vk.vkDestroyImage(painter->vk_data->device,
                               painter->texture_image,
                               NULL /* allocator */);
