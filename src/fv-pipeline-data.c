@@ -271,8 +271,74 @@ error:
 }
 
 static bool
+create_mipmap_sampler(const struct fv_vk_data *vk_data,
+                      struct fv_pipeline_data *data)
+{
+        VkResult res;
+
+        VkSamplerCreateInfo sampler_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                .magFilter = VK_FILTER_LINEAR,
+                .minFilter = VK_FILTER_LINEAR,
+                .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+                .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .anisotropyEnable = VK_FALSE,
+                .maxAnisotropy = 1,
+                .minLod = -1000.0f,
+                .maxLod = 1000.0f
+        };
+        VkSampler *sampler = data->samplers + FV_PIPELINE_DATA_SAMPLER_MIPMAP;
+        res = fv_vk.vkCreateSampler(vk_data->device,
+                                    &sampler_create_info,
+                                    NULL, /* allocator */
+                                    sampler);
+        if (res != VK_SUCCESS) {
+                sampler = NULL;
+                fv_error_message("Error creating mipmap sampler");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+create_nearest_sampler(const struct fv_vk_data *vk_data,
+                       struct fv_pipeline_data *data)
+{
+        VkResult res;
+
+        VkSamplerCreateInfo sampler_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                .magFilter = VK_FILTER_NEAREST,
+                .minFilter = VK_FILTER_NEAREST,
+                .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+                .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                .anisotropyEnable = VK_FALSE,
+                .maxAnisotropy = 1
+        };
+        VkSampler *sampler = data->samplers + FV_PIPELINE_DATA_SAMPLER_NEAREST;
+        res = fv_vk.vkCreateSampler(vk_data->device,
+                                    &sampler_create_info,
+                                    NULL, /* allocator */
+                                    sampler);
+        if (res != VK_SUCCESS) {
+                sampler = NULL;
+                fv_error_message("Error creating nearest sampler");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
 create_texture_dsl(const struct fv_vk_data *vk_data,
-                   struct fv_pipeline_data *data)
+                   struct fv_pipeline_data *data,
+                   enum fv_pipeline_data_sampler sampler_num,
+                   enum fv_pipeline_data_dsl dsl_num)
 {
         VkResult res;
 
@@ -282,7 +348,8 @@ create_texture_dsl(const struct fv_vk_data *vk_data,
                         .descriptorType =
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                         .descriptorCount = 1,
-                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                        .pImmutableSamplers = data->samplers + sampler_num
                 }
         };
 
@@ -291,13 +358,12 @@ create_texture_dsl(const struct fv_vk_data *vk_data,
                 .bindingCount = FV_N_ELEMENTS(descriptor_set_layout_bindings),
                 .pBindings = descriptor_set_layout_bindings
         };
-        VkDescriptorSetLayout *dsl = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE;
         res = fv_vk.vkCreateDescriptorSetLayout(vk_data->device,
                                                 &dsl_create_info,
                                                 NULL, /* allocator */
-                                                dsl);
+                                                data->dsls + dsl_num);
         if (res != VK_SUCCESS) {
-                *dsl = NULL;
+                data->dsls[dsl_num] = NULL;
                 fv_error_message("Error creating descriptor set layout");
                 return false;
         }
@@ -324,7 +390,7 @@ create_map_layout(const struct fv_vk_data *vk_data,
                 .pushConstantRangeCount = FV_N_ELEMENTS(push_constant_ranges),
                 .pPushConstantRanges = push_constant_ranges,
                 .setLayoutCount = 1,
-                .pSetLayouts = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE
+                .pSetLayouts = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE_MIPMAP
         };
         VkPipelineLayout *layout =
                 data->layouts + FV_PIPELINE_DATA_LAYOUT_MAP;
@@ -343,24 +409,24 @@ create_map_layout(const struct fv_vk_data *vk_data,
 
 static bool
 create_texture_layout(const struct fv_vk_data *vk_data,
-                      struct fv_pipeline_data *data)
+                      struct fv_pipeline_data *data,
+                      enum fv_pipeline_data_dsl dsl_num,
+                      enum fv_pipeline_data_layout layout_num)
 {
         VkResult res;
 
         VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
                 .setLayoutCount = 1,
-                .pSetLayouts = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE
+                .pSetLayouts = data->dsls + dsl_num
         };
-        VkPipelineLayout *layout =
-                data->layouts + FV_PIPELINE_DATA_LAYOUT_TEXTURE;
         res = fv_vk.vkCreatePipelineLayout(vk_data->device,
                                            &pipeline_layout_create_info,
                                            NULL, /* allocator */
-                                           layout);
+                                           data->layouts + layout_num);
         if (res != VK_SUCCESS) {
-                *layout = NULL;
-                fv_error_message("Error creating hud pipeline layout");
+                data->layouts[layout_num] = NULL;
+                fv_error_message("Error creating texture pipeline layout");
                 return false;
         }
 
@@ -403,7 +469,7 @@ create_special_texture_layout(const struct fv_vk_data *vk_data,
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
                 .pushConstantRangeCount = 0,
                 .setLayoutCount = 1,
-                .pSetLayouts = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE
+                .pSetLayouts = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE_MIPMAP
         };
         VkPipelineLayout *layout =
                 data->layouts + FV_PIPELINE_DATA_LAYOUT_SPECIAL_TEXTURE;
@@ -439,7 +505,7 @@ create_shout_layout(const struct fv_vk_data *vk_data,
                 .pushConstantRangeCount = FV_N_ELEMENTS(push_constant_ranges),
                 .pPushConstantRanges = push_constant_ranges,
                 .setLayoutCount = 1,
-                .pSetLayouts = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE
+                .pSetLayouts = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE_MIPMAP
         };
         VkPipelineLayout *layout =
                 data->layouts + FV_PIPELINE_DATA_LAYOUT_SHOUT;
@@ -623,7 +689,7 @@ create_hud_pipeline(const struct fv_vk_data *vk_data,
         info.pStages = stages;
         info.pVertexInputState = &vertex_input_state;
         info.pInputAssemblyState = &input_assembly_state;
-        info.layout = data->layouts[FV_PIPELINE_DATA_LAYOUT_TEXTURE];
+        info.layout = data->layouts[FV_PIPELINE_DATA_LAYOUT_TEXTURE_NEAREST];
         info.renderPass = render_pass;
         info.pColorBlendState = &base_blend_enabled_state;
         info.pDepthStencilState = &depth_stencil_state;
@@ -790,7 +856,7 @@ create_person_pipeline(const struct fv_vk_data *vk_data,
         info.pStages = stages;
         info.pVertexInputState = &vertex_input_state;
         info.pInputAssemblyState = &input_assembly_state;
-        info.layout = data->layouts[FV_PIPELINE_DATA_LAYOUT_TEXTURE];
+        info.layout = data->layouts[FV_PIPELINE_DATA_LAYOUT_TEXTURE_MIPMAP];
         info.renderPass = render_pass;
 
         VkPipeline *pipeline =
@@ -1204,6 +1270,100 @@ create_shout_pipeline(const struct fv_vk_data *vk_data,
         return true;
 }
 
+static bool
+create_objects(const struct fv_vk_data *vk_data,
+               VkRenderPass render_pass,
+               VkPipelineCache pipeline_cache,
+               VkShaderModule *shaders,
+               struct fv_pipeline_data *data)
+{
+        if (!create_mipmap_sampler(vk_data, data))
+                return false;
+
+        if (!create_nearest_sampler(vk_data, data))
+                return false;
+
+        if (!create_texture_dsl(vk_data,
+                                data,
+                                FV_PIPELINE_DATA_SAMPLER_MIPMAP,
+                                FV_PIPELINE_DATA_DSL_TEXTURE_MIPMAP))
+                return false;
+
+        if (!create_texture_dsl(vk_data,
+                                data,
+                                FV_PIPELINE_DATA_SAMPLER_NEAREST,
+                                FV_PIPELINE_DATA_DSL_TEXTURE_NEAREST))
+                return false;
+
+        if (!create_map_layout(vk_data, data))
+                return false;
+
+        if (!create_texture_layout(vk_data,
+                                   data,
+                                   FV_PIPELINE_DATA_DSL_TEXTURE_NEAREST,
+                                   FV_PIPELINE_DATA_LAYOUT_TEXTURE_NEAREST))
+                return false;
+
+        if (!create_texture_layout(vk_data,
+                                   data,
+                                   FV_PIPELINE_DATA_DSL_TEXTURE_MIPMAP,
+                                   FV_PIPELINE_DATA_LAYOUT_TEXTURE_MIPMAP))
+                return false;
+
+        if (!create_empty_layout(vk_data, data))
+                return false;
+
+        if (!create_special_texture_layout(vk_data, data))
+                return false;
+
+        if (!create_shout_layout(vk_data, data))
+                return false;
+
+        if (!create_map_pipeline(vk_data,
+                                 render_pass,
+                                 pipeline_cache,
+                                 shaders,
+                                 data))
+                return false;
+
+        if (!create_hud_pipeline(vk_data,
+                                 render_pass,
+                                 pipeline_cache,
+                                 shaders,
+                                 data))
+                return false;
+
+        if (!create_person_pipeline(vk_data,
+                                    render_pass,
+                                    pipeline_cache,
+                                    shaders,
+                                    data))
+                return false;
+
+        if (!create_special_color_pipeline(vk_data,
+                                           render_pass,
+                                           pipeline_cache,
+                                           shaders,
+                                           data))
+                return false;
+
+        if (!create_special_texture_pipeline(vk_data,
+                                             render_pass,
+                                             pipeline_cache,
+                                             shaders,
+                                             data))
+                return false;
+
+        if (!create_shout_pipeline(vk_data,
+                                   render_pass,
+                                   pipeline_cache,
+                                   shaders,
+                                   data))
+                return false;
+
+        return true;
+}
+
 bool
 fv_pipeline_data_init(const struct fv_vk_data *vk_data,
                       VkRenderPass render_pass,
@@ -1231,42 +1391,11 @@ fv_pipeline_data_init(const struct fv_vk_data *vk_data,
         } else {
                 memset(data, 0, sizeof *data);
 
-                if (!create_texture_dsl(vk_data, data) ||
-                    !create_map_layout(vk_data, data) ||
-                    !create_texture_layout(vk_data, data) ||
-                    !create_empty_layout(vk_data, data) ||
-                    !create_special_texture_layout(vk_data, data) ||
-                    !create_shout_layout(vk_data, data) ||
-                    !create_map_pipeline(vk_data,
-                                         render_pass,
-                                         pipeline_cache,
-                                         shaders,
-                                         data) ||
-                    !create_hud_pipeline(vk_data,
-                                         render_pass,
-                                         pipeline_cache,
-                                         shaders,
-                                         data) ||
-                    !create_person_pipeline(vk_data,
-                                            render_pass,
-                                            pipeline_cache,
-                                            shaders,
-                                            data) ||
-                    !create_special_color_pipeline(vk_data,
-                                                   render_pass,
-                                                   pipeline_cache,
-                                                   shaders,
-                                                   data) ||
-                    !create_special_texture_pipeline(vk_data,
-                                                     render_pass,
-                                                     pipeline_cache,
-                                                     shaders,
-                                                     data) ||
-                    !create_shout_pipeline(vk_data,
-                                           render_pass,
-                                           pipeline_cache,
-                                           shaders,
-                                           data)) {
+                if (!create_objects(vk_data,
+                                    render_pass,
+                                    pipeline_cache,
+                                    shaders,
+                                    data)) {
                         fv_pipeline_data_destroy(vk_data, data);
                         ret = false;
                 }
@@ -1311,5 +1440,12 @@ fv_pipeline_data_destroy(const struct fv_vk_data *vk_data,
                 fv_vk.vkDestroyPipeline(vk_data->device,
                                         data->pipelines[i],
                                         NULL /* allocator */);
+        }
+        for (i = 0; i < FV_PIPELINE_DATA_N_SAMPLERS; i++) {
+                if (data->samplers[i] == NULL)
+                        continue;
+                fv_vk.vkDestroySampler(vk_data->device,
+                                       data->samplers[i],
+                                       NULL /* allocator */);
         }
 }

@@ -25,13 +25,15 @@
 #include "fv-vk-data.h"
 
 enum fv_pipeline_data_dsl {
-        FV_PIPELINE_DATA_DSL_TEXTURE,
+        FV_PIPELINE_DATA_DSL_TEXTURE_MIPMAP,
+        FV_PIPELINE_DATA_DSL_TEXTURE_NEAREST,
         FV_PIPELINE_DATA_N_DSLS
 };
 
 enum fv_pipeline_data_layout {
         FV_PIPELINE_DATA_LAYOUT_MAP,
-        FV_PIPELINE_DATA_LAYOUT_TEXTURE,
+        FV_PIPELINE_DATA_LAYOUT_TEXTURE_NEAREST,
+        FV_PIPELINE_DATA_LAYOUT_TEXTURE_MIPMAP,
         FV_PIPELINE_DATA_LAYOUT_EMPTY,
         FV_PIPELINE_DATA_LAYOUT_SPECIAL_TEXTURE,
         FV_PIPELINE_DATA_LAYOUT_SHOUT,
@@ -48,10 +50,17 @@ enum fv_pipeline_data_pipeline {
         FV_PIPELINE_DATA_N_PIPELINES
 };
 
+enum fv_pipeline_data_sampler {
+        FV_PIPELINE_DATA_SAMPLER_MIPMAP,
+        FV_PIPELINE_DATA_SAMPLER_NEAREST,
+        FV_PIPELINE_DATA_N_SAMPLERS
+};
+
 struct fv_pipeline_data {
         VkDescriptorSetLayout dsls[FV_PIPELINE_DATA_N_DSLS];
         VkPipelineLayout layouts[FV_PIPELINE_DATA_N_LAYOUTS];
         VkPipeline pipelines[FV_PIPELINE_DATA_N_PIPELINES];
+        VkSampler samplers[FV_PIPELINE_DATA_N_SAMPLERS];
 };
 
 bool

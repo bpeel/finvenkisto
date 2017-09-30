@@ -58,7 +58,6 @@ struct fv_person_painter {
         VkImage texture_image;
         VkDeviceMemory texture_memory;
         VkImageView texture_view;
-        VkSampler sampler;
         VkDescriptorSet descriptor_set;
 
         struct fv_list instance_buffers;
@@ -125,37 +124,6 @@ create_texture(struct fv_person_painter *painter,
 }
 
 static bool
-create_sampler(struct fv_person_painter *painter)
-{
-        VkResult res;
-
-        VkSamplerCreateInfo sampler_create_info = {
-                .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-                .magFilter = VK_FILTER_LINEAR,
-                .minFilter = VK_FILTER_LINEAR,
-                .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-                .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-                .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-                .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-                .anisotropyEnable = VK_FALSE,
-                .maxAnisotropy = 1,
-                .minLod = -1000.0f,
-                .maxLod = 1000.0f
-        };
-        res = fv_vk.vkCreateSampler(painter->vk_data->device,
-                                    &sampler_create_info,
-                                    NULL, /* allocator */
-                                    &painter->sampler);
-        if (res != VK_SUCCESS) {
-                painter->sampler = NULL;
-                fv_error_message("Error creating sampler");
-                return false;
-        }
-
-        return true;
-}
-
-static bool
 create_descriptor_set(struct fv_person_painter *painter,
                       const struct fv_pipeline_data *pipeline_data)
 {
@@ -166,7 +134,7 @@ create_descriptor_set(struct fv_person_painter *painter,
                 .descriptorPool = painter->vk_data->descriptor_pool,
                 .descriptorSetCount = 1,
                 .pSetLayouts = (pipeline_data->dsls +
-                                FV_PIPELINE_DATA_DSL_TEXTURE)
+                                FV_PIPELINE_DATA_DSL_TEXTURE_MIPMAP)
         };
         res = fv_vk.vkAllocateDescriptorSets(painter->vk_data->device,
                                              &descriptor_set_allocate_info,
@@ -178,7 +146,6 @@ create_descriptor_set(struct fv_person_painter *painter,
         }
 
         VkDescriptorImageInfo descriptor_image_info = {
-                .sampler = painter->sampler,
                 .imageView = painter->texture_view,
                 .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         };
@@ -211,7 +178,7 @@ fv_person_painter_new(const struct fv_vk_data *vk_data,
         painter->pipeline =
                 pipeline_data->pipelines[FV_PIPELINE_DATA_PIPELINE_PERSON];
         painter->layout =
-                pipeline_data->layouts[FV_PIPELINE_DATA_LAYOUT_TEXTURE];
+                pipeline_data->layouts[FV_PIPELINE_DATA_LAYOUT_TEXTURE_MIPMAP];
         fv_list_init(&painter->instance_buffers);
         fv_list_init(&painter->in_use_instance_buffers);
 
@@ -220,9 +187,6 @@ fv_person_painter_new(const struct fv_vk_data *vk_data,
         painter->model_loaded = true;
 
         if (!create_texture(painter, image_data))
-                goto error;
-
-        if (!create_sampler(painter))
                 goto error;
 
         if (!create_descriptor_set(painter, pipeline_data))
@@ -481,11 +445,6 @@ fv_person_painter_free(struct fv_person_painter *painter)
                                            painter->vk_data->descriptor_pool,
                                            1, /* descriptorSetCount */
                                            &painter->descriptor_set);
-        }
-        if (painter->sampler) {
-                fv_vk.vkDestroySampler(painter->vk_data->device,
-                                       painter->sampler,
-                                       NULL /* allocator */);
         }
         if (painter->texture_view) {
                 fv_vk.vkDestroyImageView(painter->vk_data->device,

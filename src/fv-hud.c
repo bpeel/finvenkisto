@@ -40,7 +40,6 @@ struct fv_hud {
         VkImage texture_image;
         VkDeviceMemory texture_memory;
         VkImageView texture_view;
-        VkSampler sampler;
         VkDescriptorSet descriptor_set;
 
         int tex_width, tex_height;
@@ -148,35 +147,6 @@ create_texture(struct fv_hud *hud,
 }
 
 static bool
-create_sampler(struct fv_hud *hud)
-{
-        VkResult res;
-
-        VkSamplerCreateInfo sampler_create_info = {
-                .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-                .magFilter = VK_FILTER_NEAREST,
-                .minFilter = VK_FILTER_NEAREST,
-                .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-                .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-                .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-                .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-                .anisotropyEnable = VK_FALSE,
-                .maxAnisotropy = 1
-        };
-        res = fv_vk.vkCreateSampler(hud->vk_data->device,
-                                    &sampler_create_info,
-                                    NULL, /* allocator */
-                                    &hud->sampler);
-        if (res != VK_SUCCESS) {
-                hud->sampler = NULL;
-                fv_error_message("Error creating sampler");
-                return false;
-        }
-
-        return true;
-}
-
-static bool
 create_descriptor_set(struct fv_hud *hud,
                       const struct fv_pipeline_data *pipeline_data)
 {
@@ -187,7 +157,7 @@ create_descriptor_set(struct fv_hud *hud,
                 .descriptorPool = hud->vk_data->descriptor_pool,
                 .descriptorSetCount = 1,
                 .pSetLayouts = (pipeline_data->dsls +
-                                FV_PIPELINE_DATA_DSL_TEXTURE)
+                                FV_PIPELINE_DATA_DSL_TEXTURE_NEAREST)
         };
         res = fv_vk.vkAllocateDescriptorSets(hud->vk_data->device,
                                              &descriptor_set_allocate_info,
@@ -199,7 +169,6 @@ create_descriptor_set(struct fv_hud *hud,
         }
 
         VkDescriptorImageInfo descriptor_image_info = {
-                .sampler = hud->sampler,
                 .imageView = hud->texture_view,
                 .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         };
@@ -287,12 +256,10 @@ fv_hud_new(const struct fv_vk_data *vk_data,
 
         hud->vk_data = vk_data;
         hud->pipeline = pipeline_data->pipelines[FV_PIPELINE_DATA_PIPELINE_HUD];
-        hud->layout = pipeline_data->layouts[FV_PIPELINE_DATA_LAYOUT_TEXTURE];
+        hud->layout =
+                pipeline_data->layouts[FV_PIPELINE_DATA_LAYOUT_TEXTURE_NEAREST];
 
         if (!create_texture(hud, image_data))
-                goto error;
-
-        if (!create_sampler(hud))
                 goto error;
 
         if (!create_descriptor_set(hud, pipeline_data))
@@ -705,11 +672,6 @@ fv_hud_free(struct fv_hud *hud)
                                            hud->vk_data->descriptor_pool,
                                            1, /* descriptorSetCount */
                                            &hud->descriptor_set);
-        }
-        if (hud->sampler) {
-                fv_vk.vkDestroySampler(hud->vk_data->device,
-                                       hud->sampler,
-                                       NULL /* allocator */);
         }
         if (hud->texture_view) {
                 fv_vk.vkDestroyImageView(hud->vk_data->device,
