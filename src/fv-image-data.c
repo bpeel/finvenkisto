@@ -31,6 +31,7 @@
 
 struct image_details {
         int full_width, width, height;
+        int miplevels;
         VkFormat format;
 };
 
@@ -116,14 +117,16 @@ get_next_image_offset(int width, int height, VkFormat format)
 }
 
 static size_t
-get_buffer_size(int width, int height, VkFormat format)
+get_buffer_size(const struct image_details *image)
 {
-        int miplevels = count_miplevels(width, height);
+        int miplevels = image->miplevels;
+        int width = image->width;
+        int height = image->height;
         size_t size = 0;
         int i;
 
         for (i = 0; i < miplevels; i++) {
-                size += get_next_image_offset(width, height, format);
+                size += get_next_image_offset(width, height, image->format);
                 width = MAX(width / 2, 1);
                 height = MAX(height / 2, 1);
         }
@@ -175,12 +178,21 @@ load_image(const char *name,
 }
 
 static bool
+filename_is_mipng(const char *name)
+{
+        int len = strlen(name);
+
+        return len >= 6 && !strcmp(name + len - 6, ".mipng");
+}
+
+static bool
 load_info(const struct fv_vk_data *vk_data,
           const char *name,
           struct image_details *image)
 {
         char *filename = fv_data_get_filename(name);
         int components, res;
+        bool is_mipng = filename_is_mipng(name);
 
         if (filename == NULL) {
                 fv_error_message("Failed to get filename for %s", name);
@@ -201,11 +213,17 @@ load_info(const struct fv_vk_data *vk_data,
 
         fv_free(filename);
 
-        /* Width must be an even number to hold the mipmaps */
-        if (image->full_width & 1)
-                return false;
+        if (is_mipng) {
+                /* Width must be an even number to hold the mipmaps */
+                if (image->full_width & 1)
+                        return false;
 
-        image->width = image->full_width / 2;
+                image->width = image->full_width / 2;
+                image->miplevels = count_miplevels(image->width, image->height);
+        } else {
+                image->width = image->full_width;
+                image->miplevels = 1;
+        }
 
         return components_to_format(components, &image->format);
 }
@@ -220,9 +238,7 @@ create_buffers(struct fv_image_data *data)
         for (i = 0; i < FV_N_ELEMENTS(data->images); i++) {
                 VkBufferCreateInfo buffer_create_info = {
                         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                        .size = get_buffer_size(data->images[i].width,
-                                                data->images[i].height,
-                                                data->images[i].format),
+                        .size = get_buffer_size(data->images + i),
                         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
                 };
@@ -253,7 +269,7 @@ copy_image(const struct image_details *image,
         int components = format_to_components(image->format);
         int w = image->width;
         int h = image->height;
-        int miplevels = count_miplevels(w, h);
+        int miplevels = image->miplevels;
         int x = 0;
         int y = 0;
         bool go_right = true;
@@ -391,8 +407,7 @@ int
 fv_image_data_get_miplevels(const struct fv_image_data *data,
                             enum fv_image_data_image image)
 {
-        return count_miplevels(data->images[image].width,
-                               data->images[image].height);
+        return data->images[image].miplevels;
 }
 
 VkFormat
@@ -412,8 +427,7 @@ fv_image_data_create_image_2d(const struct fv_image_data *data,
         VkImage image;
         int w, h, i;
         size_t offset;
-        int miplevels = count_miplevels(image_details->width,
-                                        image_details->height);
+        int miplevels = image_details->miplevels;
         VkBufferImageCopy *regions = alloca(sizeof *regions * miplevels);
         VkBufferImageCopy *region;
         VkResult res;
