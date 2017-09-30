@@ -217,6 +217,7 @@ copy_images(struct fv_image_data *data)
 {
         const struct image_details *image;
         VkResult res;
+        bool ret = true;
         uint8_t *mapped_memory;
         uint8_t *pixels;
         int i;
@@ -237,8 +238,10 @@ copy_images(struct fv_image_data *data)
                                     image->height,
                                     image->format);
 
-                if (pixels == NULL)
-                        return false;
+                if (pixels == NULL) {
+                        ret = false;
+                        break;
+                }
 
                 copy_image(image,
                            mapped_memory + data->offsets[i],
@@ -250,7 +253,7 @@ copy_images(struct fv_image_data *data)
         fv_vk.vkUnmapMemory(data->vk_data->device,
                             data->memory);
 
-        return true;
+        return ret;
 }
 
 struct fv_image_data *
