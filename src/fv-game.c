@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2013, 2014, 2015 Neil Roberts
+ * Copyright (C) 2013, 2014, 2015, 2017 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 #include "fv-transform.h"
 #include "fv-map-painter.h"
 #include "fv-person-painter.h"
+#include "fv-shout-painter.h"
 #include "fv-map.h"
 #include "fv-paint-state.h"
 
@@ -52,6 +53,7 @@ struct fv_game {
 
         struct fv_map_painter *map_painter;
         struct fv_person_painter *person_painter;
+        struct fv_shout_painter *shout_painter;
 
         struct fv_matrix base_transform;
 };
@@ -84,8 +86,16 @@ fv_game_new(const struct fv_vk_data *vk_data,
         if (game->person_painter == NULL)
                 goto error_map_painter;
 
+        game->shout_painter = fv_shout_painter_new(vk_data,
+                                                   pipeline_data,
+                                                   image_data);
+        if (game->shout_painter == NULL)
+                goto error_person_painter;
+
         return game;
 
+error_person_painter:
+        fv_person_painter_free(game->person_painter);
 error_map_painter:
         fv_map_painter_free(game->map_painter);
 error:
@@ -261,11 +271,16 @@ fv_game_paint(struct fv_game *game,
                                 logic,
                                 command_buffer,
                                 &game->paint_state);
+        fv_shout_painter_paint(game->shout_painter,
+                               logic,
+                               command_buffer,
+                               &game->paint_state);
 }
 
 void
 fv_game_free(struct fv_game *game)
 {
+        fv_shout_painter_free(game->shout_painter);
         fv_person_painter_free(game->person_painter);
         fv_map_painter_free(game->map_painter);
         fv_free(game);
