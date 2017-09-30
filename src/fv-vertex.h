@@ -36,7 +36,7 @@ struct fv_vertex_map {
 
 struct fv_vertex_map_push_constants {
         float transform[16];
-        float normal_transform[9];
+        float normal_transform[4 * 3];
 };
 
 struct fv_vertex_model_color {
