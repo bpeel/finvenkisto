@@ -278,7 +278,8 @@ copy_image(const struct image_details *image,
         for (i = 0; i < miplevels; i++) {
                 for (j = 0; j < h; j++) {
                         memcpy(dst + j * w * components,
-                               src + (x + j * image->full_width) * components,
+                               src + (x + (y + j) * image->full_width) *
+                               components,
                                w * components);
                 }
 
