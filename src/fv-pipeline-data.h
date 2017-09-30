@@ -31,6 +31,7 @@ enum fv_pipeline_data_dsl {
 
 enum fv_pipeline_data_layout {
         FV_PIPELINE_DATA_LAYOUT_MAP,
+        FV_PIPELINE_DATA_LAYOUT_HUD,
         FV_PIPELINE_DATA_LAYOUT_EMPTY,
         FV_PIPELINE_DATA_LAYOUT_SPECIAL_TEXTURE,
         FV_PIPELINE_DATA_N_LAYOUTS
@@ -38,6 +39,7 @@ enum fv_pipeline_data_layout {
 
 enum fv_pipeline_data_pipeline {
         FV_PIPELINE_DATA_PIPELINE_MAP,
+        FV_PIPELINE_DATA_PIPELINE_HUD,
         FV_PIPELINE_DATA_PIPELINE_SPECIAL_COLOR,
         FV_PIPELINE_DATA_PIPELINE_SPECIAL_TEXTURE,
         FV_PIPELINE_DATA_N_PIPELINES

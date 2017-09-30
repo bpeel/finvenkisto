@@ -56,4 +56,9 @@ struct fv_instance_special {
         float normal_transform[3 * 3];
 };
 
+struct fv_vertex_hud {
+        float x, y;
+        float s, t;
+};
+
 #endif /* FV_VERTEX_H */

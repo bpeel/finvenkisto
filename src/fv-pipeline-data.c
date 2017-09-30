@@ -34,10 +34,12 @@
 
 enum fv_pipeline_data_shader {
         FV_PIPELINE_DATA_SHADER_MAP_VERTEX,
+        FV_PIPELINE_DATA_SHADER_HUD_VERTEX,
         FV_PIPELINE_DATA_SHADER_SPECIAL_COLOR_VERTEX,
         FV_PIPELINE_DATA_SHADER_SPECIAL_TEXTURE_VERTEX,
         FV_PIPELINE_DATA_SHADER_COLOR_FRAGMENT,
         FV_PIPELINE_DATA_SHADER_TEXTURE_FRAGMENT,
+        FV_PIPELINE_DATA_SHADER_LIGHTING_TEXTURE_FRAGMENT,
 };
 
 struct fv_pipeline_data_shader_data {
@@ -49,6 +51,9 @@ shader_data[] = {
         [FV_PIPELINE_DATA_SHADER_MAP_VERTEX] = {
                 .filename = "fv-map-vertex.spirv"
         },
+        [FV_PIPELINE_DATA_SHADER_HUD_VERTEX] = {
+                .filename = "fv-hud-vertex.spirv"
+        },
         [FV_PIPELINE_DATA_SHADER_SPECIAL_COLOR_VERTEX] = {
                 .filename = "fv-special-color-vertex.spirv"
         },
@@ -59,6 +64,9 @@ shader_data[] = {
                 .filename = "fv-color-fragment.spirv"
         },
         [FV_PIPELINE_DATA_SHADER_TEXTURE_FRAGMENT] = {
+                .filename = "fv-texture-fragment.spirv"
+        },
+        [FV_PIPELINE_DATA_SHADER_LIGHTING_TEXTURE_FRAGMENT] = {
                 .filename = "fv-lighting-texture-fragment.spirv"
         },
 };
@@ -291,7 +299,33 @@ create_map_layout(const struct fv_vk_data *vk_data,
                                            layout);
         if (res != VK_SUCCESS) {
                 *layout = NULL;
-                fv_error_message("Error creating pipeline layout");
+                fv_error_message("Error creating map pipeline layout");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+create_hud_layout(const struct fv_vk_data *vk_data,
+                  struct fv_pipeline_data *data)
+{
+        VkResult res;
+
+        VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+                .setLayoutCount = 1,
+                .pSetLayouts = data->dsls + FV_PIPELINE_DATA_DSL_TEXTURE
+        };
+        VkPipelineLayout *layout =
+                data->layouts + FV_PIPELINE_DATA_LAYOUT_HUD;
+        res = fv_vk.vkCreatePipelineLayout(vk_data->device,
+                                           &pipeline_layout_create_info,
+                                           NULL, /* allocator */
+                                           layout);
+        if (res != VK_SUCCESS) {
+                *layout = NULL;
+                fv_error_message("Error creating hud pipeline layout");
                 return false;
         }
 
@@ -372,8 +406,8 @@ create_map_pipeline(const struct fv_vk_data *vk_data,
                         .sType =
                         VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                        .module =
-                        shaders[FV_PIPELINE_DATA_SHADER_TEXTURE_FRAGMENT],
+                        .module = shaders
+                        [FV_PIPELINE_DATA_SHADER_LIGHTING_TEXTURE_FRAGMENT],
                         .pName = "main"
                 },
         };
@@ -426,6 +460,130 @@ create_map_pipeline(const struct fv_vk_data *vk_data,
 
         VkPipeline *pipeline =
                 data->pipelines + FV_PIPELINE_DATA_PIPELINE_MAP;
+        res = fv_vk.vkCreateGraphicsPipelines(vk_data->device,
+                                              pipeline_cache,
+                                              1, /* nCreateInfos */
+                                              &info,
+                                              NULL, /* allocator */
+                                              pipeline);
+
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating map pipeline");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+create_hud_pipeline(const struct fv_vk_data *vk_data,
+                    VkRenderPass render_pass,
+                    VkPipelineCache pipeline_cache,
+                    VkShaderModule *shaders,
+                    struct fv_pipeline_data *data)
+{
+        VkResult res;
+
+        VkPipelineShaderStageCreateInfo stages[] = {
+                {
+                        .sType =
+                        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                        .module = shaders[FV_PIPELINE_DATA_SHADER_HUD_VERTEX],
+                        .pName = "main"
+                },
+                {
+                        .sType =
+                        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                        .module = shaders
+                        [FV_PIPELINE_DATA_SHADER_TEXTURE_FRAGMENT],
+                        .pName = "main"
+                },
+        };
+        VkVertexInputBindingDescription input_binding_descriptions[] = {
+                {
+                        .binding = 0,
+                        .stride = sizeof (struct fv_vertex_hud),
+                        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+                }
+        };
+        VkVertexInputAttributeDescription attribute_descriptions[] = {
+                {
+                        .location = 0,
+                        .binding = 0,
+                        .format = VK_FORMAT_R32G32_SFLOAT,
+                        .offset = offsetof(struct fv_vertex_hud, x)
+                },
+                {
+                        .location = 1,
+                        .binding = 0,
+                        .format = VK_FORMAT_R32G32_SFLOAT,
+                        .offset = offsetof(struct fv_vertex_hud, s)
+                }
+        };
+        VkPipelineVertexInputStateCreateInfo vertex_input_state = {
+                .sType =
+                VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+                .vertexBindingDescriptionCount =
+                FV_N_ELEMENTS(input_binding_descriptions),
+                .pVertexBindingDescriptions = input_binding_descriptions,
+                .vertexAttributeDescriptionCount =
+                FV_N_ELEMENTS(attribute_descriptions),
+                .pVertexAttributeDescriptions = attribute_descriptions
+        };
+        VkPipelineInputAssemblyStateCreateInfo input_assembly_state = {
+                .sType =
+                VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+                .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+                .primitiveRestartEnable = false
+        };
+
+        VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {
+                .sType =
+                VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+                .depthTestEnable = false,
+                .depthWriteEnable = false
+        };
+
+        VkPipelineColorBlendAttachmentState blend_attachments[] = {
+                {
+                        .blendEnable = true,
+                        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                        .dstColorBlendFactor =
+                        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                        .colorBlendOp = VK_BLEND_OP_ADD,
+                        .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                        .dstAlphaBlendFactor =
+                        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                        .alphaBlendOp = VK_BLEND_OP_ADD,
+                        .colorWriteMask = (VK_COLOR_COMPONENT_R_BIT |
+                                           VK_COLOR_COMPONENT_G_BIT |
+                                           VK_COLOR_COMPONENT_B_BIT |
+                                           VK_COLOR_COMPONENT_A_BIT)
+                }
+        };
+
+        VkPipelineColorBlendStateCreateInfo color_blend_state = {
+                .sType =
+                VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+                .attachmentCount = FV_N_ELEMENTS(blend_attachments),
+                .pAttachments = blend_attachments
+        };
+
+        VkGraphicsPipelineCreateInfo info = base_pipeline_create_info;
+
+        info.stageCount = FV_N_ELEMENTS(stages);
+        info.pStages = stages;
+        info.pVertexInputState = &vertex_input_state;
+        info.pInputAssemblyState = &input_assembly_state;
+        info.layout = data->layouts[FV_PIPELINE_DATA_LAYOUT_HUD];
+        info.renderPass = render_pass;
+        info.pColorBlendState = &color_blend_state;
+        info.pDepthStencilState = &depth_stencil_state;
+
+        VkPipeline *pipeline =
+                data->pipelines + FV_PIPELINE_DATA_PIPELINE_HUD;
         res = fv_vk.vkCreateGraphicsPipelines(vk_data->device,
                                               pipeline_cache,
                                               1, /* nCreateInfos */
@@ -614,8 +772,8 @@ create_special_texture_pipeline(const struct fv_vk_data *vk_data,
                         .sType =
                         VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                        .module =
-                        shaders[FV_PIPELINE_DATA_SHADER_TEXTURE_FRAGMENT],
+                        .module = shaders
+                        [FV_PIPELINE_DATA_SHADER_LIGHTING_TEXTURE_FRAGMENT],
                         .pName = "main"
                 },
         };
@@ -772,9 +930,15 @@ fv_pipeline_data_init(const struct fv_vk_data *vk_data,
 
                 if (!create_texture_dsl(vk_data, data) ||
                     !create_map_layout(vk_data, data) ||
+                    !create_hud_layout(vk_data, data) ||
                     !create_empty_layout(vk_data, data) ||
                     !create_special_texture_layout(vk_data, data) ||
                     !create_map_pipeline(vk_data,
+                                         render_pass,
+                                         pipeline_cache,
+                                         shaders,
+                                         data) ||
+                    !create_hud_pipeline(vk_data,
                                          render_pass,
                                          pipeline_cache,
                                          shaders,
