@@ -21,8 +21,6 @@ fv-map.c : fv-map.png make-map.py
 finvenkisto_SOURCES = \
 	fv-allocate-store.c \
 	fv-allocate-store.h \
-	fv-array-object.c \
-	fv-array-object.h \
 	fv-buffer.c \
 	fv-buffer.h \
 	fv-data.c \
