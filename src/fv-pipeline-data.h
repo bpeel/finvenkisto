@@ -24,13 +24,6 @@
 #include "fv-vk.h"
 #include "fv-vk-data.h"
 
-enum fv_pipeline_data_attrib {
-        FV_PIPELINE_DATA_ATTRIB_POSITION,
-        FV_PIPELINE_DATA_ATTRIB_TEX_COORD,
-        FV_PIPELINE_DATA_ATTRIB_NORMAL,
-        FV_PIPELINE_DATA_ATTRIB_COLOR
-};
-
 enum fv_pipeline_data_dsl {
         FV_PIPELINE_DATA_DSL_TEXTURE,
         FV_PIPELINE_DATA_N_DSLS
