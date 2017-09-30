@@ -306,10 +306,10 @@ fv_hud_new(const struct fv_vk_data *vk_data,
 
         for (i = 0; i < FV_HUD_MAX_RECTANGLES; i++) {
                 indices[i * 6 + 0] = i * 4 + 0;
-                indices[i * 6 + 1] = i * 4 + 1;
-                indices[i * 6 + 2] = i * 4 + 3;
-                indices[i * 6 + 3] = i * 4 + 3;
-                indices[i * 6 + 4] = i * 4 + 1;
+                indices[i * 6 + 1] = i * 4 + 3;
+                indices[i * 6 + 2] = i * 4 + 1;
+                indices[i * 6 + 3] = i * 4 + 1;
+                indices[i * 6 + 4] = i * 4 + 3;
                 indices[i * 6 + 5] = i * 4 + 2;
         }
 
@@ -345,9 +345,9 @@ fv_hud_add_rectangle(struct fv_hud *hud,
         x2 = (x + image->w) * 2.0f / hud->screen_width - 1.0f;
         y2 = (y + image->h) * 2.0f / hud->screen_height - 1.0f;
         s1 = image->x / (float) hud->tex_width;
-        t1 = (image->y + image->h) / (float) hud->tex_height;
+        t1 = image->y / (float) hud->tex_height;
         s2 = (image->x + image->w) / (float) hud->tex_width;
-        t2 = image->y / (float) hud->tex_height;
+        t2 = (image->y + image->h) / (float) hud->tex_height;
 
         hud->vertex->x = x1;
         hud->vertex->y = y1;
@@ -415,7 +415,7 @@ fv_hud_add_title(struct fv_hud *hud)
 {
         fv_hud_add_rectangle(hud,
                              hud->screen_width / 2 - fv_hud_image_title.w / 2,
-                             hud->screen_height / 2,
+                             hud->screen_height / 2 - fv_hud_image_title.h,
                              &fv_hud_image_title);
 }
 
@@ -430,9 +430,7 @@ fv_hud_paint_player_select(struct fv_hud *hud,
         fv_hud_add_rectangle(hud,
                              screen_width / 2 -
                              fv_hud_image_player_select.w / 2,
-                             screen_height / 2 -
-                             fv_hud_image_player_select.h -
-                             10,
+                             screen_height / 2 + 10,
                              &fv_hud_image_player_select);
         fv_hud_end_rectangles(hud, command_buffer);
 }
@@ -459,7 +457,7 @@ fv_hud_paint_key_select(struct fv_hud *hud,
                 x = (screen_width / 2 -
                      fv_hud_image_push.w / 2 -
                      key_image->w / 2);
-                y = screen_height / 2 - fv_hud_image_push.h - 10;
+                y = screen_height / 2 + 10;
                 fv_hud_add_rectangle(hud, x, y, &fv_hud_image_push);
                 fv_hud_add_rectangle(hud,
                                      x + fv_hud_image_push.w, y,
@@ -469,12 +467,15 @@ fv_hud_paint_key_select(struct fv_hud *hud,
                      fv_hud_image_push.w / 2 +
                      player_num % 2 * screen_width / 2);
                 y = (screen_height / 4 +
-                     (1 - player_num / 2) * screen_height / 2);
-                fv_hud_add_rectangle(hud, x, y, &fv_hud_image_push);
+                     (player_num / 2) * screen_height / 2);
+                fv_hud_add_rectangle(hud,
+                                     x,
+                                     y - fv_hud_image_push.h,
+                                     &fv_hud_image_push);
                 fv_hud_add_rectangle(hud,
                                      x +
                                      (fv_hud_image_push.w - key_image->w) / 2,
-                                     y - key_image->h,
+                                     y,
                                      key_image);
         }
 
@@ -567,7 +568,7 @@ fv_hud_add_scores(struct fv_hud *hud,
         fv_hud_add_number(hud,
                           &fv_hud_image_star,
                           fv_logic_get_score(logic, 0),
-                          0, screen_height - fv_hud_digit_images[0]->h,
+                          0, 0, /* x/y */
                           FV_HUD_ALIGNMENT_LEFT);
 
         if (n_players < 2)
@@ -577,7 +578,7 @@ fv_hud_add_scores(struct fv_hud *hud,
                           &fv_hud_image_star,
                           fv_logic_get_score(logic, 1),
                           screen_width,
-                          screen_height - fv_hud_digit_images[0]->h,
+                          0, /* y */
                           FV_HUD_ALIGNMENT_RIGHT);
 
         if (n_players < 3)
@@ -586,7 +587,7 @@ fv_hud_add_scores(struct fv_hud *hud,
         fv_hud_add_number(hud,
                           &fv_hud_image_star,
                           fv_logic_get_score(logic, 2),
-                          0, 0,
+                          0, screen_height - fv_hud_digit_images[0]->h,
                           FV_HUD_ALIGNMENT_LEFT);
 
         if (n_players < 4)
@@ -595,7 +596,8 @@ fv_hud_add_scores(struct fv_hud *hud,
         fv_hud_add_number(hud,
                           &fv_hud_image_star,
                           fv_logic_get_score(logic, 3),
-                          screen_width, 0,
+                          screen_width,
+                          screen_height - fv_hud_digit_images[0]->h,
                           FV_HUD_ALIGNMENT_RIGHT);
 }
 
@@ -613,7 +615,7 @@ fv_hud_add_fina_venko(struct fv_hud *hud,
                                fv_hud_image_fina.w,
                                FV_HUD_FINA_VENKO_SLIDE_TIME);
         fv_hud_add_rectangle(hud,
-                             x, screen_height / 2,
+                             x, screen_height / 2 - fv_hud_image_fina.h,
                              &fv_hud_image_fina);
 
         if (fina_venko_time >= FV_HUD_FINA_VENKO_SLIDE_TIME / 2.0f) {
@@ -627,7 +629,7 @@ fv_hud_add_fina_venko(struct fv_hud *hud,
                                        FV_HUD_FINA_VENKO_SLIDE_TIME);
                 fv_hud_add_rectangle(hud,
                                      x,
-                                     screen_height / 2 - fv_hud_image_venko.h,
+                                     screen_height / 2,
                                      &fv_hud_image_venko);
         }
 }
@@ -651,11 +653,11 @@ fv_hud_paint_game_state(struct fv_hud *hud,
 
         if (fv_logic_get_n_players(logic) == 1) {
                 crocodile_x = screen_width;
-                crocodile_y = screen_height - fv_hud_digit_images[0]->h;
+                crocodile_y = 0;
                 crocodile_alignment = FV_HUD_ALIGNMENT_RIGHT;
         } else {
                 crocodile_x = screen_width / 2;
-                crocodile_y = screen_height - fv_hud_digit_images[0]->h;
+                crocodile_y = 0;
                 crocodile_alignment = FV_HUD_ALIGNMENT_CENTER;
         }
 
