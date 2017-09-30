@@ -44,26 +44,6 @@ OTHER_SVGS = \
 
 OTHER_PNGS = $(OTHER_SVGS:.svg=.png)
 
-SHADERS = \
-	fv-hud-vertex.glsl \
-	fv-color-fragment.glsl \
-	fv-lighting.glsl \
-	fv-lighting-texture-fragment.glsl \
-	fv-special-color-vertex.glsl \
-	fv-special-texture-vertex.glsl \
-	fv-texture-fragment.glsl \
-	fv-texture-vertex.glsl \
-	fv-map-vertex.glsl \
-	fv-person-fragment.glsl \
-	fv-person-vertex.glsl \
-	$(NULL)
-
-GLSL = \
-	shaders/fv-lighting.glsl \
-	shaders/fv-lighting-texture-fragment.glsl \
-	shaders/fv-map-vertex.glsl \
-	$(NULL)
-
 SPIRV = \
 	shaders/fv-color-fragment.spirv \
 	shaders/fv-texture-fragment.spirv \
@@ -144,7 +124,6 @@ dist_spirv_DATA = \
 
 NON_IMAGES = \
 	ARTCREDITS.txt \
-	$(SHADERS) \
 	$(MODELS) \
 	$(NULL)
 
@@ -174,7 +153,8 @@ EXTRA_DIST = \
 	$(HUD_DIGITS) \
 	$(MODELS:.ply=.blend) \
 	$(BLOCK_IMAGES) \
-	$(GLSL) \
+	$(SPIRV) \
+	$(SPIRV:.spirv=.glsl) \
 	$(NULL)
 
 .svg.png :

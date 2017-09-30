@@ -31,7 +31,6 @@
 #include "fv-logic.h"
 #include "fv-image-data-old.h"
 #include "fv-image-data.h"
-#include "fv-shader-data.h"
 #include "fv-gl.h"
 #include "fv-vk.h"
 #include "fv-util.h"
@@ -128,10 +127,8 @@ struct data {
         int last_fb_width, last_fb_height;
 
         struct {
-                struct fv_shader_data shader_data;
                 struct fv_game *game;
                 struct fv_hud *hud;
-                bool shader_data_loaded;
         } graphics;
 
         struct fv_pipeline_data pipeline_data;
@@ -451,11 +448,6 @@ destroy_graphics(struct data *data)
                 data->graphics.game = NULL;
         }
 
-        if (data->graphics.shader_data_loaded) {
-                fv_shader_data_destroy(&data->graphics.shader_data);
-                data->graphics.shader_data_loaded = false;
-        }
-
         if (data->graphics.hud) {
                 fv_hud_free(data->graphics.hud);
                 data->graphics.hud = NULL;
@@ -503,11 +495,6 @@ create_graphics(struct data *data)
          * textures are not expected to be reset back to zero */
 
         data->last_fb_width = data->last_fb_height = 0;
-
-        if (!fv_shader_data_init(&data->graphics.shader_data))
-                goto error;
-
-        data->graphics.shader_data_loaded = true;
 
         data->graphics.hud = fv_hud_new(&data->vk_data,
                                         &data->pipeline_data,
@@ -1216,22 +1203,22 @@ upload_vk_image(struct data *data)
 
         fv_gl.glGenVertexArrays(1, &vao);
         fv_gl.glBindVertexArray(vao);
-        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_POSITION,
+        fv_gl.glVertexAttribPointer(0,
                                     2, /* size */
                                     GL_FLOAT,
                                     GL_FALSE, /* normalised */
                                     sizeof verts[0],
                                     (void *) (GLintptr)
                                     offsetof(struct vertex, x));
-        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_POSITION);
-        fv_gl.glVertexAttribPointer(FV_SHADER_DATA_ATTRIB_TEX_COORD,
+        fv_gl.glEnableVertexAttribArray(0);
+        fv_gl.glVertexAttribPointer(1,
                                     2, /* size */
                                     GL_FLOAT,
                                     GL_FALSE, /* normalised */
                                     sizeof verts[0],
                                     (void *) (GLintptr)
                                     offsetof(struct vertex, s));
-        fv_gl.glEnableVertexAttribArray(FV_SHADER_DATA_ATTRIB_TEX_COORD);
+        fv_gl.glEnableVertexAttribArray(1);
 
         fv_gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
