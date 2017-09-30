@@ -57,8 +57,6 @@ finvenkisto_SOURCES = \
 	fv-matrix.h \
 	fv-model.c \
 	fv-model.h \
-	fv-model-old.c \
-	fv-model-old.h \
 	fv-paint-state.h \
 	fv-person.c \
 	fv-person.h \
