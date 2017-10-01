@@ -1038,6 +1038,8 @@ paint_vk(struct data *data)
                               1, /* scissorCount */
                               &scissor);
 
+        fv_game_begin_frame(data->graphics.game);
+
         for (i = 0; i < data->n_viewports; i++) {
                 VkViewport viewport = {
                         .x = data->players[i].viewport_x,
@@ -1059,6 +1061,8 @@ paint_vk(struct data *data)
                               data->logic,
                               data->vk_command_buffer);
         }
+
+        fv_game_end_frame(data->graphics.game);
 
         if (data->n_viewports != 1) {
                 VkViewport viewport = {

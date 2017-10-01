@@ -34,11 +34,17 @@ fv_game_new(const struct fv_vk_data *vk_data,
             const struct fv_image_data *image_data);
 
 void
+fv_game_begin_frame(struct fv_game *game);
+
+void
 fv_game_paint(struct fv_game *game,
               float center_x, float center_y,
               int width, int height,
               struct fv_logic *logic,
               VkCommandBuffer command_buffer);
+
+void
+fv_game_end_frame(struct fv_game *game);
 
 bool
 fv_game_covers_framebuffer(struct fv_game *game,

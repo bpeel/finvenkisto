@@ -62,6 +62,8 @@ struct fv_person_painter {
 
         struct fv_list instance_buffers;
         struct fv_list in_use_instance_buffers;
+        struct fv_instance_person *instance_buffer_map;
+        int buffer_offset;
 };
 
 struct instance_buffer {
@@ -204,11 +206,24 @@ struct paint_closure {
         const struct fv_paint_state *paint_state;
         struct fv_transform transform;
 
-        struct fv_instance_person *instance_buffer_map;
-        int n_instances;
-
         VkCommandBuffer command_buffer;
+        int n_instances;
 };
+
+static void
+unmap_buffer(struct fv_person_painter *painter)
+{
+        struct instance_buffer *instance_buffer;
+
+        if (painter->instance_buffer_map == NULL)
+                return;
+
+        instance_buffer = fv_container_of(painter->in_use_instance_buffers.next,
+                                          struct instance_buffer,
+                                          link);
+        fv_vk.vkUnmapMemory(painter->vk_data->device, instance_buffer->memory);
+        painter->instance_buffer_map = NULL;
+}
 
 static void
 flush_people(struct paint_closure *data)
@@ -222,9 +237,6 @@ flush_people(struct paint_closure *data)
         instance_buffer = fv_container_of(painter->in_use_instance_buffers.next,
                                           struct instance_buffer,
                                           link);
-
-        fv_vk.vkUnmapMemory(painter->vk_data->device, instance_buffer->memory);
-        data->instance_buffer_map = NULL;
 
         fv_vk.vkCmdBindPipeline(data->command_buffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -246,7 +258,8 @@ flush_people(struct paint_closure *data)
                                      },
                                      (VkDeviceSize[]) {
                                              painter->model.vertices_offset,
-                                             0
+                                             painter->buffer_offset *
+                                             sizeof (struct fv_instance_person),
                                      });
         fv_vk.vkCmdBindIndexBuffer(data->command_buffer,
                                    painter->model.buffer,
@@ -259,6 +272,7 @@ flush_people(struct paint_closure *data)
                                0, /* vertexOffset */
                                0 /* firstInstance */);
 
+        painter->buffer_offset += data->n_instances;
         data->n_instances = 0;
 }
 
@@ -315,11 +329,15 @@ start_instance(struct paint_closure *data)
         struct instance_buffer *buffer;
         VkResult res;
 
-        if (data->n_instances >= FV_PERSON_PAINTER_INSTANCES_PER_BUFFER)
+        if (painter->buffer_offset + data->n_instances >=
+            FV_PERSON_PAINTER_INSTANCES_PER_BUFFER)
                 flush_people(data);
 
-        if (data->instance_buffer_map != NULL)
+        if (painter->buffer_offset < FV_PERSON_PAINTER_INSTANCES_PER_BUFFER &&
+            painter->instance_buffer_map != NULL)
                 return true;
+
+        unmap_buffer(painter);
 
         if (fv_list_empty(&painter->instance_buffers)) {
                 buffer = create_instance_buffer(painter);
@@ -337,15 +355,16 @@ start_instance(struct paint_closure *data)
                                 0, /* offset */
                                 VK_WHOLE_SIZE,
                                 0, /* flags */
-                                (void **) &data->instance_buffer_map);
+                                (void **) &painter->instance_buffer_map);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error mapping instance memory");
-                data->instance_buffer_map = NULL;
+                painter->instance_buffer_map = NULL;
                 fv_list_insert(&painter->instance_buffers, &buffer->link);
                 return false;
         }
 
         fv_list_insert(&painter->in_use_instance_buffers, &buffer->link);
+        painter->buffer_offset = 0;
 
         return true;
 }
@@ -380,7 +399,9 @@ paint_person_cb(const struct fv_logic_person *person,
 
         green_tint = person->esperantified ? 120 : 0;
 
-        instance = data->instance_buffer_map + data->n_instances;
+        instance = (data->painter->instance_buffer_map +
+                    data->painter->buffer_offset +
+                    data->n_instances);
         memcpy(instance->mvp,
                &data->transform.mvp.xx,
                sizeof instance->mvp);
@@ -391,6 +412,14 @@ paint_person_cb(const struct fv_logic_person *person,
         instance->green_tint = green_tint;
 
         data->n_instances++;
+}
+
+void
+fv_person_painter_begin_frame(struct fv_person_painter *painter)
+{
+        fv_list_insert_list(&painter->instance_buffers,
+                            &painter->in_use_instance_buffers);
+        fv_list_init(&painter->in_use_instance_buffers);
 }
 
 void
@@ -405,16 +434,17 @@ fv_person_painter_paint(struct fv_person_painter *painter,
         data.paint_state = paint_state;
         data.transform.projection = paint_state->transform.projection;
         data.n_instances = 0;
-        data.instance_buffer_map = NULL;
         data.command_buffer = command_buffer;
-
-        fv_list_insert_list(&painter->instance_buffers,
-                            &painter->in_use_instance_buffers);
-        fv_list_init(&painter->in_use_instance_buffers);
 
         fv_logic_for_each_person(logic, paint_person_cb, &data);
 
         flush_people(&data);
+}
+
+void
+fv_person_painter_end_frame(struct fv_person_painter *painter)
+{
+        unmap_buffer(painter);
 }
 
 static void

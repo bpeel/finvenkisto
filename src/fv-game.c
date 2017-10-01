@@ -250,6 +250,22 @@ fv_game_covers_framebuffer(struct fv_game *game,
 }
 
 void
+fv_game_begin_frame(struct fv_game *game)
+{
+        fv_map_painter_begin_frame(game->map_painter);
+        fv_person_painter_begin_frame(game->person_painter);
+        fv_shout_painter_begin_frame(game->shout_painter);
+}
+
+void
+fv_game_end_frame(struct fv_game *game)
+{
+        fv_map_painter_end_frame(game->map_painter);
+        fv_person_painter_end_frame(game->person_painter);
+        fv_shout_painter_end_frame(game->shout_painter);
+}
+
+void
 fv_game_paint(struct fv_game *game,
               float center_x, float center_y,
               int width, int height,

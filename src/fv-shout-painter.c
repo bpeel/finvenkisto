@@ -33,6 +33,12 @@
 #include "fv-vertex.h"
 #include "fv-allocate-store.h"
 
+/* If all of the players are shouting at the same time then a shout
+ * will be painted for each of them in each screen, so we need to be
+ * able to paint n_players^2 shouts */
+#define FV_SHOUT_PAINTER_MAX_SHOUTS (FV_LOGIC_MAX_PLAYERS * \
+                                     FV_LOGIC_MAX_PLAYERS)
+
 struct fv_shout_painter {
         const struct fv_vk_data *vk_data;
 
@@ -46,6 +52,10 @@ struct fv_shout_painter {
         VkDeviceMemory vertex_memory;
 
         struct fv_vertex_shout *vertex_memory_map;
+
+        /* Count of shouts that have been placed in the buffer since
+         * the last frame was started */
+        int buffer_offset;
 };
 
 static bool
@@ -153,7 +163,7 @@ create_buffer(struct fv_shout_painter *painter)
         VkBufferCreateInfo buffer_create_info = {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                 .size = (sizeof (struct fv_vertex_shout) *
-                         FV_LOGIC_MAX_PLAYERS * 3),
+                         FV_SHOUT_PAINTER_MAX_SHOUTS * 3),
                 .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         };
@@ -238,13 +248,16 @@ paint_cb(const struct fv_logic_shout *shout,
         float cx, cy, ccx, ccy;
 
         assert(data->n_shouts < FV_LOGIC_MAX_PLAYERS);
+        assert(painter->buffer_offset + data->n_shouts <
+               FV_SHOUT_PAINTER_MAX_SHOUTS);
 
         cx = cosf(shout->direction - FV_LOGIC_SHOUT_ANGLE / 2.0f);
         cy = sinf(shout->direction - FV_LOGIC_SHOUT_ANGLE / 2.0f);
         ccx = cosf(shout->direction + FV_LOGIC_SHOUT_ANGLE / 2.0f);
         ccy = sinf(shout->direction + FV_LOGIC_SHOUT_ANGLE / 2.0f);
 
-        vertex = painter->vertex_memory_map + data->n_shouts * 3;
+        vertex = (painter->vertex_memory_map +
+                  (painter->buffer_offset + data->n_shouts) * 3);
 
         vertex->x = shout->x;
         vertex->y = shout->y;
@@ -271,13 +284,20 @@ paint_cb(const struct fv_logic_shout *shout,
 }
 
 void
+fv_shout_painter_begin_frame(struct fv_shout_painter *painter)
+{
+        painter->buffer_offset = 0;
+}
+
+void
 fv_shout_painter_paint(struct fv_shout_painter *painter,
                        struct fv_logic *logic,
                        VkCommandBuffer command_buffer,
                        const struct fv_paint_state *paint_state)
 {
         struct paint_closure data;
-        VkDeviceSize vertices_offset = 0;
+        VkDeviceSize vertices_offset =
+                painter->buffer_offset * sizeof (struct fv_vertex_shout) * 3;
 
         data.painter = painter;
         data.n_shouts = 0;
@@ -308,6 +328,13 @@ fv_shout_painter_paint(struct fv_shout_painter *painter,
                         1, /* instanceCount */
                         0, /* firstVertex */
                         0 /* firstInstance */);
+
+        painter->buffer_offset += data.n_shouts;
+}
+
+void
+fv_shout_painter_end_frame(struct fv_shout_painter *painter)
+{
 }
 
 void

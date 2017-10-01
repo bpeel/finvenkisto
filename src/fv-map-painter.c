@@ -800,6 +800,15 @@ paint_special(struct fv_map_painter *painter,
 }
 
 void
+fv_map_painter_begin_frame(struct fv_map_painter *painter)
+{
+        painter->instance_buffer_offset = 0;
+        fv_list_insert_list(&painter->instance_buffers,
+                            &painter->in_use_instance_buffers);
+        fv_list_init(&painter->in_use_instance_buffers);
+}
+
+void
 fv_map_painter_paint(struct fv_map_painter *painter,
                      struct fv_logic *logic,
                      VkCommandBuffer command_buffer,
@@ -835,10 +844,6 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 
         painter->n_instances = 0;
         painter->current_special = 0;
-        painter->instance_buffer_offset = 0;
-        fv_list_insert_list(&painter->instance_buffers,
-                            &painter->in_use_instance_buffers);
-        fv_list_init(&painter->in_use_instance_buffers);
 
         for (y = y_min; y < y_max; y++) {
                 for (x = x_max - 1; x >= x_min; x--) {
@@ -853,7 +858,6 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         }
 
         flush_specials(painter, command_buffer);
-        unmap_instance_buffer(painter);
 
         fv_transform_ensure_mvp(&paint_state->transform);
         fv_transform_ensure_normal_transform(&paint_state->transform);
@@ -916,6 +920,12 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                                        0, /* vertexOffset */
                                        0 /* firstInstance */);
         }
+}
+
+void
+fv_map_painter_end_frame(struct fv_map_painter *painter)
+{
+        unmap_instance_buffer(painter);
 }
 
 static void
