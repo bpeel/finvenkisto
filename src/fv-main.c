@@ -589,7 +589,6 @@ static void
 update_viewports(struct data *data)
 {
         int viewport_width, viewport_height;
-        int vertical_divisions = 1;
         int i;
 
         if (!data->viewports_dirty)
@@ -605,16 +604,13 @@ update_viewports(struct data *data)
 
         if (data->n_viewports > 1) {
                 viewport_width /= 2;
-                if (data->n_viewports > 2) {
+                if (data->n_viewports > 2)
                         viewport_height /= 2;
-                        vertical_divisions = 2;
-                }
         }
 
         for (i = 0; i < data->n_viewports; i++) {
                 data->players[i].viewport_x = i % 2 * viewport_width;
-                data->players[i].viewport_y = (vertical_divisions - 1 -
-                                               i / 2) * viewport_height;
+                data->players[i].viewport_y = i / 2 * viewport_height;
                 data->players[i].viewport_width = viewport_width;
                 data->players[i].viewport_height = viewport_height;
         }
