@@ -1846,17 +1846,15 @@ error:
 int
 main(int argc, char **argv)
 {
-        struct data data;
+        struct data *data = fv_calloc(sizeof *data);
         int ret = EXIT_SUCCESS;
 
-        memset(&data, 0, sizeof data);
-
-        data.is_fullscreen = true;
-        data.window_mapped = false;
+        data->is_fullscreen = true;
+        data->window_mapped = false;
 
         fv_data_init(argv[0]);
 
-        if (!process_arguments(&data, argc, argv)) {
+        if (!process_arguments(data, argc, argv)) {
                 ret = EXIT_FAILURE;
                 goto out_data;
         }
@@ -1866,60 +1864,61 @@ main(int argc, char **argv)
                 goto out_data;
         }
 
-        data.display = XOpenDisplay(NULL);
-        if (data.display == NULL) {
+        data->display = XOpenDisplay(NULL);
+        if (data->display == NULL) {
                 fv_error_message("Error: XOpenDisplay failed");
                 ret = EXIT_FAILURE;
                 goto out_libvulkan;
         }
 
-        if (!make_window(&data)) {
+        if (!make_window(data)) {
                 ret = EXIT_FAILURE;
                 goto out_display;
         }
 
-        if (!init_vk(&data)) {
+        if (!init_vk(data)) {
                 ret = EXIT_FAILURE;
                 goto out_window;
         }
 
-        data.quit = false;
+        data->quit = false;
 
-        data.logic = fv_logic_new();
+        data->logic = fv_logic_new();
 
-        if (!fv_pipeline_data_init(&data.vk_data,
-                                   data.vk_render_pass,
-                                   &data.pipeline_data))
+        if (!fv_pipeline_data_init(&data->vk_data,
+                                   data->vk_render_pass,
+                                   &data->pipeline_data))
                 goto out_logic;
 
-        if (!create_graphics(&data)) {
+        if (!create_graphics(data)) {
                 ret = EXIT_FAILURE;
                 goto out_pipeline_data;
         }
 
-        reset_menu_state(&data);
+        reset_menu_state(data);
 
-        while (!data.quit)
-                iterate_main_loop(&data);
+        while (!data->quit)
+                iterate_main_loop(data);
 
-        destroy_framebuffer_resources(&data);
+        destroy_framebuffer_resources(data);
 
-        destroy_graphics(&data);
+        destroy_graphics(data);
 
 out_pipeline_data:
-        fv_pipeline_data_destroy(&data.vk_data,
-                                 &data.pipeline_data);
+        fv_pipeline_data_destroy(&data->vk_data,
+                                 &data->pipeline_data);
 out_logic:
-        fv_logic_free(data.logic);
-        deinit_vk(&data);
+        fv_logic_free(data->logic);
+        deinit_vk(data);
 out_window:
-        XDestroyWindow(data.display, data.x_window);
+        XDestroyWindow(data->display, data->x_window);
 out_display:
-        XCloseDisplay(data.display);
+        XCloseDisplay(data->display);
 out_libvulkan:
         fv_vk_unload_libvulkan();
 out_data:
         fv_data_deinit();
+        fv_free(data);
 
         return ret;
 }
