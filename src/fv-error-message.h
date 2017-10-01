@@ -20,6 +20,9 @@
 #ifndef FV_ERROR_MESSAGE_H
 #define FV_ERROR_MESSAGE_H
 
+#include "fv-util.h"
+
+FV_PRINTF_FORMAT(1, 2)
 void
 fv_error_message(const char *format, ...);
 
