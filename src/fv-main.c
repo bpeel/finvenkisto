@@ -25,12 +25,13 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdarg.h>
-#include <GL/glx.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/keysym.h>
 
 #include "fv-game.h"
 #include "fv-logic.h"
 #include "fv-image-data.h"
-#include "fv-gl.h"
 #include "fv-vk.h"
 #include "fv-util.h"
 #include "fv-hud.h"
@@ -41,11 +42,6 @@
 #include "fv-pipeline-data.h"
 #include "fv-vk-data.h"
 #include "fv-allocate-store.h"
-
-#define CORE_GL_MAJOR_VERSION 3
-#define CORE_GL_MINOR_VERSION 3
-
-#define COLOR_IMAGE_FORMAT VK_FORMAT_B8G8R8A8_UNORM
 
 enum key_code {
         KEY_CODE_UP,
@@ -83,11 +79,15 @@ enum menu_state {
         MENU_STATE_PLAYING
 };
 
+struct swapchain_image {
+        VkImage image;
+        VkImageView image_view;
+        VkFramebuffer framebuffer;
+};
+
 struct data {
         Display *display;
         Window x_window;
-        GLXWindow glx_window;
-        GLXContext glx_context;
 
         /* Permanant vulkan resources */
         struct fv_vk_data vk_data;
@@ -98,26 +98,23 @@ struct data {
         VkCommandBuffer vk_command_buffer;
         VkRenderPass vk_render_pass;
         VkFence vk_fence;
+        VkSurfaceKHR vk_surface;
+        VkSemaphore vk_semaphore;
+        VkFormat vk_surface_format;
+        VkPresentModeKHR vk_present_mode;
 
         /* Resources that are recreated lazily whenever the
          * framebuffer size changes.
          */
         struct {
-                VkImage color_image;
-                VkImage linear_image;
+                VkSwapchainKHR swapchain;
+                uint32_t n_swapchain_images;
+                struct swapchain_image *swapchain_images;
                 VkImage depth_image;
-                VkDeviceMemory memory;
-                VkDeviceMemory linear_memory;
-                bool need_linear_memory_invalidate;
-                void *linear_memory_map;
-                VkDeviceSize linear_memory_stride;
-                VkImageView color_image_view;
+                VkDeviceMemory depth_image_memory;
                 VkImageView depth_image_view;
-                VkFramebuffer framebuffer;
                 int width, height;
         } vk_fb;
-
-        GLuint blit_program;
 
         bool window_mapped;
         int fb_width, fb_height;
@@ -482,15 +479,6 @@ create_graphics(struct data *data)
 
         memset(&data->graphics, 0, sizeof data->graphics);
 
-        /* All of the painting functions expect to have the default
-         * OpenGL state plus the following modifications */
-
-        fv_gl.glEnable(GL_CULL_FACE);
-        fv_gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        /* The current program, vertex array, array buffer and bound
-         * textures are not expected to be reset back to zero */
-
         data->last_fb_width = data->last_fb_height = 0;
 
         data->graphics.hud = fv_hud_new(&data->vk_data,
@@ -690,161 +678,65 @@ need_clear(struct data *data)
 }
 
 static void
+destroy_swapchain_image(struct data *data,
+                        struct swapchain_image *swapchain_image)
+{
+        if (swapchain_image->framebuffer) {
+                fv_vk.vkDestroyFramebuffer(data->vk_data.device,
+                                           swapchain_image->framebuffer,
+                                           NULL /* allocator */);
+        }
+        if (swapchain_image->image_view) {
+                fv_vk.vkDestroyImageView(data->vk_data.device,
+                                         swapchain_image->image_view,
+                                         NULL /* allocator */);
+        }
+}
+
+static void
 destroy_framebuffer_resources(struct data *data)
 {
+        int i;
+
         if (data->vk_fb.depth_image_view)
                 fv_vk.vkDestroyImageView(data->vk_data.device,
                                          data->vk_fb.depth_image_view,
                                          NULL /* allocator */);
-        if (data->vk_fb.color_image_view)
-                fv_vk.vkDestroyImageView(data->vk_data.device,
-                                         data->vk_fb.color_image_view,
-                                         NULL /* allocator */);
-        if (data->vk_fb.framebuffer)
-                fv_vk.vkDestroyFramebuffer(data->vk_data.device,
-                                           data->vk_fb.framebuffer,
-                                           NULL /* allocator */);
-        if (data->vk_fb.linear_memory_map)
-                fv_vk.vkUnmapMemory(data->vk_data.device,
-                                    data->vk_fb.linear_memory);
-        if (data->vk_fb.linear_memory)
+        if (data->vk_fb.depth_image_memory)
                 fv_vk.vkFreeMemory(data->vk_data.device,
-                                   data->vk_fb.linear_memory,
-                                   NULL /* allocator */);
-        if (data->vk_fb.memory)
-                fv_vk.vkFreeMemory(data->vk_data.device,
-                                   data->vk_fb.memory,
+                                   data->vk_fb.depth_image_memory,
                                    NULL /* allocator */);
         if (data->vk_fb.depth_image)
                 fv_vk.vkDestroyImage(data->vk_data.device,
                                      data->vk_fb.depth_image,
                                      NULL /* allocator */);
-        if (data->vk_fb.linear_image)
-                fv_vk.vkDestroyImage(data->vk_data.device,
-                                     data->vk_fb.linear_image,
-                                     NULL /* allocator */);
-        if (data->vk_fb.color_image)
-                fv_vk.vkDestroyImage(data->vk_data.device,
-                                     data->vk_fb.color_image,
-                                     NULL /* allocator */);
+        if (data->vk_fb.swapchain_images) {
+                for (i = 0; i < data->vk_fb.n_swapchain_images; i++) {
+                        destroy_swapchain_image(data,
+                                                data->vk_fb.swapchain_images +
+                                                i);
+                }
+                fv_free(data->vk_fb.swapchain_images);
+        }
+        if (data->vk_fb.swapchain)
+                fv_vk.vkDestroySwapchainKHR(data->vk_data.device,
+                                            data->vk_fb.swapchain,
+                                            NULL /* allocator */);
 
         memset(&data->vk_fb, 0, sizeof data->vk_fb);
 }
 
 static bool
-create_framebuffer_resources(struct data *data)
+create_swapchain_image(struct data *data,
+                       struct swapchain_image *swapchain_image)
 {
         VkResult res;
-        int linear_memory_type;
-
-        VkImageCreateInfo image_create_info = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                .imageType = VK_IMAGE_TYPE_2D,
-                .format = COLOR_IMAGE_FORMAT,
-                .extent = {
-                        .width = data->fb_width,
-                        .height = data->fb_height,
-                        .depth = 1
-                },
-                .mipLevels = 1,
-                .arrayLayers = 1,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .tiling = VK_IMAGE_TILING_OPTIMAL,
-                .usage = (VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
-                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
-        };
-        res = fv_vk.vkCreateImage(data->vk_data.device,
-                                  &image_create_info,
-                                  NULL, /* allocator */
-                                  &data->vk_fb.color_image);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating VkImage");
-                goto error;
-        }
-
-        image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
-        res = fv_vk.vkCreateImage(data->vk_data.device,
-                                  &image_create_info,
-                                  NULL, /* allocator */
-                                  &data->vk_fb.linear_image);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating VkImage");
-                goto error;
-        }
-
-        image_create_info.format = data->vk_depth_format;
-        image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-        res = fv_vk.vkCreateImage(data->vk_data.device,
-                                  &image_create_info,
-                                  NULL, /* allocator */
-                                  &data->vk_fb.depth_image);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating VkImage");
-                goto error;
-        }
-
-        res = fv_allocate_store_image(&data->vk_data,
-                                      0, /* memory_type_flags */
-                                      2, /* n_images */
-                                      (VkImage[]) {
-                                              data->vk_fb.color_image,
-                                              data->vk_fb.depth_image
-                                      },
-                                      &data->vk_fb.memory,
-                                      NULL /* memory_type_index */);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error allocating framebuffer memory");
-                goto error;
-        }
-
-        res = fv_allocate_store_image(&data->vk_data,
-                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                                      1, /* n_images */
-                                      &data->vk_fb.linear_image,
-                                      &data->vk_fb.linear_memory,
-                                      &linear_memory_type);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error allocating framebuffer memory");
-                goto error;
-        }
-
-        data->vk_fb.need_linear_memory_invalidate =
-                (data->vk_data.memory_properties.
-                 memoryTypes[linear_memory_type].propertyFlags &
-                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0;
-
-        VkImageSubresource linear_subresource = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel = 0,
-                .arrayLayer = 0
-        };
-        VkSubresourceLayout linear_layout;
-        fv_vk.vkGetImageSubresourceLayout(data->vk_data.device,
-                                          data->vk_fb.linear_image,
-                                          &linear_subresource,
-                                          &linear_layout);
-        data->vk_fb.linear_memory_stride = linear_layout.rowPitch;
-
-        res = fv_vk.vkMapMemory(data->vk_data.device,
-                                data->vk_fb.linear_memory,
-                                0, /* offset */
-                                VK_WHOLE_SIZE,
-                                0, /* flags */
-                                &data->vk_fb.linear_memory_map);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error mapping linear memory");
-                goto error;
-        }
 
         VkImageViewCreateInfo image_view_create_info = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = data->vk_fb.color_image,
+                .image = swapchain_image->image,
                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = COLOR_IMAGE_FORMAT,
+                .format = data->vk_surface_format,
                 .components = {
                         .r = VK_COMPONENT_SWIZZLE_R,
                         .g = VK_COMPONENT_SWIZZLE_G,
@@ -862,27 +754,14 @@ create_framebuffer_resources(struct data *data)
         res = fv_vk.vkCreateImageView(data->vk_data.device,
                                       &image_view_create_info,
                                       NULL, /* allocator */
-                                      &data->vk_fb.color_image_view);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating image view");
-                goto error;
-        }
-
-        image_view_create_info.image = data->vk_fb.depth_image;
-        image_view_create_info.format = data->vk_depth_format;
-        image_view_create_info.subresourceRange.aspectMask =
-                VK_IMAGE_ASPECT_DEPTH_BIT;
-        res = fv_vk.vkCreateImageView(data->vk_data.device,
-                                      &image_view_create_info,
-                                      NULL, /* allocator */
-                                      &data->vk_fb.depth_image_view);
+                                      &swapchain_image->image_view);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating image view");
                 goto error;
         }
 
         VkImageView attachments[] = {
-                data->vk_fb.color_image_view,
+                swapchain_image->image_view,
                 data->vk_fb.depth_image_view
         };
         VkFramebufferCreateInfo framebuffer_create_info = {
@@ -897,7 +776,160 @@ create_framebuffer_resources(struct data *data)
         res = fv_vk.vkCreateFramebuffer(data->vk_data.device,
                                         &framebuffer_create_info,
                                         NULL, /* allocator */
-                                        &data->vk_fb.framebuffer);
+                                        &swapchain_image->framebuffer);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating framebuffer");
+                goto error;
+        }
+
+        return true;
+
+error:
+        return false;
+}
+
+static bool
+create_swapchain_images(struct data *data)
+{
+        VkResult res;
+        VkImage *images;
+        uint32_t n_images;
+        int i;
+
+        res = fv_vk.vkGetSwapchainImagesKHR(data->vk_data.device,
+                                            data->vk_fb.swapchain,
+                                            &n_images,
+                                            NULL /* images */);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error getting swapchain images");
+                goto error;
+        }
+        images = alloca(sizeof *images * n_images);
+        res = fv_vk.vkGetSwapchainImagesKHR(data->vk_data.device,
+                                            data->vk_fb.swapchain,
+                                            &n_images,
+                                            images);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error getting swapchain images");
+                goto error;
+        }
+
+        data->vk_fb.swapchain_images =
+                fv_calloc(sizeof *data->vk_fb.swapchain_images * n_images);
+        data->vk_fb.n_swapchain_images = n_images;
+
+        for (i = 0; i < n_images; i++) {
+                data->vk_fb.swapchain_images[i].image = images[i];
+                if (!create_swapchain_image(data,
+                                            data->vk_fb.swapchain_images + i))
+                        goto error;
+        }
+
+        return true;
+
+error:
+        return false;
+}
+
+static bool
+create_framebuffer_resources(struct data *data)
+{
+        VkResult res;
+
+        VkSwapchainCreateInfoKHR swapchain_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+                .surface = data->vk_surface,
+                .minImageCount = 2,
+                .imageFormat = data->vk_surface_format,
+                .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
+                .imageExtent = { data->fb_width, data->fb_height },
+                .imageArrayLayers = 1,
+                .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                .queueFamilyIndexCount = 1,
+                .pQueueFamilyIndices =
+                (uint32_t[]) { data->vk_data.queue_family },
+                .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+                .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+                .presentMode = data->vk_present_mode,
+                .clipped = VK_TRUE
+        };
+        res = fv_vk.vkCreateSwapchainKHR(data->vk_data.device,
+                                         &swapchain_create_info,
+                                         NULL, /* allocator */
+                                         &data->vk_fb.swapchain);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating swapchain");
+                goto error;
+        }
+
+        VkImageCreateInfo image_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                .imageType = VK_IMAGE_TYPE_2D,
+                .format = data->vk_depth_format,
+                .extent = {
+                        .width = data->fb_width,
+                        .height = data->fb_height,
+                        .depth = 1
+                },
+                .mipLevels = 1,
+                .arrayLayers = 1,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .tiling = VK_IMAGE_TILING_OPTIMAL,
+                .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+        };
+        res = fv_vk.vkCreateImage(data->vk_data.device,
+                                  &image_create_info,
+                                  NULL, /* allocator */
+                                  &data->vk_fb.depth_image);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating depth image");
+                goto error;
+        }
+
+        res = fv_allocate_store_image(&data->vk_data,
+                                      0, /* memory_type_flags */
+                                      1, /* n_images */
+                                      &data->vk_fb.depth_image,
+                                      &data->vk_fb.depth_image_memory,
+                                      NULL /* memory_type_index */);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error allocating depthbuffer memory");
+                goto error;
+        }
+
+        VkImageViewCreateInfo image_view_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = data->vk_fb.depth_image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = data->vk_depth_format,
+                .components = {
+                        .r = VK_COMPONENT_SWIZZLE_R,
+                        .g = VK_COMPONENT_SWIZZLE_G,
+                        .b = VK_COMPONENT_SWIZZLE_B,
+                        .a = VK_COMPONENT_SWIZZLE_A
+                },
+                .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                }
+        };
+        res = fv_vk.vkCreateImageView(data->vk_data.device,
+                                      &image_view_create_info,
+                                      NULL, /* allocator */
+                                      &data->vk_fb.depth_image_view);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating depth-stencil image view");
+                goto error;
+        }
+
+        if (!create_swapchain_images(data))
+                goto error;
 
         data->vk_fb.width = data->fb_width;
         data->vk_fb.height = data->fb_height;
@@ -914,6 +946,8 @@ static void
 paint_vk(struct data *data)
 {
         VkResult res;
+        uint32_t swapchain_image_index;
+        struct swapchain_image *swapchain_image;
         int i;
 
         if (data->vk_fb.width != data->fb_width ||
@@ -924,6 +958,20 @@ paint_vk(struct data *data)
                         return;
                 }
         }
+
+        res = fv_vk.vkAcquireNextImageKHR(data->vk_data.device,
+                                          data->vk_fb.swapchain,
+                                          UINT64_MAX,
+                                          data->vk_semaphore,
+                                          VK_NULL_HANDLE, /* fence */
+                                          &swapchain_image_index);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error getting swapchain image");
+                data->quit = true;
+                return;
+        }
+
+        swapchain_image = data->vk_fb.swapchain_images + swapchain_image_index;
 
         VkCommandBufferBeginInfo begin_command_buffer_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
@@ -944,7 +992,7 @@ paint_vk(struct data *data)
         VkRenderPassBeginInfo render_pass_begin_info = {
                 .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
                 .renderPass = data->vk_render_pass,
-                .framebuffer = data->vk_fb.framebuffer,
+                .framebuffer = swapchain_image->framebuffer,
                 .renderArea = {
                         .offset = { 0, 0 },
                         .extent = { data->fb_width, data->fb_height}
@@ -1031,31 +1079,6 @@ paint_vk(struct data *data)
 
         fv_vk.vkCmdEndRenderPass(data->vk_command_buffer);
 
-        VkImageCopy copy_region = {
-                .srcSubresource = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .mipLevel = 0,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1
-                },
-                .srcOffset = { 0, 0, 0 },
-                .dstSubresource = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .mipLevel = 0,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1
-                },
-                .dstOffset = { 0, 0, 0 },
-                .extent = { data->fb_width, data->fb_height, 1 }
-        };
-        fv_vk.vkCmdCopyImage(data->vk_command_buffer,
-                             data->vk_fb.color_image,
-                             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                             data->vk_fb.linear_image,
-                             VK_IMAGE_LAYOUT_GENERAL,
-                             1, /* regionCount */
-                             &copy_region);
-
         res = fv_vk.vkEndCommandBuffer(data->vk_command_buffer);
         if (res != VK_SUCCESS)
                 return;
@@ -1068,6 +1091,11 @@ paint_vk(struct data *data)
                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                 .commandBufferCount = 1,
                 .pCommandBuffers = &data->vk_command_buffer,
+                .waitSemaphoreCount = 1,
+                .pWaitSemaphores = (VkSemaphore[]) { data->vk_semaphore },
+                .pWaitDstStageMask =
+                (VkPipelineStageFlagBits[])
+                { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }
         };
         res = fv_vk.vkQueueSubmit(data->vk_queue,
                                   1, /* submitCount */
@@ -1084,154 +1112,26 @@ paint_vk(struct data *data)
         if (res != VK_SUCCESS)
                 return;
 
-        if (data->vk_fb.need_linear_memory_invalidate) {
-                VkMappedMemoryRange memory_range = {
-                        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                        .memory = data->vk_fb.linear_memory,
-                        .offset = 0,
-                        .size = VK_WHOLE_SIZE
-                };
-                fv_vk.vkInvalidateMappedMemoryRanges(data->vk_data.device,
-                                                     1, /* memoryRangeCount */
-                                                     &memory_range);
+        VkPresentInfoKHR present_info = {
+                .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+                .swapchainCount = 1,
+                .pSwapchains = (VkSwapchainKHR[]) { data->vk_fb.swapchain },
+                .pImageIndices = (uint32_t[]) { swapchain_image_index },
+        };
+        res = fv_vk.vkQueuePresentKHR(data->vk_queue,
+                                      &present_info);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error presenting image");
+                data->quit = true;
+                return;
         }
-}
-
-static GLuint
-create_blit_program(void)
-{
-        static const char *vertex_source =
-                "attribute vec3 position;\n"
-                "attribute vec2 tex_coord_attrib;\n"
-                "varying vec2 tex_coord;\n"
-                "\n"
-                "void\n"
-                "main()\n"
-                "{\n"
-                "        gl_Position = vec4(position, 1.0);\n"
-                "        tex_coord = tex_coord_attrib;\n"
-                "}\n";
-        static const char *frag_source =
-                "varying vec2 tex_coord;\n"
-                "uniform sampler2D tex;\n"
-                "\n"
-                "void\n"
-                "main()\n"
-                "{\n"
-                "        gl_FragColor = texture2D(tex, tex_coord);\n"
-                "}\n";
-        static const GLint length = -1;
-        GLuint prog, shader;
-
-        prog = fv_gl.glCreateProgram();
-
-        shader = fv_gl.glCreateShader(GL_VERTEX_SHADER);
-        fv_gl.glShaderSource(shader,
-                             1, /* count */
-                             (const GLchar **) &vertex_source,
-                             &length);
-        fv_gl.glCompileShader(shader);
-        fv_gl.glAttachShader(prog, shader);
-        fv_gl.glDeleteShader(shader);
-
-        shader = fv_gl.glCreateShader(GL_FRAGMENT_SHADER);
-        fv_gl.glShaderSource(shader,
-                             1, /* count */
-                             (const GLchar **) &frag_source,
-                             &length);
-        fv_gl.glCompileShader(shader);
-        fv_gl.glAttachShader(prog, shader);
-        fv_gl.glDeleteShader(shader);
-
-        fv_gl.glLinkProgram(prog);
-
-        return prog;
-}
-
-static void
-upload_vk_image(struct data *data)
-{
-        GLuint tex, vao, vbo;
-        int alignment = 1;
-        struct vertex {
-                float x, y;
-                float s, t;
-        };
-        static const struct vertex verts[] = {
-                { -1, -1, 0, 1 },
-                { 1, -1, 1, 1 },
-                { -1, 1, 0, 0 },
-                { 1, 1, 1, 0 },
-        };
-
-        while ((data->vk_fb.linear_memory_stride & alignment) == 0 &&
-               alignment < 8)
-                alignment <<= 1;
-
-        fv_gl.glGenTextures(1, &tex);
-        fv_gl.glBindTexture(GL_TEXTURE_2D, tex);
-        fv_gl.glPixelStorei(GL_UNPACK_ROW_LENGTH,
-                            data->vk_fb.linear_memory_stride / 4);
-        fv_gl.glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
-        fv_gl.glTexImage2D(GL_TEXTURE_2D,
-                           0, /* level */
-                           GL_RGBA,
-                           data->fb_width,
-                           data->fb_height,
-                           0, /* border */
-                           GL_BGRA,
-                           GL_UNSIGNED_BYTE,
-                           data->vk_fb.linear_memory_map);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_MAG_FILTER,
-                              GL_NEAREST);
-        fv_gl.glTexParameteri(GL_TEXTURE_2D,
-                              GL_TEXTURE_MIN_FILTER,
-                              GL_NEAREST);
-
-        fv_gl.glUseProgram(data->blit_program);
-
-        fv_gl.glGenBuffers(1, &vbo);
-        fv_gl.glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        fv_gl.glBufferData(GL_ARRAY_BUFFER,
-                           sizeof verts,
-                           verts,
-                           GL_STATIC_DRAW);
-
-        fv_gl.glGenVertexArrays(1, &vao);
-        fv_gl.glBindVertexArray(vao);
-        fv_gl.glVertexAttribPointer(0,
-                                    2, /* size */
-                                    GL_FLOAT,
-                                    GL_FALSE, /* normalised */
-                                    sizeof verts[0],
-                                    (void *) (GLintptr)
-                                    offsetof(struct vertex, x));
-        fv_gl.glEnableVertexAttribArray(0);
-        fv_gl.glVertexAttribPointer(1,
-                                    2, /* size */
-                                    GL_FLOAT,
-                                    GL_FALSE, /* normalised */
-                                    sizeof verts[0],
-                                    (void *) (GLintptr)
-                                    offsetof(struct vertex, s));
-        fv_gl.glEnableVertexAttribArray(1);
-
-        fv_gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-        fv_gl.glDeleteVertexArrays(1, &vao);
-        fv_gl.glDeleteBuffers(1, &vbo);
-        fv_gl.glDeleteTextures(1, &tex);
 }
 
 static void
 paint(struct data *data)
 {
-        GLbitfield clear_mask = GL_DEPTH_BUFFER_BIT;
-
         if (data->fb_width != data->last_fb_width ||
             data->fb_height != data->last_fb_height) {
-                fv_gl.glViewport(0, 0, data->fb_width, data->fb_height);
                 data->last_fb_width = data->fb_width;
                 data->last_fb_height = data->fb_height;
                 data->viewports_dirty = true;
@@ -1242,61 +1142,7 @@ paint(struct data *data)
         update_viewports(data);
         update_centers(data);
 
-        if (need_clear(data))
-                clear_mask |= GL_COLOR_BUFFER_BIT;
-
-        fv_gl.glClear(clear_mask);
-
-        if (data->n_viewports != 1)
-                fv_gl.glViewport(0, 0, data->fb_width, data->fb_height);
-
         paint_vk(data);
-
-        upload_vk_image(data);
-
-        fv_gl.glXSwapBuffers(data->display, data->glx_window);
-}
-
-static bool
-check_gl_version(void)
-{
-        if (fv_gl.major_version < 0 ||
-            fv_gl.minor_version < 0) {
-                fv_error_message("Invalid GL version string encountered: %s",
-                                 (const char *) fv_gl.glGetString(GL_VERSION));
-
-                return false;
-        }
-
-        if (fv_gl.major_version < CORE_GL_MAJOR_VERSION ||
-            (fv_gl.major_version == CORE_GL_MAJOR_VERSION &&
-             fv_gl.minor_version < CORE_GL_MINOR_VERSION)) {
-                fv_error_message("GL version %i.%i is required but the driver "
-                                 "is reporting:\n"
-                                 "Version: %s\n"
-                                 "Vendor: %s\n"
-                                 "Renderer: %s",
-                                 CORE_GL_MAJOR_VERSION,
-                                 CORE_GL_MINOR_VERSION,
-                                 (const char *) fv_gl.glGetString(GL_VERSION),
-                                 (const char *) fv_gl.glGetString(GL_VENDOR),
-                                 (const char *) fv_gl.glGetString(GL_RENDERER));
-                return false;
-        }
-
-        if (fv_gl.glGenerateMipmap == NULL) {
-                fv_error_message("glGenerateMipmap is required (from "
-                                 "GL_ARB_framebuffer_object)\n"
-                                 "Version: %s\n"
-                                 "Vendor: %s\n"
-                                 "Renderer: %s",
-                                 (const char *) fv_gl.glGetString(GL_VERSION),
-                                 (const char *) fv_gl.glGetString(GL_VENDOR),
-                                 (const char *) fv_gl.glGetString(GL_RENDERER));
-                return false;
-        }
-
-        return true;
 }
 
 static void
@@ -1381,128 +1227,43 @@ iterate_main_loop(struct data *data)
         paint(data);
 }
 
-static GLXFBConfig
-choose_fb_config(struct data *data)
-{
-        GLXFBConfig *configs;
-        int n_configs;
-        GLXFBConfig ret;
-        static const int attrib_list[] = {
-                GLX_DOUBLEBUFFER, True,
-                GLX_DEPTH_SIZE, 16,
-                0
-        };
-
-        configs = fv_gl.glXChooseFBConfig(data->display,
-                                          DefaultScreen (data->display),
-                                          attrib_list,
-                                          &n_configs);
-
-        if (configs == NULL)
-                return NULL;
-
-        if (n_configs < 1)
-                ret = NULL;
-        else
-                ret = configs[0];
-
-        XFree (configs);
-
-        return ret;
-}
-
-static GLXContext
-create_context(struct data *data, GLXFBConfig fb_config)
-{
-        GLXContext context;
-        static const int attrib_list[] = {
-                GLX_CONTEXT_MAJOR_VERSION_ARB, CORE_GL_MAJOR_VERSION,
-                GLX_CONTEXT_MINOR_VERSION_ARB, CORE_GL_MINOR_VERSION,
-                GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
-                GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
-                None
-        };
-
-        context = fv_gl.glXCreateContextAttribs(data->display,
-                                                fb_config,
-                                                NULL, /* shareList */
-                                                True, /* direct */
-                                                attrib_list);
-
-        if (context == NULL) {
-                fv_error_message("Failed to create GLX context");
-                return NULL;
-        }
-
-        return context;
-}
-
 static bool
 make_window(struct data *data)
 {
         XSetWindowAttributes attr;
         unsigned long mask;
         Window root;
-        GLXFBConfig fb_config;
-        XVisualInfo *visinfo;
+        Visual *visual;
 
         root = RootWindow(data->display, 0 /* screen */);
-
-        fb_config = choose_fb_config(data);
-
-        if (fb_config == NULL) {
-                fv_error_message("Couldn't get an RGB, double-buffered "
-                                 "FB config");
-                return false;
-        }
-
-        data->glx_context = create_context(data, fb_config);
-
-        if (data->glx_context == NULL)
-                return false;
-
-        visinfo = fv_gl.glXGetVisualFromFBConfig(data->display, fb_config);
-
-        if (visinfo == NULL) {
-                fv_error_message("FB config does not have an associated "
-                                 "visual");
-                fv_gl.glXDestroyContext(data->display, data->glx_context);
-                return false;
-        }
+        visual = DefaultVisual(data->display, 0 /* screen */);
 
         /* window attributes */
         attr.background_pixel = 0;
         attr.border_pixel = 0;
         attr.colormap = XCreateColormap(data->display,
                                         root,
-                                        visinfo->visual,
+                                        visual,
                                         AllocNone);
         attr.event_mask = (StructureNotifyMask | ExposureMask |
                            KeyPressMask | KeyReleaseMask |
                            ButtonPressMask | ButtonReleaseMask);
         mask = CWBorderPixel | CWColormap | CWEventMask;
 
-        data->x_window = XCreateWindow(data->display, root, 0, 0, 800, 600,
-                                       0, visinfo->depth, InputOutput,
-                                       visinfo->visual, mask, &attr);
-
-        XFree(visinfo);
+        data->x_window = XCreateWindow(data->display,
+                                       root, /* parent */
+                                       0, 0, 800, 600, /* x/y/width/height */
+                                       0, /* border_width */
+                                       CopyFromParent, /* depth */
+                                       InputOutput,
+                                       visual,
+                                       mask,
+                                       &attr);
 
         if (!data->x_window) {
                 fv_error_message("XCreateWindow failed");
-                fv_gl.glXDestroyContext(data->display, data->glx_context);
                 return false;
         }
-
-        data->glx_window = fv_gl.glXCreateWindow(data->display,
-                                                 fb_config,
-                                                 data->x_window,
-                                                 NULL /* attrib_list */);
-
-        fv_gl.glXMakeContextCurrent(data->display,
-                                    data->glx_window,
-                                    data->glx_window,
-                                    data->glx_context);
 
         XMapWindow(data->display, data->x_window);
 
@@ -1510,12 +1271,13 @@ make_window(struct data *data)
 }
 
 static int
-find_queue_family(struct data *data)
+find_queue_family(struct data *data,
+                  VkPhysicalDevice physical_device)
 {
-        VkPhysicalDevice physical_device = data->vk_data.physical_device;
         VkQueueFamilyProperties *queues;
         uint32_t count = 0;
         uint32_t i;
+        VkBool32 supported;
 
         fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
                                                        &count,
@@ -1528,8 +1290,16 @@ find_queue_family(struct data *data)
                                                        queues);
 
         for (i = 0; i < count; i++) {
-                if ((queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
-                    queues[i].queueCount >= 1)
+                if ((queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0 ||
+                    queues[i].queueCount < 1)
+                        continue;
+
+                supported = false;
+                fv_vk.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device,
+                                                           i,
+                                                           data->vk_surface,
+                                                           &supported);
+                if (supported)
                         break;
         }
 
@@ -1597,9 +1367,19 @@ deinit_vk(struct data *data)
                                            data->vk_command_pool,
                                            NULL /* allocator */);
         }
+        if (data->vk_semaphore) {
+                fv_vk.vkDestroySemaphore(data->vk_data.device,
+                                         data->vk_semaphore,
+                                         NULL /* allocator */);
+        }
         if (data->vk_data.device) {
                 fv_vk.vkDestroyDevice(data->vk_data.device,
                                       NULL /* allocator */);
+        }
+        if (data->vk_surface) {
+                fv_vk.vkDestroySurfaceKHR(data->vk_instance,
+                                          data->vk_surface,
+                                          NULL /* allocator */);
         }
         if (data->vk_instance) {
                 fv_vk.vkDestroyInstance(data->vk_instance,
@@ -1608,12 +1388,219 @@ deinit_vk(struct data *data)
 }
 
 static bool
+check_device_extension(struct data *data,
+                       VkPhysicalDevice physical_device,
+                       const char *extension)
+{
+        VkExtensionProperties *extensions;
+        uint32_t count;
+        VkResult res;
+        int i;
+
+        res = fv_vk.vkEnumerateDeviceExtensionProperties(physical_device,
+                                                         NULL, /* layerName */
+                                                         &count,
+                                                         NULL /* properties */);
+        if (res != VK_SUCCESS)
+                return false;
+
+        extensions = alloca(sizeof *extensions * count);
+
+        res = fv_vk.vkEnumerateDeviceExtensionProperties(physical_device,
+                                                         NULL, /* layerName */
+                                                         &count,
+                                                         extensions);
+        if (res != VK_SUCCESS)
+                return false;
+
+        for (i = 0; i < count; i++) {
+                if (!strcmp(extensions[i].extensionName, extension))
+                        return true;
+        }
+
+        return false;
+}
+
+static bool
+check_physical_device_surface_capabilities(struct data *data,
+                                           VkPhysicalDevice physical_device)
+{
+        VkSurfaceCapabilitiesKHR caps;
+        VkResult res;
+
+        res = fv_vk.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device,
+                                                              data->vk_surface,
+                                                              &caps);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error getting device surface caps");
+                return false;
+        }
+
+        if (caps.maxImageCount != 0 && caps.maxImageCount < 2)
+                return false;
+        if (!(caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR))
+                return false;
+        if (!(caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR))
+                return false;
+        if (!(caps.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT))
+                return false;
+
+        return true;
+}
+
+static bool
+find_physical_device(struct data *data)
+{
+        VkResult res;
+        uint32_t count;
+        VkPhysicalDevice *devices;
+        int i, queue_family;
+
+        res = fv_vk.vkEnumeratePhysicalDevices(data->vk_instance,
+                                               &count,
+                                               NULL);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error enumerating VkPhysicalDevices");
+                return false;
+        }
+
+        devices = alloca(count * sizeof *devices);
+
+        res = fv_vk.vkEnumeratePhysicalDevices(data->vk_instance,
+                                               &count,
+                                               devices);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error enumerating VkPhysicalDevices");
+                return false;
+        }
+
+        for (i = 0; i < count; i++) {
+                if (!check_device_extension(data,
+                                            devices[i],
+                                            VK_KHR_SWAPCHAIN_EXTENSION_NAME))
+                        continue;
+
+                queue_family = find_queue_family(data, devices[i]);
+                if (queue_family == -1)
+                        continue;
+
+                if (!check_physical_device_surface_capabilities(data,
+                                                                devices[i]))
+                        continue;
+
+                data->vk_data.physical_device = devices[i];
+                data->vk_data.queue_family = queue_family;
+
+                return true;
+        }
+
+        fv_error_message("No suitable device and queue family found");
+        return false;
+}
+
+static bool
+find_surface_format(struct data *data)
+{
+        VkPhysicalDevice physical_device = data->vk_data.physical_device;
+        VkSurfaceFormatKHR *formats;
+        uint32_t count = 0;
+        VkResult res;
+        int i;
+
+        res = fv_vk.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device,
+                                                         data->vk_surface,
+                                                         &count,
+                                                         NULL /* formats */);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error getting supported surface formats");
+                return false;
+        }
+
+        formats = alloca(sizeof *formats * count);
+
+        res = fv_vk.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device,
+                                                         data->vk_surface,
+                                                         &count,
+                                                         formats);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error getting supported surface formats");
+                return false;
+        }
+
+        for (i = 0; i < count; i++) {
+                switch (formats[i].format) {
+                case VK_FORMAT_B8G8R8A8_UNORM:
+                case VK_FORMAT_R8G8B8A8_UNORM:
+                        data->vk_surface_format = formats[i].format;
+                        return true;
+                default:
+                        continue;
+                }
+        }
+
+        fv_error_message("No suitable surface format found");
+        return false;
+}
+
+static bool
+find_present_mode(struct data *data)
+{
+        static const VkPresentModeKHR mode_preference[] = {
+                VK_PRESENT_MODE_MAILBOX_KHR,
+                VK_PRESENT_MODE_FIFO_KHR
+        };
+        VkPhysicalDevice physical_device = data->vk_data.physical_device;
+        VkPresentModeKHR *present_modes;
+        int chosen_preference = -1;
+        uint32_t count = 0;
+        VkResult res;
+        int i, j;
+
+        res = fv_vk.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device,
+                                                              data->vk_surface,
+                                                              &count,
+                                                              NULL);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error getting supported present modes");
+                return false;
+        }
+
+        present_modes = alloca(sizeof *present_modes * count);
+
+        res = fv_vk.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device,
+                                                              data->vk_surface,
+                                                              &count,
+                                                              present_modes);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error getting supported present modes");
+                return false;
+        }
+
+        for (i = 0; i < count; i++) {
+                for (j = 0; j < FV_N_ELEMENTS(mode_preference); j++) {
+                        if (mode_preference[j] == present_modes[i]) {
+                                if (j > chosen_preference)
+                                        chosen_preference = j;
+                                break;
+                        }
+                }
+        }
+
+        if (chosen_preference == -1) {
+                fv_error_message("No suitable present mode found");
+                return false;
+        }
+
+        data->vk_present_mode = mode_preference[chosen_preference];
+        return true;
+}
+
+static bool
 init_vk(struct data *data)
 {
         VkPhysicalDeviceMemoryProperties *memory_properties =
                 &data->vk_data.memory_properties;
         VkResult res;
-        uint32_t count = 1;
 
         struct VkInstanceCreateInfo instance_create_info = {
                 .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -1621,7 +1608,12 @@ init_vk(struct data *data)
                         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
                         .pApplicationName = "finvenkisto",
                         .apiVersion = VK_MAKE_VERSION(1, 0, 2)
-                }
+                },
+                .enabledExtensionCount = 2,
+                .ppEnabledExtensionNames = (const char * const []) {
+                        VK_KHR_SURFACE_EXTENSION_NAME,
+                        VK_KHR_XLIB_SURFACE_EXTENSION_NAME
+                },
         };
         res = fv_vk.vkCreateInstance(&instance_create_info,
                                      NULL, /* allocator */
@@ -1634,25 +1626,29 @@ init_vk(struct data *data)
 
         fv_vk_init_instance(data->vk_instance);
 
-        res = fv_vk.vkEnumeratePhysicalDevices(data->vk_instance,
-                                               &count,
-                                               &data->vk_data.physical_device);
-        if (res != VK_SUCCESS || count < 1) {
-                fv_error_message("Error enumerating VkPhysicalDevices");
+        VkXlibSurfaceCreateInfoKHR xlib_surface_create_info = {
+                .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+                .dpy = data->display,
+                .window = data->x_window,
+        };
+        res = fv_vk.vkCreateXlibSurfaceKHR(data->vk_instance,
+                                           &xlib_surface_create_info,
+                                           NULL, /* allocator */
+                                           &data->vk_surface);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error allocating xlib surface");
                 goto error;
         }
+
+        if (!find_physical_device(data))
+                goto error;
 
         fv_vk.vkGetPhysicalDeviceProperties(data->vk_data.physical_device,
                                             &data->vk_data.device_properties);
         fv_vk.vkGetPhysicalDeviceMemoryProperties(data->vk_data.physical_device,
                                                   memory_properties);
-        data->vk_depth_format = get_depth_format(data);
 
-        data->vk_data.queue_family = find_queue_family(data);
-        if (data->vk_data.queue_family == -1) {
-                fv_error_message("No graphics queue found on Vulkan device");
-                goto error;
-        }
+        data->vk_depth_format = get_depth_format(data);
 
         VkPhysicalDeviceFeatures features;
         memset(&features, 0, sizeof features);
@@ -1666,7 +1662,11 @@ init_vk(struct data *data)
                         .queueCount = 1,
                         .pQueuePriorities = (float[]) { 1.0f }
                 },
-                .pEnabledFeatures = &features
+                .pEnabledFeatures = &features,
+                .enabledExtensionCount = 1,
+                .ppEnabledExtensionNames = (const char * const []) {
+                        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+                },
         };
         res = fv_vk.vkCreateDevice(data->vk_data.physical_device,
                                    &device_create_info,
@@ -1683,6 +1683,24 @@ init_vk(struct data *data)
                                data->vk_data.queue_family,
                                0, /* queueIndex */
                                &data->vk_queue);
+
+        VkSemaphoreCreateInfo semaphore_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+        };
+        res = fv_vk.vkCreateSemaphore(data->vk_data.device,
+                                      &semaphore_create_info,
+                                      NULL, /* allocator */
+                                      &data->vk_semaphore);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating semaphore");
+                goto error;
+        }
+
+        if (!find_surface_format(data))
+                goto error;
+
+        if (!find_present_mode(data))
+                goto error;
 
         VkCommandPoolCreateInfo command_pool_create_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -1735,14 +1753,14 @@ init_vk(struct data *data)
 
         VkAttachmentDescription attachment_descriptions[] = {
                 {
-                        .format = COLOR_IMAGE_FORMAT,
+                        .format = data->vk_surface_format,
                         .samples = VK_SAMPLE_COUNT_1_BIT,
                         .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
                         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                        .finalLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+                        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                 },
                 {
                         .format = data->vk_depth_format,
@@ -1829,31 +1847,16 @@ main(int argc, char **argv)
                 goto out_data;
         }
 
-        if (!fv_gl_load_libgl()) {
-                ret = EXIT_FAILURE;
-                goto out_data;
-        }
-
         if (!fv_vk_load_libvulkan()) {
                 ret = EXIT_FAILURE;
-                goto out_libgl;
-        }
-
-        if (!init_vk(&data)) {
-                ret = EXIT_FAILURE;
-                goto out_libvulkan;
+                goto out_data;
         }
 
         data.display = XOpenDisplay(NULL);
         if (data.display == NULL) {
                 fv_error_message("Error: XOpenDisplay failed");
                 ret = EXIT_FAILURE;
-                goto out_vk;
-        }
-
-        if (!fv_gl_init_glx(data.display)) {
-                ret = EXIT_FAILURE;
-                goto out_display;
+                goto out_libvulkan;
         }
 
         if (!make_window(&data)) {
@@ -1861,9 +1864,7 @@ main(int argc, char **argv)
                 goto out_display;
         }
 
-        fv_gl_init();
-
-        if (!check_gl_version()) {
+        if (!init_vk(&data)) {
                 ret = EXIT_FAILURE;
                 goto out_window;
         }
@@ -1882,14 +1883,10 @@ main(int argc, char **argv)
                 goto out_pipeline_data;
         }
 
-        data.blit_program = create_blit_program();
-
         reset_menu_state(&data);
 
         while (!data.quit)
                 iterate_main_loop(&data);
-
-        fv_gl.glDeleteProgram(data.blit_program);
 
         destroy_framebuffer_resources(&data);
 
@@ -1900,19 +1897,13 @@ out_pipeline_data:
                                  &data.pipeline_data);
 out_logic:
         fv_logic_free(data.logic);
+        deinit_vk(&data);
 out_window:
-        fv_gl.glXMakeContextCurrent(data.display, None, None, NULL);
-        fv_gl.glXDestroyContext(data.display, data.glx_context);
-        fv_gl.glXDestroyWindow(data.display, data.glx_window);
         XDestroyWindow(data.display, data.x_window);
 out_display:
         XCloseDisplay(data.display);
-out_vk:
-        deinit_vk(&data);
 out_libvulkan:
         fv_vk_unload_libvulkan();
-out_libgl:
-        fv_gl_unload_libgl();
 out_data:
         fv_data_deinit();
 

@@ -20,7 +20,6 @@
 #include "config.h"
 
 #include "fv-transform.h"
-#include "fv-gl.h"
 
 void
 fv_transform_ensure_mvp(struct fv_transform *transform)

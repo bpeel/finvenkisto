@@ -20,6 +20,7 @@
 #ifndef FV_VK_H
 #define FV_VK_H
 
+#define VK_USE_PLATFORM_XLIB_KHR
 #include <vulkan/vulkan.h>
 #include <stdbool.h>
 

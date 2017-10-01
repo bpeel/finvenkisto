@@ -3,7 +3,7 @@ SUBDIRS = data rply
 bin_PROGRAMS = finvenkisto
 
 AM_CFLAGS = \
-	$(GL_CFLAGS) \
+	$(VULKAN_CFLAGS) \
 	$(X11_CFLAGS) \
 	$(WARNING_CFLAGS) \
 	$(NULL)
@@ -31,9 +31,6 @@ finvenkisto_SOURCES = \
 	fv-error-message.h \
 	fv-game.c \
 	fv-game.h \
-	fv-gl.c \
-	fv-gl.h \
-	fv-gl-funcs.h \
 	fv-hud.c \
 	fv-hud.h \
 	fv-image-data.c \
