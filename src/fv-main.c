@@ -113,11 +113,10 @@ struct data {
                 VkImage depth_image;
                 VkDeviceMemory depth_image_memory;
                 VkImageView depth_image_view;
-                int width, height;
+                VkSurfaceCapabilitiesKHR caps;
         } vk_fb;
 
         bool window_mapped;
-        int fb_width, fb_height;
         int last_fb_width, last_fb_height;
 
         struct {
@@ -180,14 +179,6 @@ reset_menu_state(struct data *data)
         }
 
         fv_logic_reset(data->logic, 0);
-}
-
-static void
-handle_configure_event(struct data *data,
-                       const XConfigureEvent *event)
-{
-        data->fb_width = event->width;
-        data->fb_height = event->height;
 }
 
 static void
@@ -539,10 +530,6 @@ handle_event(struct data *data,
                 data->window_mapped = false;
                 goto handled;
 
-        case ConfigureNotify:
-                handle_configure_event(data, &event->xconfigure);
-                goto handled;
-
         case KeyPress:
         case KeyRelease:
                 handle_key_event(data, &event->xkey);
@@ -765,8 +752,8 @@ create_swapchain_image(struct data *data,
                 .renderPass = data->vk_render_pass,
                 .attachmentCount = FV_N_ELEMENTS(attachments),
                 .pAttachments = attachments,
-                .width = data->fb_width,
-                .height = data->fb_height,
+                .width = data->vk_fb.caps.currentExtent.width,
+                .height = data->vk_fb.caps.currentExtent.height,
                 .layers = 1
         };
         res = fv_vk.vkCreateFramebuffer(data->vk_data.device,
@@ -830,7 +817,18 @@ error:
 static bool
 create_framebuffer_resources(struct data *data)
 {
+        VkPhysicalDevice physical_device = data->vk_data.physical_device;
+        VkSurfaceCapabilitiesKHR *caps = &data->vk_fb.caps;
+
         VkResult res;
+
+        res = fv_vk.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device,
+                                                              data->vk_surface,
+                                                              caps);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error getting device surface caps");
+                goto error;
+        }
 
         VkSwapchainCreateInfoKHR swapchain_create_info = {
                 .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -838,7 +836,8 @@ create_framebuffer_resources(struct data *data)
                 .minImageCount = 2,
                 .imageFormat = data->vk_surface_format,
                 .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
-                .imageExtent = { data->fb_width, data->fb_height },
+                .imageExtent = { caps->currentExtent.width,
+                                 caps->currentExtent.height },
                 .imageArrayLayers = 1,
                 .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                 .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
@@ -864,8 +863,8 @@ create_framebuffer_resources(struct data *data)
                 .imageType = VK_IMAGE_TYPE_2D,
                 .format = data->vk_depth_format,
                 .extent = {
-                        .width = data->fb_width,
-                        .height = data->fb_height,
+                        .width = caps->currentExtent.width,
+                        .height = caps->currentExtent.height,
                         .depth = 1
                 },
                 .mipLevels = 1,
@@ -927,9 +926,6 @@ create_framebuffer_resources(struct data *data)
         if (!create_swapchain_images(data))
                 goto error;
 
-        data->vk_fb.width = data->fb_width;
-        data->vk_fb.height = data->fb_height;
-
         return true;
 
 error:
@@ -938,34 +934,72 @@ error:
         return false;
 }
 
+static bool
+acquire_image(struct data *data,
+              uint32_t *swapchain_image_index)
+{
+        VkResult res;
+        int i;
+
+        for (i = 0; i < 2; i++) {
+                if (data->vk_fb.swapchain == NULL &&
+                    !create_framebuffer_resources(data)) {
+                        data->quit = true;
+                        return false;
+                }
+
+                res = fv_vk.vkAcquireNextImageKHR(data->vk_data.device,
+                                                  data->vk_fb.swapchain,
+                                                  UINT64_MAX,
+                                                  data->vk_semaphore,
+                                                  VK_NULL_HANDLE, /* fence */
+                                                  swapchain_image_index);
+                if (i == 0 &&
+                    (res == VK_ERROR_OUT_OF_DATE_KHR ||
+                     res == VK_SUBOPTIMAL_KHR)) {
+                        /* This will probably happen if the window is
+                         * resized while we are waiting. Try
+                         * recreating the resources with the right
+                         * size. */
+                        destroy_framebuffer_resources(data);
+                } else if (res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) {
+                        return true;
+                } else {
+                        fv_error_message("Error getting swapchain image 0x%x",
+                                         res);
+                        data->quit = true;
+                        return false;
+                }
+        }
+
+        return true;
+}
+
 static void
-paint_vk(struct data *data)
+paint(struct data *data)
 {
         VkResult res;
         uint32_t swapchain_image_index;
         struct swapchain_image *swapchain_image;
+        const VkExtent2D *extent;
         int i;
 
-        if (data->vk_fb.width != data->fb_width ||
-            data->vk_fb.height != data->fb_height) {
-                destroy_framebuffer_resources(data);
-                if (!create_framebuffer_resources(data)) {
-                        data->quit = true;
-                        return;
-                }
+        if (!acquire_image(data, &swapchain_image_index))
+                return;
+
+        extent = &data->vk_fb.caps.currentExtent;
+
+        if (extent->width != data->last_fb_width ||
+            extent->height != data->last_fb_height) {
+                data->last_fb_width = extent->width;
+                data->last_fb_height = extent->height;
+                data->viewports_dirty = true;
         }
 
-        res = fv_vk.vkAcquireNextImageKHR(data->vk_data.device,
-                                          data->vk_fb.swapchain,
-                                          UINT64_MAX,
-                                          data->vk_semaphore,
-                                          VK_NULL_HANDLE, /* fence */
-                                          &swapchain_image_index);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error getting swapchain image");
-                data->quit = true;
-                return;
-        }
+        fv_logic_update(data->logic, get_ticks(data));
+
+        update_viewports(data);
+        update_centers(data);
 
         swapchain_image = data->vk_fb.swapchain_images + swapchain_image_index;
 
@@ -991,7 +1025,7 @@ paint_vk(struct data *data)
                 .framebuffer = swapchain_image->framebuffer,
                 .renderArea = {
                         .offset = { 0, 0 },
-                        .extent = { data->fb_width, data->fb_height}
+                        .extent = *extent
                 },
                 .clearValueCount = FV_N_ELEMENTS(clear_values),
                 .pClearValues = clear_values
@@ -1013,7 +1047,7 @@ paint_vk(struct data *data)
                 VkClearRect color_clear_rect = {
                         .rect = {
                                 .offset = { 0, 0 },
-                                .extent = { data->fb_width, data->fb_height}
+                                .extent = *extent
                         },
                         .baseArrayLayer = 0,
                         .layerCount = 1
@@ -1027,7 +1061,7 @@ paint_vk(struct data *data)
 
         VkRect2D scissor = {
                 .offset = { .x = 0, .y = 0 },
-                .extent = { .width = data->fb_width, .height = data->fb_height }
+                .extent = *extent
         };
         fv_vk.vkCmdSetScissor(data->vk_command_buffer,
                               0, /* firstScissor */
@@ -1064,8 +1098,8 @@ paint_vk(struct data *data)
                 VkViewport viewport = {
                         .x = 0,
                         .y = 0,
-                        .width = data->fb_width,
-                        .height = data->fb_height,
+                        .width = extent->width,
+                        .height = extent->height,
                         .minDepth = 0.0f,
                         .maxDepth = 1.0f
                 };
@@ -1075,7 +1109,7 @@ paint_vk(struct data *data)
                                        &viewport);
         }
 
-        paint_hud(data, data->fb_width, data->fb_height);
+        paint_hud(data, extent->width, extent->height);
 
         fv_vk.vkCmdEndRenderPass(data->vk_command_buffer);
 
@@ -1125,24 +1159,6 @@ paint_vk(struct data *data)
                 data->quit = true;
                 return;
         }
-}
-
-static void
-paint(struct data *data)
-{
-        if (data->fb_width != data->last_fb_width ||
-            data->fb_height != data->last_fb_height) {
-                data->last_fb_width = data->fb_width;
-                data->last_fb_height = data->fb_height;
-                data->viewports_dirty = true;
-        }
-
-        fv_logic_update(data->logic, get_ticks(data));
-
-        update_viewports(data);
-        update_centers(data);
-
-        paint_vk(data);
 }
 
 static void
@@ -1837,8 +1853,6 @@ main(int argc, char **argv)
 
         data.is_fullscreen = true;
         data.window_mapped = false;
-        data.fb_width = 0;
-        data.fb_height = 0;
 
         fv_data_init(argv[0]);
 
