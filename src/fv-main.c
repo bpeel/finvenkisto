@@ -111,6 +111,7 @@ struct data {
                 VkDeviceMemory depth_image_memory;
                 VkImageView depth_image_view;
                 VkSurfaceCapabilitiesKHR caps;
+                VkExtent2D extent;
         } vk_fb;
 
         SDL_Window *window;
@@ -589,6 +590,69 @@ error_command_buffer:
 }
 
 static void
+destroy_swapchain_image(struct data *data,
+                        struct swapchain_image *swapchain_image)
+{
+        if (swapchain_image->framebuffer) {
+                fv_vk.vkDestroyFramebuffer(data->vk_data.device,
+                                           swapchain_image->framebuffer,
+                                           NULL /* allocator */);
+        }
+        if (swapchain_image->image_view) {
+                fv_vk.vkDestroyImageView(data->vk_data.device,
+                                         swapchain_image->image_view,
+                                         NULL /* allocator */);
+        }
+}
+
+static void
+destroy_framebuffer_resources(struct data *data)
+{
+        int i;
+
+        if (data->vk_fb.depth_image_view)
+                fv_vk.vkDestroyImageView(data->vk_data.device,
+                                         data->vk_fb.depth_image_view,
+                                         NULL /* allocator */);
+        if (data->vk_fb.depth_image_memory)
+                fv_vk.vkFreeMemory(data->vk_data.device,
+                                   data->vk_fb.depth_image_memory,
+                                   NULL /* allocator */);
+        if (data->vk_fb.depth_image)
+                fv_vk.vkDestroyImage(data->vk_data.device,
+                                     data->vk_fb.depth_image,
+                                     NULL /* allocator */);
+        if (data->vk_fb.swapchain_images) {
+                for (i = 0; i < data->vk_fb.n_swapchain_images; i++) {
+                        destroy_swapchain_image(data,
+                                                data->vk_fb.swapchain_images +
+                                                i);
+                }
+                fv_free(data->vk_fb.swapchain_images);
+        }
+        if (data->vk_fb.swapchain)
+                fv_vk.vkDestroySwapchainKHR(data->vk_data.device,
+                                            data->vk_fb.swapchain,
+                                            NULL /* allocator */);
+
+        memset(&data->vk_fb, 0, sizeof data->vk_fb);
+}
+
+static void
+handle_window_size_changed(struct data *data)
+{
+        /* If the window size is determined by the swap chain size
+         * then we’ll destroy the fb resources in order to trigger it
+         * to recreate them at the right size. Otherwise this should
+         * be recognised when we try to acquire an out-of-date buffer.
+         */
+        if (data->vk_fb.swapchain &&
+            data->vk_fb.caps.currentExtent.width == 0xffffffff) {
+                destroy_framebuffer_resources(data);
+        }
+}
+
+static void
 handle_event(struct data *data,
              const SDL_Event *event)
 {
@@ -597,6 +661,9 @@ handle_event(struct data *data,
                 switch (event->window.event) {
                 case SDL_WINDOWEVENT_CLOSE:
                         data->quit = true;
+                        break;
+                case SDL_WINDOWEVENT_SIZE_CHANGED:
+                        handle_window_size_changed(data);
                         break;
                 }
                 goto handled;
@@ -761,55 +828,6 @@ need_clear(struct data *data)
         return false;
 }
 
-static void
-destroy_swapchain_image(struct data *data,
-                        struct swapchain_image *swapchain_image)
-{
-        if (swapchain_image->framebuffer) {
-                fv_vk.vkDestroyFramebuffer(data->vk_data.device,
-                                           swapchain_image->framebuffer,
-                                           NULL /* allocator */);
-        }
-        if (swapchain_image->image_view) {
-                fv_vk.vkDestroyImageView(data->vk_data.device,
-                                         swapchain_image->image_view,
-                                         NULL /* allocator */);
-        }
-}
-
-static void
-destroy_framebuffer_resources(struct data *data)
-{
-        int i;
-
-        if (data->vk_fb.depth_image_view)
-                fv_vk.vkDestroyImageView(data->vk_data.device,
-                                         data->vk_fb.depth_image_view,
-                                         NULL /* allocator */);
-        if (data->vk_fb.depth_image_memory)
-                fv_vk.vkFreeMemory(data->vk_data.device,
-                                   data->vk_fb.depth_image_memory,
-                                   NULL /* allocator */);
-        if (data->vk_fb.depth_image)
-                fv_vk.vkDestroyImage(data->vk_data.device,
-                                     data->vk_fb.depth_image,
-                                     NULL /* allocator */);
-        if (data->vk_fb.swapchain_images) {
-                for (i = 0; i < data->vk_fb.n_swapchain_images; i++) {
-                        destroy_swapchain_image(data,
-                                                data->vk_fb.swapchain_images +
-                                                i);
-                }
-                fv_free(data->vk_fb.swapchain_images);
-        }
-        if (data->vk_fb.swapchain)
-                fv_vk.vkDestroySwapchainKHR(data->vk_data.device,
-                                            data->vk_fb.swapchain,
-                                            NULL /* allocator */);
-
-        memset(&data->vk_fb, 0, sizeof data->vk_fb);
-}
-
 static bool
 create_swapchain_image(struct data *data,
                        struct swapchain_image *swapchain_image)
@@ -853,8 +871,8 @@ create_swapchain_image(struct data *data,
                 .renderPass = data->vk_render_pass,
                 .attachmentCount = FV_N_ELEMENTS(attachments),
                 .pAttachments = attachments,
-                .width = data->vk_fb.caps.currentExtent.width,
-                .height = data->vk_fb.caps.currentExtent.height,
+                .width = data->vk_fb.extent.width,
+                .height = data->vk_fb.extent.height,
                 .layers = 1
         };
         res = fv_vk.vkCreateFramebuffer(data->vk_data.device,
@@ -915,6 +933,23 @@ error:
         return false;
 }
 
+static void
+get_fb_extent(struct data *data)
+{
+        int w, h;
+
+        /* This value is used when the window size is determined by
+         * the swap chain size, such as on Wayland. In that case will
+         * ask SDL for the right size. */
+        if (data->vk_fb.caps.currentExtent.width == 0xffffffff) {
+                SDL_GetWindowSize(data->window, &w, &h);
+                data->vk_fb.extent.width = w;
+                data->vk_fb.extent.height = h;
+        } else {
+                data->vk_fb.extent = data->vk_fb.caps.currentExtent;
+        }
+}
+
 static bool
 create_framebuffer_resources(struct data *data)
 {
@@ -931,14 +966,15 @@ create_framebuffer_resources(struct data *data)
                 goto error;
         }
 
+        get_fb_extent(data);
+
         VkSwapchainCreateInfoKHR swapchain_create_info = {
                 .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
                 .surface = data->vk_surface,
                 .minImageCount = 2,
                 .imageFormat = data->vk_surface_format,
                 .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
-                .imageExtent = { caps->currentExtent.width,
-                                 caps->currentExtent.height },
+                .imageExtent = data->vk_fb.extent,
                 .imageArrayLayers = 1,
                 .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                 .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
@@ -964,8 +1000,8 @@ create_framebuffer_resources(struct data *data)
                 .imageType = VK_IMAGE_TYPE_2D,
                 .format = data->vk_depth_format,
                 .extent = {
-                        .width = caps->currentExtent.width,
-                        .height = caps->currentExtent.height,
+                        .width = data->vk_fb.extent.width,
+                        .height = data->vk_fb.extent.height,
                         .depth = 1
                 },
                 .mipLevels = 1,
@@ -1088,7 +1124,7 @@ paint(struct data *data)
         if (!acquire_image(data, &swapchain_image_index))
                 return;
 
-        extent = &data->vk_fb.caps.currentExtent;
+        extent = &data->vk_fb.extent;
 
         if (extent->width != data->last_fb_width ||
             extent->height != data->last_fb_height) {
