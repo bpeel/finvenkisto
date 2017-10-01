@@ -53,6 +53,7 @@ enum key_code {
 
 enum key_type {
         KEY_TYPE_KEYBOARD,
+        KEY_TYPE_JOYSTICK,
         KEY_TYPE_MOUSE
 };
 
@@ -137,6 +138,8 @@ struct data {
         int n_players;
         int next_player;
         enum key_code next_key;
+
+        struct fv_buffer joysticks;
 
         struct player players[FV_LOGIC_MAX_PLAYERS];
 };
@@ -263,6 +266,7 @@ is_key(const struct key *key,
         case KEY_TYPE_KEYBOARD:
                 return key->keycode == other_key->keycode;
 
+        case KEY_TYPE_JOYSTICK:
         case KEY_TYPE_MOUSE:
                 return (key->device_id == other_key->device_id &&
                         key->button == other_key->button);
@@ -418,6 +422,67 @@ handle_key_event(struct data *data,
 }
 
 static void
+handle_joystick_button(struct data *data,
+                       const SDL_JoyButtonEvent *event)
+{
+        struct key key;
+
+        key.type = KEY_TYPE_JOYSTICK;
+        key.device_id = event->which;
+        key.button = event->button;
+        key.down = event->state == SDL_PRESSED;
+
+        handle_key(data, &key);
+}
+
+static void
+handle_joystick_added(struct data *data,
+                      const SDL_JoyDeviceEvent *event)
+{
+        SDL_Joystick *joystick = SDL_JoystickOpen(event->which);
+        SDL_Joystick **joysticks = (SDL_Joystick **) data->joysticks.data;
+        int n_joysticks = data->joysticks.length / sizeof (SDL_Joystick *);
+        int i;
+
+        if (joystick == NULL) {
+                fprintf(stderr, "failed to open joystick %i: %s\n",
+                        event->which,
+                        SDL_GetError());
+                return;
+        }
+
+        /* Check if we already have this joystick open */
+        for (i = 0; i < n_joysticks; i++) {
+                if (SDL_JoystickInstanceID(joysticks[i]) ==
+                    SDL_JoystickInstanceID(joystick)) {
+                        SDL_JoystickClose(joystick);
+                        return;
+                }
+        }
+
+        fv_buffer_append(&data->joysticks, &joystick, sizeof joystick);
+}
+
+static void
+handle_joystick_removed(struct data *data,
+                        const SDL_JoyDeviceEvent *event)
+{
+        SDL_Joystick **joysticks = (SDL_Joystick **) data->joysticks.data;
+        int n_joysticks = data->joysticks.length / sizeof (SDL_Joystick *);
+        int i;
+
+        for (i = 0; i < n_joysticks; i++) {
+                if (SDL_JoystickInstanceID(joysticks[i]) == event->which) {
+                        SDL_JoystickClose(joysticks[i]);
+                        if (i < n_joysticks - 1)
+                                joysticks[i] = joysticks[n_joysticks - 1];
+                        data->joysticks.length -= sizeof (SDL_Joystick *);
+                        break;
+                }
+        }
+}
+
+static void
 handle_mouse_button(struct data *data,
                     const SDL_MouseButtonEvent *event)
 {
@@ -546,6 +611,19 @@ handle_event(struct data *data,
                 handle_mouse_button(data, &event->button);
                 goto handled;
 
+        case SDL_JOYBUTTONDOWN:
+        case SDL_JOYBUTTONUP:
+                handle_joystick_button(data, &event->jbutton);
+                goto handled;
+
+        case SDL_JOYDEVICEADDED:
+                handle_joystick_added(data, &event->jdevice);
+                goto handled;
+
+        case SDL_JOYDEVICEREMOVED:
+                handle_joystick_removed(data, &event->jdevice);
+                goto handled;
+
         case SDL_QUIT:
                 data->quit = true;
                 goto handled;
@@ -580,6 +658,19 @@ paint_hud(struct data *data,
                                         data->logic);
                 break;
         }
+}
+
+static void
+close_joysticks(struct data *data)
+{
+        SDL_Joystick **joysticks = (SDL_Joystick **) data->joysticks.data;
+        int n_joysticks = data->joysticks.length / sizeof (SDL_Joystick *);
+        int i;
+
+        for (i = 0; i < n_joysticks; i++)
+                SDL_JoystickClose(joysticks[i]);
+
+        fv_buffer_destroy(&data->joysticks);
 }
 
 static void
@@ -1879,12 +1970,14 @@ main(int argc, char **argv)
                 goto out_data;
         }
 
-        res = SDL_Init(SDL_INIT_VIDEO);
+        res = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
         if (res < 0) {
                 fv_error_message("Unable to init SDL: %s\n", SDL_GetError());
                 ret = EXIT_FAILURE;
                 goto out_libvulkan;
         }
+
+        fv_buffer_init(&data->joysticks);
 
         flags = SDL_WINDOW_RESIZABLE;
         if (data->is_fullscreen)
@@ -1948,6 +2041,7 @@ out_logic:
 out_window:
         SDL_DestroyWindow(data->window);
 out_sdl:
+        close_joysticks(data);
         SDL_Quit();
 out_libvulkan:
         fv_vk_unload_libvulkan();
