@@ -1,5 +1,6 @@
 FV_VK_FUNC(vkCreateDevice)
 FV_VK_FUNC(vkCreateXlibSurfaceKHR)
+FV_VK_FUNC(vkCreateWaylandSurfaceKHR)
 FV_VK_FUNC(vkDestroyInstance)
 FV_VK_FUNC(vkDestroySurfaceKHR)
 FV_VK_FUNC(vkEnumerateDeviceExtensionProperties)

@@ -21,6 +21,7 @@
 #define FV_VK_H
 
 #define VK_USE_PLATFORM_XLIB_KHR
+#define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan.h>
 #include <stdbool.h>
 

@@ -23,11 +23,9 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <stdlib.h>
-#include <time.h>
 #include <stdarg.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <X11/keysym.h>
+#include <SDL.h>
+#include <SDL_syswm.h>
 
 #include "fv-game.h"
 #include "fv-logic.h"
@@ -60,8 +58,9 @@ enum key_type {
 
 struct key {
         enum key_type type;
-        unsigned int keysym;
-        unsigned int button;
+        SDL_Keycode keycode;
+        SDL_JoystickID device_id;
+        Uint8 button;
         bool down;
 };
 
@@ -86,9 +85,6 @@ struct swapchain_image {
 };
 
 struct data {
-        Display *display;
-        Window x_window;
-
         /* Permanant vulkan resources */
         struct fv_vk_data vk_data;
         VkInstance vk_instance;
@@ -116,7 +112,8 @@ struct data {
                 VkSurfaceCapabilitiesKHR caps;
         } vk_fb;
 
-        bool window_mapped;
+        SDL_Window *window;
+        SDL_SysWMinfo window_info;
         int last_fb_width, last_fb_height;
 
         struct {
@@ -134,7 +131,7 @@ struct data {
         bool viewports_dirty;
         int n_viewports;
 
-        struct timespec start_time;
+        Uint32 start_time;
 
         enum menu_state menu_state;
         int n_players;
@@ -147,18 +144,13 @@ struct data {
 static void
 reset_start_time(struct data *data)
 {
-        clock_gettime(CLOCK_MONOTONIC, &data->start_time);
+        data->start_time = SDL_GetTicks();
 }
 
 static unsigned int
 get_ticks(struct data *data)
 {
-        struct timespec now;
-
-        clock_gettime(CLOCK_MONOTONIC, &now);
-
-        return ((now.tv_nsec - data->start_time.tv_nsec) / 1000000 +
-                ((long) now.tv_sec - (long) data->start_time.tv_sec) * 1000);
+        return SDL_GetTicks() - data->start_time;
 }
 
 static void
@@ -184,7 +176,22 @@ reset_menu_state(struct data *data)
 static void
 toggle_fullscreen(struct data *data)
 {
-        /* FIXME */
+        int display_index;
+        SDL_DisplayMode mode;
+
+        display_index = SDL_GetWindowDisplayIndex(data->window);
+
+        if (display_index == -1)
+                return;
+
+        if (SDL_GetDesktopDisplayMode(display_index, &mode) == -1)
+                return;
+
+        SDL_SetWindowDisplayMode(data->window, &mode);
+
+        data->is_fullscreen = !data->is_fullscreen;
+
+        SDL_SetWindowFullscreen(data->window, data->is_fullscreen);
 }
 
 static void
@@ -254,10 +261,12 @@ is_key(const struct key *key,
 
         switch (key->type) {
         case KEY_TYPE_KEYBOARD:
-                return key->keysym == other_key->keysym;
+                return key->keycode == other_key->keycode;
 
         case KEY_TYPE_MOUSE:
-                return key->button == other_key->button;
+                return (key->device_id == other_key->device_id &&
+                        key->button == other_key->button);
+
         }
 
         assert(false);
@@ -358,16 +367,15 @@ handle_key(struct data *data,
 
 static void
 handle_other_key(struct data *data,
-                 const XKeyEvent *event,
-                 KeySym keysym)
+                 const SDL_KeyboardEvent *event)
 {
         struct key key;
 
         if (data->menu_state == MENU_STATE_CHOOSING_N_PLAYERS) {
-                if (event->type == KeyPress &&
-                    keysym >= XK_1 &&
-                    keysym < XK_1 + FV_LOGIC_MAX_PLAYERS) {
-                        data->n_players = keysym - XK_1 + 1;
+                if (event->state == SDL_PRESSED &&
+                    event->keysym.sym >= SDLK_1 &&
+                    event->keysym.sym < SDLK_1 + FV_LOGIC_MAX_PLAYERS) {
+                        data->n_players = event->keysym.sym - SDLK_1 + 1;
                         data->next_player = 0;
                         data->next_key = 0;
                         data->menu_state = MENU_STATE_CHOOSING_KEYS;
@@ -378,22 +386,19 @@ handle_other_key(struct data *data,
         }
 
         key.type = KEY_TYPE_KEYBOARD;
-        key.keysym = keysym;
-        key.down = event->type == KeyPress;
+        key.keycode = event->keysym.sym;
+        key.down = event->state == SDL_PRESSED;
 
         handle_key(data, &key);
 }
 
 static void
 handle_key_event(struct data *data,
-                 const XKeyEvent *event)
+                 const SDL_KeyboardEvent *event)
 {
-        KeySym keysym = XLookupKeysym((XKeyEvent *) event,
-                                      0 /* index */);
-
-        switch (keysym) {
-        case XK_Escape:
-                if (event->type == KeyPress) {
+        switch (event->keysym.sym) {
+        case SDLK_ESCAPE:
+                if (event->state == SDL_PRESSED) {
                         if (data->menu_state == MENU_STATE_CHOOSING_N_PLAYERS)
                                 data->quit = true;
                         else
@@ -401,26 +406,27 @@ handle_key_event(struct data *data,
                 }
                 break;
 
-        case XK_F11:
-                if (event->type == KeyPress)
+        case SDLK_F11:
+                if (event->state == SDL_PRESSED)
                         toggle_fullscreen(data);
                 break;
 
         default:
-                handle_other_key(data, event, keysym);
+                handle_other_key(data, event);
                 break;
         }
 }
 
 static void
 handle_mouse_button(struct data *data,
-                    const XButtonEvent *event)
+                    const SDL_MouseButtonEvent *event)
 {
         struct key key;
 
         key.type = KEY_TYPE_MOUSE;
+        key.device_id = event->which;
         key.button = event->button;
-        key.down = event->type == ButtonPress;
+        key.down = event->state == SDL_PRESSED;
 
         handle_key(data, &key);
 }
@@ -519,25 +525,29 @@ error_command_buffer:
 
 static void
 handle_event(struct data *data,
-             const XEvent *event)
+             const SDL_Event *event)
 {
         switch (event->type) {
-        case MapNotify:
-                data->window_mapped = true;
+        case SDL_WINDOWEVENT:
+                switch (event->window.event) {
+                case SDL_WINDOWEVENT_CLOSE:
+                        data->quit = true;
+                        break;
+                }
                 goto handled;
 
-        case UnmapNotify:
-                data->window_mapped = false;
+        case SDL_KEYDOWN:
+        case SDL_KEYUP:
+                handle_key_event(data, &event->key);
                 goto handled;
 
-        case KeyPress:
-        case KeyRelease:
-                handle_key_event(data, &event->xkey);
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP:
+                handle_mouse_button(data, &event->button);
                 goto handled;
 
-        case ButtonPress:
-        case ButtonRelease:
-                handle_mouse_button(data, &event->xbutton);
+        case SDL_QUIT:
+                data->quit = true;
                 goto handled;
         }
 
@@ -1225,65 +1235,14 @@ process_arguments(struct data *data,
 static void
 iterate_main_loop(struct data *data)
 {
-        XEvent event;
+        SDL_Event event;
 
-        if (!data->window_mapped) {
-                XNextEvent(data->display, &event);
-                reset_start_time(data);
-                handle_event(data, &event);
-                return;
-        }
-
-        if (XPending(data->display)) {
-                XNextEvent(data->display, &event);
+        if (SDL_PollEvent(&event)) {
                 handle_event(data, &event);
                 return;
         }
 
         paint(data);
-}
-
-static bool
-make_window(struct data *data)
-{
-        XSetWindowAttributes attr;
-        unsigned long mask;
-        Window root;
-        Visual *visual;
-
-        root = RootWindow(data->display, 0 /* screen */);
-        visual = DefaultVisual(data->display, 0 /* screen */);
-
-        /* window attributes */
-        attr.background_pixel = 0;
-        attr.border_pixel = 0;
-        attr.colormap = XCreateColormap(data->display,
-                                        root,
-                                        visual,
-                                        AllocNone);
-        attr.event_mask = (StructureNotifyMask | ExposureMask |
-                           KeyPressMask | KeyReleaseMask |
-                           ButtonPressMask | ButtonReleaseMask);
-        mask = CWBorderPixel | CWColormap | CWEventMask;
-
-        data->x_window = XCreateWindow(data->display,
-                                       root, /* parent */
-                                       0, 0, 800, 600, /* x/y/width/height */
-                                       0, /* border_width */
-                                       CopyFromParent, /* depth */
-                                       InputOutput,
-                                       visual,
-                                       mask,
-                                       &attr);
-
-        if (!data->x_window) {
-                fv_error_message("XCreateWindow failed");
-                return false;
-        }
-
-        XMapWindow(data->display, data->x_window);
-
-        return true;
 }
 
 static int
@@ -1611,6 +1570,72 @@ find_present_mode(struct data *data)
         return true;
 }
 
+#ifdef SDL_VIDEO_DRIVER_X11
+static bool
+create_vk_surface_x11(struct data *data)
+{
+        VkResult res;
+
+        VkXlibSurfaceCreateInfoKHR xlib_surface_create_info = {
+                .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+                .dpy = data->window_info.info.x11.display,
+                .window = data->window_info.info.x11.window
+        };
+        res = fv_vk.vkCreateXlibSurfaceKHR(data->vk_instance,
+                                           &xlib_surface_create_info,
+                                           NULL, /* allocator */
+                                           &data->vk_surface);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error allocating Xlib Vulkan surface");
+                return false;
+        }
+
+        return true;
+}
+#endif /* SDL_VIDEO_DRIVER_X11 */
+
+#ifdef SDL_VIDEO_DRIVER_WAYLAND
+static bool
+create_vk_surface_wayland(struct data *data)
+{
+        VkResult res;
+
+        VkWaylandSurfaceCreateInfoKHR xlib_surface_create_info = {
+                .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
+                .display = data->window_info.info.wl.display,
+                .surface = data->window_info.info.wl.surface
+        };
+        res = fv_vk.vkCreateWaylandSurfaceKHR(data->vk_instance,
+                                              &xlib_surface_create_info,
+                                              NULL, /* allocator */
+                                              &data->vk_surface);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error allocating Wayland Vulkan surface");
+                return false;
+        }
+
+        return true;
+}
+#endif /* SDL_VIDEO_DRIVER_WAYLAND */
+
+static bool
+create_vk_surface(struct data *data)
+{
+        switch (data->window_info.subsystem) {
+#ifdef SDL_VIDEO_DRIVER_X11
+        case SDL_SYSWM_X11:
+                return create_vk_surface_x11(data);
+#endif
+#ifdef SDL_VIDEO_DRIVER_WAYLAND
+        case SDL_SYSWM_WAYLAND:
+                return create_vk_surface_wayland(data);
+#endif
+        default:
+                fv_error_message("Unknown window system chosen by SDL");
+                return false;
+        }
+}
+
 static bool
 init_vk(struct data *data)
 {
@@ -1642,19 +1667,8 @@ init_vk(struct data *data)
 
         fv_vk_init_instance(data->vk_instance);
 
-        VkXlibSurfaceCreateInfoKHR xlib_surface_create_info = {
-                .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
-                .dpy = data->display,
-                .window = data->x_window,
-        };
-        res = fv_vk.vkCreateXlibSurfaceKHR(data->vk_instance,
-                                           &xlib_surface_create_info,
-                                           NULL, /* allocator */
-                                           &data->vk_surface);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error allocating xlib surface");
+        if (!create_vk_surface(data))
                 goto error;
-        }
 
         if (!find_physical_device(data))
                 goto error;
@@ -1847,10 +1861,11 @@ int
 main(int argc, char **argv)
 {
         struct data *data = fv_calloc(sizeof *data);
+        Uint32 flags;
         int ret = EXIT_SUCCESS;
+        int res;
 
         data->is_fullscreen = true;
-        data->window_mapped = false;
 
         fv_data_init(argv[0]);
 
@@ -1864,16 +1879,36 @@ main(int argc, char **argv)
                 goto out_data;
         }
 
-        data->display = XOpenDisplay(NULL);
-        if (data->display == NULL) {
-                fv_error_message("Error: XOpenDisplay failed");
+        res = SDL_Init(SDL_INIT_VIDEO);
+        if (res < 0) {
+                fv_error_message("Unable to init SDL: %s\n", SDL_GetError());
                 ret = EXIT_FAILURE;
                 goto out_libvulkan;
         }
 
-        if (!make_window(data)) {
+        flags = SDL_WINDOW_RESIZABLE;
+        if (data->is_fullscreen)
+                flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+
+        data->window = SDL_CreateWindow("Finvenkisto",
+                                        SDL_WINDOWPOS_UNDEFINED,
+                                        SDL_WINDOWPOS_UNDEFINED,
+                                        800, 600,
+                                        flags);
+        if (data->window == NULL) {
+                fv_error_message("Failed to create SDL window: %s",
+                                 SDL_GetError());
                 ret = EXIT_FAILURE;
-                goto out_display;
+                goto out_sdl;
+        }
+
+        SDL_VERSION(&data->window_info.version);
+
+        if (!SDL_GetWindowWMInfo(data->window, &data->window_info)) {
+                fv_error_message("Error getting SDL window info: %s",
+                                 SDL_GetError());
+                ret = EXIT_FAILURE;
+                goto out_window;
         }
 
         if (!init_vk(data)) {
@@ -1911,9 +1946,9 @@ out_logic:
         fv_logic_free(data->logic);
         deinit_vk(data);
 out_window:
-        XDestroyWindow(data->display, data->x_window);
-out_display:
-        XCloseDisplay(data->display);
+        SDL_DestroyWindow(data->window);
+out_sdl:
+        SDL_Quit();
 out_libvulkan:
         fv_vk_unload_libvulkan();
 out_data:
