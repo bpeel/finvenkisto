@@ -1727,12 +1727,35 @@ create_vk_surface(struct data *data)
         }
 }
 
+static const char *
+get_system_surface_extension(struct data *data)
+{
+        switch (data->window_info.subsystem) {
+#ifdef SDL_VIDEO_DRIVER_X11
+        case SDL_SYSWM_X11:
+                return VK_KHR_XLIB_SURFACE_EXTENSION_NAME;
+#endif
+#ifdef SDL_VIDEO_DRIVER_WAYLAND
+        case SDL_SYSWM_WAYLAND:
+                return VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
+#endif
+        default:
+                fv_error_message("Unknown window system chosen by SDL");
+                return false;
+        }
+}
+
 static bool
 init_vk(struct data *data)
 {
         VkPhysicalDeviceMemoryProperties *memory_properties =
                 &data->vk_data.memory_properties;
         VkResult res;
+        const char *sys_surface_extension;
+
+        sys_surface_extension = get_system_surface_extension(data);
+        if (sys_surface_extension == NULL)
+                return false;
 
         struct VkInstanceCreateInfo instance_create_info = {
                 .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -1744,7 +1767,7 @@ init_vk(struct data *data)
                 .enabledExtensionCount = 2,
                 .ppEnabledExtensionNames = (const char * const []) {
                         VK_KHR_SURFACE_EXTENSION_NAME,
-                        VK_KHR_XLIB_SURFACE_EXTENSION_NAME
+                        sys_surface_extension
                 },
         };
         res = fv_vk.vkCreateInstance(&instance_create_info,
