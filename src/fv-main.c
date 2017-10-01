@@ -971,7 +971,7 @@ create_framebuffer_resources(struct data *data)
         VkSwapchainCreateInfoKHR swapchain_create_info = {
                 .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
                 .surface = data->vk_surface,
-                .minImageCount = 2,
+                .minImageCount = MAX(caps->minImageCount, 2),
                 .imageFormat = data->vk_surface_format,
                 .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
                 .imageExtent = data->vk_fb.extent,
