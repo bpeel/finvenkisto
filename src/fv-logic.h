@@ -85,12 +85,13 @@ fv_logic_for_each_shout(struct fv_logic *logic,
                         void *user_data);
 
 /* The direction is given in radians where 0 is the positive x-axis
- * and the angle is measured counter-clockwise from that.
+ * and the angle is measured counter-clockwise from that. The speed is
+ * normalised to the range [0,1].
  */
 void
 fv_logic_set_direction(struct fv_logic *logic,
                        int player_num,
-                       bool moving,
+                       float speed,
                        float direction);
 
 int

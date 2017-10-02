@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2013, 2014, 2015 Neil Roberts
+ * Copyright (C) 2013, 2014, 2015, 2017 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -60,6 +60,15 @@
 #define FV_GL_PROFILE SDL_GL_CONTEXT_PROFILE_COMPATIBILITY
 #endif
 
+/* Minimum movement before we consider the joystick axis to be moving.
+ * This is 20% of the total.
+ */
+#define MIN_JOYSTICK_AXIS_MOVEMENT (32767 * 2 / 10)
+/* Maximum movement before we consider the joystick to be at full
+ * speed. This is 90% of the total.
+ */
+#define MAX_JOYSTICK_AXIS_MOVEMENT (32767 * 9 / 10)
+
 enum key_code {
         KEY_CODE_UP,
         KEY_CODE_DOWN,
@@ -99,6 +108,11 @@ struct player {
         int control_id;
 
         int pressed_keys;
+
+        int16_t x_axis;
+        int16_t y_axis;
+        float controller_direction;
+        float controller_speed;
 
         int viewport_x, viewport_y;
         int viewport_width, viewport_height;
@@ -156,8 +170,13 @@ reset_menu_state(struct data *data)
         data->n_viewports = 1;
         data->n_players = 1;
 
-        for (i = 0; i < FV_LOGIC_MAX_PLAYERS; i++)
+        for (i = 0; i < FV_LOGIC_MAX_PLAYERS; i++) {
                 data->players[i].pressed_keys = 0;
+                data->players[i].controller_direction = 0.0f;
+                data->players[i].controller_speed = 0.0f;
+                data->players[i].x_axis = 0;
+                data->players[i].y_axis = 0;
+        }
 
         fv_logic_reset(data->logic, 0);
 }
@@ -191,7 +210,7 @@ update_direction(struct data *data,
 {
         const struct player *player = data->players + player_num;
         float direction;
-        bool moving = true;
+        float speed = 1.0f;
         int pressed_keys = 0;
         int key_mask;
 
@@ -228,12 +247,12 @@ update_direction(struct data *data,
                 direction = 0.0f;
                 break;
         default:
-                moving = false;
-                direction = 0.0f;
+                speed = player->controller_speed;
+                direction = player->controller_direction;
                 break;
         }
 
-        fv_logic_set_direction(data->logic, player_num, moving, direction);
+        fv_logic_set_direction(data->logic, player_num, speed, direction);
 }
 
 static void
@@ -592,6 +611,75 @@ handle_game_controller_button(struct data *data,
 }
 
 static void
+handle_game_controller_axis_motion(struct data *data,
+                                   const SDL_ControllerAxisEvent *event)
+{
+        struct player *player;
+        int mag_squared;
+        int16_t value = event->value;
+        int player_num;
+
+        /* Ignore axes other than 0 and 1 */
+        if (event->axis & ~1)
+                return;
+
+        if (data->menu_state != MENU_STATE_PLAYING)
+                return;
+
+        /* If there is only one player then any controller can be
+         * used */
+        if (data->n_players == 1) {
+                player = data->players;
+                player_num = 0;
+                goto found_player;
+        }
+
+        for (player_num = 0; player_num < data->n_players; player_num++) {
+                player = data->players + player_num;
+
+                if (player->control_type == CONTROL_TYPE_GAME_CONTROLLER &&
+                    player->control_id == event->which)
+                        goto found_player;
+        }
+
+        return;
+
+found_player:
+
+        if (value < -INT16_MAX)
+                value = -INT16_MAX;
+
+        if (event->axis)
+                player->y_axis = -value;
+        else
+                player->x_axis = value;
+
+        mag_squared = (player->y_axis * (int) player->y_axis +
+                       player->x_axis * (int) player->x_axis);
+
+        if (mag_squared <= (MIN_JOYSTICK_AXIS_MOVEMENT *
+                            MIN_JOYSTICK_AXIS_MOVEMENT)) {
+                player->controller_direction = 0.0f;
+                player->controller_speed = 0.0f;
+        } else {
+                if (mag_squared >= (MAX_JOYSTICK_AXIS_MOVEMENT *
+                                    MAX_JOYSTICK_AXIS_MOVEMENT)) {
+                        player->controller_speed = 1.0f;
+                } else {
+                        player->controller_speed =
+                                ((sqrtf(mag_squared) -
+                                  MIN_JOYSTICK_AXIS_MOVEMENT) /
+                                 (MAX_JOYSTICK_AXIS_MOVEMENT -
+                                  MIN_JOYSTICK_AXIS_MOVEMENT));
+                }
+                player->controller_direction = atan2f(player->y_axis,
+                                                      player->x_axis);
+        }
+
+        update_direction(data, player_num);
+}
+
+static void
 handle_joystick_added(struct data *data,
                       const SDL_JoyDeviceEvent *event)
 {
@@ -757,6 +845,10 @@ handle_event(struct data *data,
         case SDL_CONTROLLERBUTTONDOWN:
         case SDL_CONTROLLERBUTTONUP:
                 handle_game_controller_button(data, &event->cbutton);
+                goto handled;
+
+        case SDL_CONTROLLERAXISMOTION:
+                handle_game_controller_axis_motion(data, &event->caxis);
                 goto handled;
 
         case SDL_JOYDEVICEADDED:
