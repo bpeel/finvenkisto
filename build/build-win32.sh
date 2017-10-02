@@ -22,7 +22,7 @@ function find_compiler ()
     local gccbin fullpath;
 
     if [ -z "$MINGW_TOOL_PREFIX" ]; then
-	for gccbin in i{3,4,5,6}86{-pc,-w64,}-mingw32{,msvc}-gcc; do
+	for gccbin in x86_64{-pc,-w64,}-mingw32{,msvc}-gcc; do
 	    fullpath=`which $gccbin 2>/dev/null || true`;
 	    if [ -n "$fullpath" -a -e "$fullpath" ]; then
 		MINGW_TOOL_PREFIX="${fullpath%%gcc}";
@@ -115,7 +115,7 @@ vulkan_root=$(cd $(dirname "$vulkan_lib")/.. && pwd)
 cat > "$INSTALL_DIR/lib/pkgconfig/vulkan.pc" <<EOF
 prefix=$vulkan_root
 exec_prefix=$vulkan_root
-libdir=\${exec_prefix}/Lib32
+libdir=\${exec_prefix}/Lib
 includedir=\${prefix}/Include
 
 Name: VULKAN
@@ -126,7 +126,7 @@ Cflags: -I\${includedir}
 EOF
 
 tar -vxf "$DOWNLOADS_DIR/$SDL_FILENAME" -C "$INSTALL_DIR" \
-    "SDL2-$SDL_VERSION/i686-w64-mingw32" \
+    "SDL2-$SDL_VERSION/x86_64-w64-mingw32" \
     --strip-components=2
 
 sed -i "s|^prefix=.*|prefix=${INSTALL_DIR}|" \
