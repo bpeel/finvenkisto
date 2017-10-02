@@ -253,7 +253,6 @@ create_buffer(const struct fv_vk_data *vk_data,
         struct fv_model *model = data->model;
         void *memory_map;
         VkResult res;
-        int buffer_offset;
 
         model->n_vertices = data->n_vertices;
         model->n_indices = data->indices.length / sizeof (uint16_t);
@@ -282,7 +281,7 @@ create_buffer(const struct fv_vk_data *vk_data,
                                        1, /* n_buffers */
                                        &model->buffer,
                                        &model->memory,
-                                       &buffer_offset);
+                                       NULL);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating model memory");
                 goto error_buffer;

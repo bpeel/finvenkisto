@@ -61,6 +61,9 @@ fv_allocate_store_buffer(const struct fv_vk_data *vk_data,
         VkDeviceSize granularity;
         int i;
 
+        if (offsets == NULL)
+                offsets = alloca(sizeof *offsets * n_buffers);
+
         granularity = vk_data->device_properties.limits.bufferImageGranularity;
 
         for (i = 0; i < n_buffers; i++) {

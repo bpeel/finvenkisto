@@ -479,7 +479,6 @@ fv_map_painter_new(const struct fv_vk_data *vk_data,
         struct fv_map_painter_tile *tile;
         void *memory_map;
         int tx, ty;
-        int buffer_offset;
         VkResult res;
 
         painter = fv_alloc(sizeof *painter);
@@ -545,7 +544,7 @@ fv_map_painter_new(const struct fv_vk_data *vk_data,
                                        1, /* n_buffers */
                                        &painter->map_buffer,
                                        &painter->map_memory,
-                                       &buffer_offset);
+                                       NULL /* offsets */);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating map memory");
                 goto error_buffer;
@@ -671,7 +670,6 @@ create_instance_buffer(struct fv_map_painter *painter)
         struct instance_buffer *instance_buffer;
         VkBuffer buffer;
         VkDeviceMemory memory;
-        int buffer_offset;
         VkResult res;
 
         VkBufferCreateInfo buffer_create_info = {
@@ -695,7 +693,7 @@ create_instance_buffer(struct fv_map_painter *painter)
                                        1, /* n_buffers */
                                        &buffer,
                                        &memory,
-                                       &buffer_offset);
+                                       NULL /* offsets */);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating map memory");
                 fv_vk.vkDestroyBuffer(painter->vk_data->device,

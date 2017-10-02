@@ -282,7 +282,6 @@ create_instance_buffer(struct fv_person_painter *painter)
         struct instance_buffer *instance_buffer;
         VkBuffer buffer;
         VkDeviceMemory memory;
-        int buffer_offset;
         VkResult res;
 
         VkBufferCreateInfo buffer_create_info = {
@@ -306,7 +305,7 @@ create_instance_buffer(struct fv_person_painter *painter)
                                        1, /* n_buffers */
                                        &buffer,
                                        &memory,
-                                       &buffer_offset);
+                                       NULL);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating instance memory");
                 fv_vk.vkDestroyBuffer(painter->vk_data->device,

@@ -194,7 +194,6 @@ static bool
 create_buffer(struct fv_hud *hud)
 {
         VkResult res;
-        int buffer_offset;
 
         VkBufferCreateInfo buffer_create_info = {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -220,7 +219,7 @@ create_buffer(struct fv_hud *hud)
                                        1, /* n_buffers */
                                        &hud->buffer,
                                        &hud->memory,
-                                       &buffer_offset);
+                                       NULL /* offsets */);
         if (res != VK_SUCCESS) {
                 hud->memory = NULL;
                 fv_error_message("Error creating hud memory");

@@ -157,7 +157,6 @@ create_descriptor_set(struct fv_shout_painter *painter,
 static bool
 create_buffer(struct fv_shout_painter *painter)
 {
-        int buffer_offset;
         VkResult res;
 
         VkBufferCreateInfo buffer_create_info = {
@@ -182,7 +181,7 @@ create_buffer(struct fv_shout_painter *painter)
                                        1, /* n_buffers */
                                        &painter->vertex_buffer,
                                        &painter->vertex_memory,
-                                       &buffer_offset);
+                                       NULL);
         if (res != VK_SUCCESS) {
                 painter->vertex_memory = NULL;
                 fv_error_message("Error creating shout vertex memory");
