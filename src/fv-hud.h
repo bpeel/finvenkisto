@@ -35,12 +35,11 @@ fv_hud_paint_player_select(struct fv_hud *hud,
                            int screen_height);
 
 void
-fv_hud_paint_key_select(struct fv_hud *hud,
-                        int screen_width,
-                        int screen_height,
-                        int player_num,
-                        int key_num,
-                        int n_players);
+fv_hud_paint_controller_select(struct fv_hud *hud,
+                               int screen_width,
+                               int screen_height,
+                               int player_num,
+                               int n_players);
 
 void
 fv_hud_paint_game_state(struct fv_hud *hud,

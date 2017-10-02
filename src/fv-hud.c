@@ -64,15 +64,6 @@ enum fv_hud_alignment {
 #include "data/hud-layout.h"
 
 static const struct fv_hud_image *
-fv_hud_key_images[] = {
-        &fv_hud_image_up,
-        &fv_hud_image_down,
-        &fv_hud_image_left,
-        &fv_hud_image_right,
-        &fv_hud_image_shout
-};
-
-static const struct fv_hud_image *
 fv_hud_digit_images[] = {
         &fv_hud_image_digit0,
         &fv_hud_image_digit1,
@@ -352,48 +343,33 @@ fv_hud_paint_player_select(struct fv_hud *hud,
 }
 
 void
-fv_hud_paint_key_select(struct fv_hud *hud,
-                        int screen_width,
-                        int screen_height,
-                        int player_num,
-                        int key_num,
-                        int n_players)
+fv_hud_paint_controller_select(struct fv_hud *hud,
+                               int screen_width,
+                               int screen_height,
+                               int player_num,
+                               int n_players)
 {
-        const struct fv_hud_image *key_image = NULL;
         int x, y;
 
         fv_hud_begin_rectangles(hud, screen_width, screen_height);
 
         fv_hud_add_title(hud);
 
-        key_image = fv_hud_key_images[key_num];
-
         if (n_players == 1) {
                 x = (screen_width / 2 -
-                     fv_hud_image_push.w / 2 -
-                     key_image->w / 2);
+                     fv_hud_image_press_a_button.w / 2);
                 y = screen_height / 2 + 10;
-                fv_hud_add_rectangle(hud, x, y, &fv_hud_image_push);
-                fv_hud_add_rectangle(hud,
-                                     x + fv_hud_image_push.w, y,
-                                     key_image);
+                fv_hud_add_rectangle(hud, x, y, &fv_hud_image_press_a_button);
         } else {
                 x = (screen_width / 4 -
-                     fv_hud_image_push.w / 2 +
+                     fv_hud_image_press_a_button.w / 2 +
                      player_num % 2 * screen_width / 2);
-                y = (screen_height / 4 +
+                y = (screen_height / 5 +
                      (player_num / 2) * screen_height / 2);
                 fv_hud_add_rectangle(hud,
-                                     x,
-                                     y - fv_hud_image_push.h,
-                                     &fv_hud_image_push);
-                fv_hud_add_rectangle(hud,
-                                     x +
-                                     (fv_hud_image_push.w - key_image->w) / 2,
-                                     y,
-                                     key_image);
+                                     x, y,
+                                     &fv_hud_image_press_a_button);
         }
-
 
         fv_hud_end_rectangles(hud);
 }

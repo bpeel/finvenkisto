@@ -7,14 +7,9 @@ HUD_SVGS = \
 	hud/num_players_4.svg \
 	hud/fina.svg \
 	hud/crocodile.svg \
-	hud/down.svg \
-	hud/left.svg \
-	hud/push.svg \
-	hud/right.svg \
-	hud/shout.svg \
+	hud/press_a_button.svg \
 	hud/star.svg \
 	hud/title.svg \
-	hud/up.svg \
 	hud/venko.svg \
 	$(NULL)
 
