@@ -1,9 +1,14 @@
 HUD_SVGS = \
+	hud/ludanto.svg \
+	hud/ludantoj.svg \
+	hud/num_players_1.svg \
+	hud/num_players_2.svg \
+	hud/num_players_3.svg \
+	hud/num_players_4.svg \
 	hud/fina.svg \
 	hud/crocodile.svg \
 	hud/down.svg \
 	hud/left.svg \
-	hud/player_select.svg \
 	hud/push.svg \
 	hud/right.svg \
 	hud/shout.svg \

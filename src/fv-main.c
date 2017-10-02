@@ -142,6 +142,7 @@ reset_menu_state(struct data *data)
         data->start_time = SDL_GetTicks();
         data->viewports_dirty = true;
         data->n_viewports = 1;
+        data->n_players = 1;
 
         for (i = 0; i < FV_LOGIC_MAX_PLAYERS; i++) {
                 for (j = 0; j < N_KEYS; j++) {
@@ -297,6 +298,28 @@ set_key_state(struct data *data,
 }
 
 static void
+n_players_chosen(struct data *data)
+{
+        data->next_player = 0;
+        data->next_key = 0;
+        data->menu_state = MENU_STATE_CHOOSING_KEYS;
+        data->viewports_dirty = true;
+}
+
+static void
+increase_n_players(struct data *data)
+{
+        data->n_players = data->n_players % FV_LOGIC_MAX_PLAYERS + 1;
+}
+
+static void
+decrease_n_players(struct data *data)
+{
+        data->n_players = ((data->n_players + FV_LOGIC_MAX_PLAYERS - 2) %
+                           FV_LOGIC_MAX_PLAYERS + 1);
+}
+
+static void
 handle_key(struct data *data,
            const struct key *key)
 {
@@ -353,20 +376,6 @@ handle_other_key(struct data *data,
 {
         struct key key;
 
-        if (data->menu_state == MENU_STATE_CHOOSING_N_PLAYERS) {
-                if (event->state == SDL_PRESSED &&
-                    event->keysym.sym >= SDLK_1 &&
-                    event->keysym.sym < SDLK_1 + FV_LOGIC_MAX_PLAYERS) {
-                        data->n_players = event->keysym.sym - SDLK_1 + 1;
-                        data->next_player = 0;
-                        data->next_key = 0;
-                        data->menu_state = MENU_STATE_CHOOSING_KEYS;
-                        data->viewports_dirty = true;
-                }
-
-                return;
-        }
-
         key.type = KEY_TYPE_KEYBOARD;
         key.keycode = event->keysym.sym;
         key.down = event->state == SDL_PRESSED;
@@ -378,6 +387,25 @@ static void
 handle_key_event(struct data *data,
                  const SDL_KeyboardEvent *event)
 {
+        if (data->menu_state == MENU_STATE_CHOOSING_N_PLAYERS &&
+            event->state == SDL_PRESSED) {
+                switch (event->keysym.sym) {
+                case SDLK_w:
+                case SDLK_UP:
+                        decrease_n_players(data);
+                        return;
+                case SDLK_TAB:
+                case SDLK_s:
+                case SDLK_DOWN:
+                        increase_n_players(data);
+                        return;
+                case SDLK_RETURN:
+                case SDLK_SPACE:
+                        n_players_chosen(data);
+                        return;
+                }
+        }
+
         switch (event->keysym.sym) {
         case SDLK_ESCAPE:
                 if (event->state == SDL_PRESSED) {
@@ -611,7 +639,9 @@ paint_hud(struct data *data,
 {
         switch (data->menu_state) {
         case MENU_STATE_CHOOSING_N_PLAYERS:
-                fv_hud_paint_player_select(data->graphics.hud, w, h);
+                fv_hud_paint_player_select(data->graphics.hud,
+                                           data->n_players,
+                                           w, h);
                 break;
         case MENU_STATE_CHOOSING_KEYS:
                 fv_hud_paint_key_select(data->graphics.hud,

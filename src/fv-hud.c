@@ -86,6 +86,14 @@ fv_hud_digit_images[] = {
         &fv_hud_image_digit9,
 };
 
+static const struct fv_hud_image *
+fv_hud_num_players_images[] = {
+        &fv_hud_image_num_players_1,
+        &fv_hud_image_num_players_2,
+        &fv_hud_image_num_players_3,
+        &fv_hud_image_num_players_4,
+};
+
 #define FV_HUD_MAX_RECTANGLES 16
 
 #define FV_HUD_FINA_VENKO_SLIDE_TIME 1.0f
@@ -296,16 +304,50 @@ fv_hud_add_title(struct fv_hud *hud)
 
 void
 fv_hud_paint_player_select(struct fv_hud *hud,
+                           int n_players,
                            int screen_width,
                            int screen_height)
 {
+        int x = (hud->screen_width / 2 -
+                 (fv_hud_image_num_players_1.w +
+                  fv_hud_image_ludantoj.w) / 2);
+        int y = screen_height / 2 + 10;
+        int i;
+
         fv_hud_begin_rectangles(hud, screen_width, screen_height);
         fv_hud_add_title(hud);
+
         fv_hud_add_rectangle(hud,
-                             screen_width / 2 -
-                             fv_hud_image_player_select.w / 2,
-                             screen_height / 2 + 10,
-                             &fv_hud_image_player_select);
+                             x - fv_hud_image_star.w,
+                             y + fv_hud_image_ludanto.h * (n_players - 1) +
+                             fv_hud_image_ludanto.h / 2 -
+                             fv_hud_image_star.h / 2,
+                             &fv_hud_image_star);
+        fv_hud_add_rectangle(hud,
+                             x +
+                             (n_players == 1 ?
+                              fv_hud_image_ludanto.w :
+                              fv_hud_image_ludantoj.w) +
+                             fv_hud_image_num_players_1.w,
+                             y + fv_hud_image_ludanto.h * (n_players - 1) +
+                             fv_hud_image_ludanto.h / 2 -
+                             fv_hud_image_star.h / 2,
+                             &fv_hud_image_star);
+
+        for (i = 0; i < FV_LOGIC_MAX_PLAYERS; i++) {
+                fv_hud_add_rectangle(hud,
+                                     x,
+                                     y,
+                                     fv_hud_num_players_images[i]);
+                fv_hud_add_rectangle(hud,
+                                     x + fv_hud_image_num_players_1.w,
+                                     y,
+                                     i == 0 ?
+                                     &fv_hud_image_ludanto :
+                                     &fv_hud_image_ludantoj);
+                y += fv_hud_image_ludanto.h;
+        }
+
         fv_hud_end_rectangles(hud);
 }
 

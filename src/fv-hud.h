@@ -30,6 +30,7 @@ fv_hud_new(struct fv_image_data *image_data,
 
 void
 fv_hud_paint_player_select(struct fv_hud *hud,
+                           int n_players,
                            int screen_width,
                            int screen_height);
 
