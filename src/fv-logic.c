@@ -759,17 +759,13 @@ fv_logic_update(struct fv_logic *logic, unsigned int ticks)
 void
 fv_logic_set_direction(struct fv_logic *logic,
                        int player_num,
-                       bool moving,
+                       float speed,
                        float direction)
 {
         struct fv_logic_player *player = logic->players + player_num;
 
-        if (moving) {
-                player->position.speed = FV_LOGIC_PLAYER_SPEED;
-                player->position.target_direction = direction;
-        } else {
-                player->position.speed = 0.0f;
-        }
+        player->position.speed = FV_LOGIC_PLAYER_SPEED * speed;
+        player->position.target_direction = direction;
 }
 
 void

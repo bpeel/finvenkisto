@@ -41,6 +41,15 @@
 #include "fv-vk-data.h"
 #include "fv-allocate-store.h"
 
+/* Minimum movement before we consider the joystick axis to be moving.
+ * This is 20% of the total.
+ */
+#define MIN_JOYSTICK_AXIS_MOVEMENT (32767 * 2 / 10)
+/* Maximum movement before we consider the joystick to be at full
+ * speed. This is 90% of the total.
+ */
+#define MAX_JOYSTICK_AXIS_MOVEMENT (32767 * 9 / 10)
+
 enum key_code {
         KEY_CODE_UP,
         KEY_CODE_DOWN,
@@ -49,24 +58,42 @@ enum key_code {
         KEY_CODE_SHOUT
 };
 
-#define N_KEYS 5
-
-enum key_type {
-        KEY_TYPE_KEYBOARD,
-        KEY_TYPE_JOYSTICK,
-        KEY_TYPE_MOUSE
+enum control_type {
+        CONTROL_TYPE_KEYBOARD,
+        CONTROL_TYPE_GAME_CONTROLLER
 };
 
-struct key {
-        enum key_type type;
-        SDL_Keycode keycode;
-        SDL_JoystickID device_id;
-        Uint8 button;
-        bool down;
+struct keyboard_control_scheme {
+        SDL_Keycode up, down, left, right;
+        /* Any of these map to the shout button for this scheme */
+        SDL_Keycode shout_buttons[8];
+};
+
+static const struct keyboard_control_scheme
+keyboard_control_schemes[] = {
+        { SDLK_UP, SDLK_DOWN, SDLK_LEFT, SDLK_RIGHT,
+          { SDLK_SPACE, SDLK_LSHIFT, SDLK_RSHIFT, SDLK_LCTRL, SDLK_RCTRL } },
+        { SDLK_w, SDLK_s, SDLK_a, SDLK_d,
+          { SDLK_q, SDLK_e } },
+        { SDLK_i, SDLK_k, SDLK_j, SDLK_l,
+          { SDLK_u, SDLK_o, SDLK_SEMICOLON } },
+        { SDLK_t, SDLK_g, SDLK_f, SDLK_h,
+          { SDLK_r, SDLK_y } },
 };
 
 struct player {
-        struct key keys[N_KEYS];
+        enum control_type control_type;
+        /* If the control type is the keyboard then this will be an
+         * index into keyboard_control_schemes. Otherwise it is the
+         * joystick instance id. */
+        int control_id;
+
+        int pressed_keys;
+
+        int16_t x_axis;
+        int16_t y_axis;
+        float controller_direction;
+        float controller_speed;
 
         int viewport_x, viewport_y;
         int viewport_width, viewport_height;
@@ -75,7 +102,7 @@ struct player {
 
 enum menu_state {
         MENU_STATE_CHOOSING_N_PLAYERS,
-        MENU_STATE_CHOOSING_KEYS,
+        MENU_STATE_CHOOSING_CONTROLLERS,
         MENU_STATE_PLAYING
 };
 
@@ -138,9 +165,8 @@ struct data {
         enum menu_state menu_state;
         int n_players;
         int next_player;
-        enum key_code next_key;
 
-        struct fv_buffer joysticks;
+        struct fv_buffer game_controllers;
 
         struct player players[FV_LOGIC_MAX_PLAYERS];
 };
@@ -160,18 +186,20 @@ get_ticks(struct data *data)
 static void
 reset_menu_state(struct data *data)
 {
-        int i, j;
+        int i;
 
         data->menu_state = MENU_STATE_CHOOSING_N_PLAYERS;
         reset_start_time(data);
         data->viewports_dirty = true;
         data->n_viewports = 1;
+        data->n_players = 1;
 
         for (i = 0; i < FV_LOGIC_MAX_PLAYERS; i++) {
-                for (j = 0; j < N_KEYS; j++) {
-                        data->players[i].keys[j].down = false;
-                        data->players[i].keys[j].down = false;
-                }
+                data->players[i].pressed_keys = 0;
+                data->players[i].controller_direction = 0.0f;
+                data->players[i].controller_speed = 0.0f;
+                data->players[i].x_axis = 0;
+                data->players[i].y_axis = 0;
         }
 
         fv_logic_reset(data->logic, 0);
@@ -204,18 +232,11 @@ update_direction(struct data *data,
 {
         const struct player *player = data->players + player_num;
         float direction;
-        bool moving = true;
+        float speed = 1.0f;
         int pressed_keys = 0;
         int key_mask;
 
-        if (player->keys[KEY_CODE_UP].down)
-                pressed_keys |= 1 << KEY_CODE_UP;
-        if (player->keys[KEY_CODE_DOWN].down)
-                pressed_keys |= 1 << KEY_CODE_DOWN;
-        if (player->keys[KEY_CODE_LEFT].down)
-                pressed_keys |= 1 << KEY_CODE_LEFT;
-        if (player->keys[KEY_CODE_RIGHT].down)
-                pressed_keys |= 1 << KEY_CODE_RIGHT;
+        pressed_keys = player->pressed_keys;
 
         /* Cancel out directions where opposing keys are pressed */
         key_mask = ((pressed_keys & 10) >> 1) ^ (pressed_keys & 5);
@@ -248,54 +269,12 @@ update_direction(struct data *data,
                 direction = 0.0f;
                 break;
         default:
-                moving = false;
-                direction = 0.0f;
+                speed = player->controller_speed;
+                direction = player->controller_direction;
                 break;
         }
 
-        fv_logic_set_direction(data->logic, player_num, moving, direction);
-}
-
-static bool
-is_key(const struct key *key,
-       const struct key *other_key)
-{
-        if (key->type != other_key->type)
-                return false;
-
-        switch (key->type) {
-        case KEY_TYPE_KEYBOARD:
-                return key->keycode == other_key->keycode;
-
-        case KEY_TYPE_JOYSTICK:
-        case KEY_TYPE_MOUSE:
-                return (key->device_id == other_key->device_id &&
-                        key->button == other_key->button);
-
-        }
-
-        assert(false);
-
-        return false;
-}
-
-static void
-set_key(struct data *data,
-        const struct key *other_key)
-{
-        data->players[data->next_player].keys[data->next_key] = *other_key;
-        data->next_key++;
-
-        if (data->next_key >= N_KEYS) {
-                data->next_player++;
-                data->next_key = 0;
-
-                if (data->next_player >= data->n_players) {
-                        data->menu_state = MENU_STATE_PLAYING;
-                        reset_start_time(data);
-                        fv_logic_reset(data->logic, data->n_players);
-                }
-        }
+        fv_logic_set_direction(data->logic, player_num, speed, direction);
 }
 
 static void
@@ -304,97 +283,191 @@ set_key_state(struct data *data,
               enum key_code key,
               bool state)
 {
-        bool old_state = data->players[player_num].keys[key].down;
-
-        if (old_state == state)
-                return;
-
-        data->players[player_num].keys[key].down = state;
+        struct player *player = data->players + player_num;
 
         if (key == KEY_CODE_SHOUT) {
                 if (data->menu_state == MENU_STATE_PLAYING && state)
                         fv_logic_shout(data->logic, player_num);
-        } else {
+        } else if (!!(player->pressed_keys & (1 << key)) != state) {
+                if (state)
+                        player->pressed_keys |= (1 << key);
+                else
+                        player->pressed_keys &= ~(1 << key);
                 update_direction(data, player_num);
         }
 }
 
 static void
-handle_key(struct data *data,
-           const struct key *key)
+start_playing(struct data *data)
 {
-        struct key *player_key;
-        int i, j;
+        data->menu_state = MENU_STATE_PLAYING;
+        reset_start_time(data);
+        fv_logic_reset(data->logic, data->n_players);
+}
 
-        switch (data->menu_state) {
-        case MENU_STATE_CHOOSING_N_PLAYERS:
+static void
+n_players_chosen(struct data *data)
+{
+        if (data->n_players == 1) {
+                start_playing(data);
+        } else {
+                data->next_player = 0;
+                data->menu_state = MENU_STATE_CHOOSING_CONTROLLERS;
+        }
+        data->viewports_dirty = true;
+}
+
+static void
+increase_n_players(struct data *data)
+{
+        data->n_players = data->n_players % FV_LOGIC_MAX_PLAYERS + 1;
+}
+
+static void
+decrease_n_players(struct data *data)
+{
+        data->n_players = ((data->n_players + FV_LOGIC_MAX_PLAYERS - 2) %
+                           FV_LOGIC_MAX_PLAYERS + 1);
+}
+
+static void
+handle_choose_n_players_key(struct data *data,
+                            const SDL_KeyboardEvent *event)
+{
+        if (event->state != SDL_PRESSED)
+                return;
+
+        switch (event->keysym.sym) {
+        case SDLK_w:
+        case SDLK_UP:
+                decrease_n_players(data);
                 break;
-
-        case MENU_STATE_CHOOSING_KEYS:
-                for (i = 0; i < data->next_player; i++) {
-                        for (j = 0; j < N_KEYS; j++) {
-                                player_key = data->players[i].keys + j;
-                                if (is_key(player_key, key)) {
-                                        set_key_state(data, i, j, key->down);
-                                        goto handled;
-                                }
-                        }
-                }
-
-                for (j = 0; j < data->next_key; j++) {
-                        player_key = data->players[i].keys + j;
-                        if (is_key(player_key, key)) {
-                                set_key_state(data, i, j, key->down);
-                                goto handled;
-                        }
-                }
-
-                if (key->down)
-                        set_key(data, key);
-
-        handled:
+        case SDLK_TAB:
+        case SDLK_s:
+        case SDLK_DOWN:
+                increase_n_players(data);
                 break;
-
-        case MENU_STATE_PLAYING:
-                for (i = 0; i < data->n_players; i++) {
-                        for (j = 0; j < N_KEYS; j++) {
-                                player_key = data->players[i].keys + j;
-                                if (is_key(player_key, key)) {
-                                        set_key_state(data, i, j, key->down);
-                                        goto found;
-                                }
-                        }
-                }
-        found:
+        case SDLK_RETURN:
+        case SDLK_SPACE:
+                n_players_chosen(data);
                 break;
         }
 }
 
 static void
-handle_other_key(struct data *data,
-                 const SDL_KeyboardEvent *event)
+handle_choose_controllers_key(struct data *data,
+                              const SDL_KeyboardEvent *event)
 {
-        struct key key;
+        SDL_Keycode sym = event->keysym.sym;
+        const struct keyboard_control_scheme *scheme;
+        int scheme_index, i;
 
-        if (data->menu_state == MENU_STATE_CHOOSING_N_PLAYERS) {
-                if (event->state == SDL_PRESSED &&
-                    event->keysym.sym >= SDLK_1 &&
-                    event->keysym.sym < SDLK_1 + FV_LOGIC_MAX_PLAYERS) {
-                        data->n_players = event->keysym.sym - SDLK_1 + 1;
-                        data->next_player = 0;
-                        data->next_key = 0;
-                        data->menu_state = MENU_STATE_CHOOSING_KEYS;
-                        data->viewports_dirty = true;
+        if (event->state != SDL_PRESSED)
+                return;
+
+        /* Check if the key matches any control scheme */
+
+        for (scheme_index = 0;
+             scheme_index < FV_N_ELEMENTS(keyboard_control_schemes);
+             scheme_index++) {
+                scheme = keyboard_control_schemes + scheme_index;
+
+                if (scheme->up == sym ||
+                    scheme->down == sym ||
+                    scheme->left == sym ||
+                    scheme->right == sym)
+                        goto found_key;
+
+                for (i = 0; scheme->shout_buttons[i]; i++) {
+                        if (scheme->shout_buttons[i] == sym)
+                                goto found_key;
+                }
+        }
+
+        return;
+
+found_key:
+
+        /* Check in any other players have already claimed this scheme */
+
+        for (i = 0; i < data->next_player; i++) {
+                if (data->players[i].control_type == CONTROL_TYPE_KEYBOARD &&
+                    data->players[i].control_id == scheme_index)
+                        return;
+        }
+
+        data->players[data->next_player].control_type = CONTROL_TYPE_KEYBOARD;
+        data->players[data->next_player].control_id = scheme_index;
+
+        data->next_player++;
+
+        if (data->next_player >= data->n_players)
+                start_playing(data);
+}
+
+static void
+handle_playing_key(struct data *data,
+                   const SDL_KeyboardEvent *event)
+{
+        SDL_Keycode sym = event->keysym.sym;
+        const struct keyboard_control_scheme *scheme;
+        int scheme_index, player_num;
+        bool state = event->state == SDL_PRESSED;
+        enum key_code key_code;
+        int i;
+
+        for (scheme_index = 0;
+             scheme_index < FV_N_ELEMENTS(keyboard_control_schemes);
+             scheme_index++) {
+                scheme = keyboard_control_schemes + scheme_index;
+
+                if (scheme->up == sym) {
+                        key_code = KEY_CODE_UP;
+                        goto found_key;
+                } else if (scheme->down == sym) {
+                        key_code = KEY_CODE_DOWN;
+                        goto found_key;
+                } else if (scheme->left == sym) {
+                        key_code = KEY_CODE_LEFT;
+                        goto found_key;
+                } else if (scheme->right == sym) {
+                        key_code = KEY_CODE_RIGHT;
+                        goto found_key;
                 }
 
+                for (i = 0; scheme->shout_buttons[i]; i++) {
+                        if (scheme->shout_buttons[i] == sym) {
+                                key_code = KEY_CODE_SHOUT;
+                                goto found_key;
+                        }
+                }
+        }
+
+        return;
+
+found_key:
+
+        /* If there is only one player then all of the control schemes
+         * control him/her */
+        if (data->n_players == 1) {
+                set_key_state(data,
+                              0, /* player_num */
+                              key_code,
+                              state);
                 return;
         }
 
-        key.type = KEY_TYPE_KEYBOARD;
-        key.keycode = event->keysym.sym;
-        key.down = event->state == SDL_PRESSED;
-
-        handle_key(data, &key);
+        for (player_num = 0; player_num < data->n_players; player_num++) {
+                if (data->players[player_num].control_type ==
+                    CONTROL_TYPE_KEYBOARD &&
+                    data->players[player_num].control_id == scheme_index) {
+                        set_key_state(data,
+                                      player_num,
+                                      key_code,
+                                      state);
+                        break;
+                }
+        }
 }
 
 static void
@@ -417,84 +490,279 @@ handle_key_event(struct data *data,
                 break;
 
         default:
-                handle_other_key(data, event);
+                switch (data->menu_state) {
+                case MENU_STATE_CHOOSING_N_PLAYERS:
+                        handle_choose_n_players_key(data, event);
+                        break;
+                case MENU_STATE_CHOOSING_CONTROLLERS:
+                        handle_choose_controllers_key(data, event);
+                        break;
+                case MENU_STATE_PLAYING:
+                        handle_playing_key(data, event);
+                        break;
+                }
                 break;
         }
 }
 
 static void
-handle_joystick_button(struct data *data,
-                       const SDL_JoyButtonEvent *event)
+handle_choose_n_players_button(struct data *data,
+                               const SDL_ControllerButtonEvent *event)
 {
-        struct key key;
+        if (event->state != SDL_PRESSED)
+                return;
 
-        key.type = KEY_TYPE_JOYSTICK;
-        key.device_id = event->which;
-        key.button = event->button;
-        key.down = event->state == SDL_PRESSED;
-
-        handle_key(data, &key);
+        switch (event->button) {
+        case SDL_CONTROLLER_BUTTON_DPAD_UP:
+                decrease_n_players(data);
+                break;
+        case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+        case SDL_CONTROLLER_BUTTON_BACK:
+                increase_n_players(data);
+                break;
+        case SDL_CONTROLLER_BUTTON_START:
+        case SDL_CONTROLLER_BUTTON_A:
+        case SDL_CONTROLLER_BUTTON_B:
+        case SDL_CONTROLLER_BUTTON_X:
+        case SDL_CONTROLLER_BUTTON_Y:
+                n_players_chosen(data);
+                break;
+        }
 }
 
 static void
-handle_joystick_added(struct data *data,
-                      const SDL_JoyDeviceEvent *event)
+handle_choose_controllers_button(struct data *data,
+                                 const SDL_ControllerButtonEvent *event)
 {
-        SDL_Joystick *joystick = SDL_JoystickOpen(event->which);
-        SDL_Joystick **joysticks = (SDL_Joystick **) data->joysticks.data;
-        int n_joysticks = data->joysticks.length / sizeof (SDL_Joystick *);
-        int i;
+        int player_num;
 
-        if (joystick == NULL) {
-                fprintf(stderr, "failed to open joystick %i: %s\n",
-                        event->which,
-                        SDL_GetError());
+        if (event->state != SDL_PRESSED)
+                return;
+
+        /* Check if anyone else is already using this controller */
+        for (player_num = 0; player_num < data->next_player; player_num++) {
+                if (data->players[player_num].control_type ==
+                    CONTROL_TYPE_GAME_CONTROLLER &&
+                    data->players[player_num].control_id == event->which)
+                        return;
+        }
+
+        data->players[data->next_player].control_type =
+                CONTROL_TYPE_GAME_CONTROLLER;
+        data->players[data->next_player].control_id = event->which;
+
+        data->next_player++;
+
+        if (data->next_player >= data->n_players)
+                start_playing(data);
+}
+
+static void
+handle_playing_button(struct data *data,
+                      const SDL_ControllerButtonEvent *event)
+{
+        bool state = event->state == SDL_PRESSED;
+        enum key_code key_code;
+        int player_num;
+
+        switch (event->button) {
+        case SDL_CONTROLLER_BUTTON_DPAD_UP:
+                key_code = KEY_CODE_UP;
+                break;
+        case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+                key_code = KEY_CODE_DOWN;
+                break;
+        case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+                key_code = KEY_CODE_LEFT;
+                break;
+        case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+                key_code = KEY_CODE_RIGHT;
+                break;
+        case SDL_CONTROLLER_BUTTON_A:
+        case SDL_CONTROLLER_BUTTON_B:
+        case SDL_CONTROLLER_BUTTON_X:
+        case SDL_CONTROLLER_BUTTON_Y:
+                key_code = KEY_CODE_SHOUT;
+                break;
+        default:
                 return;
         }
 
-        /* Check if we already have this joystick open */
-        for (i = 0; i < n_joysticks; i++) {
-                if (SDL_JoystickInstanceID(joysticks[i]) ==
-                    SDL_JoystickInstanceID(joystick)) {
-                        SDL_JoystickClose(joystick);
-                        return;
-                }
+        /* If there is only one player then all of the controllers
+         * affect him/her */
+
+        if (data->n_players == 1) {
+                set_key_state(data,
+                              0, /* player_num */
+                              key_code,
+                              state);
+                return;
         }
 
-        fv_buffer_append(&data->joysticks, &joystick, sizeof joystick);
-}
-
-static void
-handle_joystick_removed(struct data *data,
-                        const SDL_JoyDeviceEvent *event)
-{
-        SDL_Joystick **joysticks = (SDL_Joystick **) data->joysticks.data;
-        int n_joysticks = data->joysticks.length / sizeof (SDL_Joystick *);
-        int i;
-
-        for (i = 0; i < n_joysticks; i++) {
-                if (SDL_JoystickInstanceID(joysticks[i]) == event->which) {
-                        SDL_JoystickClose(joysticks[i]);
-                        if (i < n_joysticks - 1)
-                                joysticks[i] = joysticks[n_joysticks - 1];
-                        data->joysticks.length -= sizeof (SDL_Joystick *);
+        /* Check if anyone is using this controller */
+        for (player_num = 0; player_num < data->next_player; player_num++) {
+                if (data->players[player_num].control_type ==
+                    CONTROL_TYPE_GAME_CONTROLLER &&
+                    data->players[player_num].control_id == event->which) {
+                        set_key_state(data,
+                                      player_num,
+                                      key_code,
+                                      state);
                         break;
                 }
         }
 }
 
 static void
-handle_mouse_button(struct data *data,
-                    const SDL_MouseButtonEvent *event)
+handle_game_controller_button(struct data *data,
+                              const SDL_ControllerButtonEvent *event)
 {
-        struct key key;
+        switch (data->menu_state) {
+        case MENU_STATE_CHOOSING_N_PLAYERS:
+                handle_choose_n_players_button(data, event);
+                break;
+        case MENU_STATE_CHOOSING_CONTROLLERS:
+                handle_choose_controllers_button(data, event);
+                break;
+        case MENU_STATE_PLAYING:
+                handle_playing_button(data, event);
+                break;
+        }
+}
 
-        key.type = KEY_TYPE_MOUSE;
-        key.device_id = event->which;
-        key.button = event->button;
-        key.down = event->state == SDL_PRESSED;
+static void
+handle_game_controller_axis_motion(struct data *data,
+                                   const SDL_ControllerAxisEvent *event)
+{
+        struct player *player;
+        int mag_squared;
+        int16_t value = event->value;
+        int player_num;
 
-        handle_key(data, &key);
+        /* Ignore axes other than 0 and 1 */
+        if (event->axis & ~1)
+                return;
+
+        if (data->menu_state != MENU_STATE_PLAYING)
+                return;
+
+        /* If there is only one player then any controller can be
+         * used */
+        if (data->n_players == 1) {
+                player = data->players;
+                player_num = 0;
+                goto found_player;
+        }
+
+        for (player_num = 0; player_num < data->n_players; player_num++) {
+                player = data->players + player_num;
+
+                if (player->control_type == CONTROL_TYPE_GAME_CONTROLLER &&
+                    player->control_id == event->which)
+                        goto found_player;
+        }
+
+        return;
+
+found_player:
+
+        if (value < -INT16_MAX)
+                value = -INT16_MAX;
+
+        if (event->axis)
+                player->y_axis = -value;
+        else
+                player->x_axis = value;
+
+        mag_squared = (player->y_axis * (int) player->y_axis +
+                       player->x_axis * (int) player->x_axis);
+
+        if (mag_squared <= (MIN_JOYSTICK_AXIS_MOVEMENT *
+                            MIN_JOYSTICK_AXIS_MOVEMENT)) {
+                player->controller_direction = 0.0f;
+                player->controller_speed = 0.0f;
+        } else {
+                if (mag_squared >= (MAX_JOYSTICK_AXIS_MOVEMENT *
+                                    MAX_JOYSTICK_AXIS_MOVEMENT)) {
+                        player->controller_speed = 1.0f;
+                } else {
+                        player->controller_speed =
+                                ((sqrtf(mag_squared) -
+                                  MIN_JOYSTICK_AXIS_MOVEMENT) /
+                                 (MAX_JOYSTICK_AXIS_MOVEMENT -
+                                  MIN_JOYSTICK_AXIS_MOVEMENT));
+                }
+                player->controller_direction = atan2f(player->y_axis,
+                                                      player->x_axis);
+        }
+
+        update_direction(data, player_num);
+}
+
+static void
+handle_joystick_added(struct data *data,
+                      const SDL_JoyDeviceEvent *event)
+{
+        SDL_GameController *controller = SDL_GameControllerOpen(event->which);
+        SDL_Joystick *joystick, *other_joystick;
+        SDL_JoystickID joystick_id, other_joystick_id;
+        SDL_GameController **controllers =
+                (SDL_GameController **) data->game_controllers.data;
+        int n_controllers = (data->game_controllers.length /
+                             sizeof (SDL_GameController *));
+        int i;
+
+        if (controller == NULL) {
+                fprintf(stderr, "failed to open game controller %i: %s\n",
+                        event->which,
+                        SDL_GetError());
+                return;
+        }
+
+        joystick = SDL_GameControllerGetJoystick(controller);
+        joystick_id = SDL_JoystickInstanceID(joystick);
+
+        /* Check if we already have this controller open */
+        for (i = 0; i < n_controllers; i++) {
+                other_joystick = SDL_GameControllerGetJoystick(controllers[i]);
+                other_joystick_id = SDL_JoystickInstanceID(other_joystick);
+
+                if (joystick_id == other_joystick_id) {
+                        SDL_GameControllerClose(controller);
+                        return;
+                }
+        }
+
+        fv_buffer_append(&data->game_controllers,
+                         &controller,
+                         sizeof controller);
+}
+
+static void
+handle_joystick_removed(struct data *data,
+                        const SDL_JoyDeviceEvent *event)
+{
+        SDL_Joystick *joystick;
+        SDL_JoystickID joystick_id;
+        SDL_GameController **controllers =
+                (SDL_GameController **) data->game_controllers.data;
+        int n_controllers = (data->game_controllers.length /
+                             sizeof (SDL_GameController *));
+        int i;
+
+        for (i = 0; i < n_controllers; i++) {
+                joystick = SDL_GameControllerGetJoystick(controllers[i]);
+                joystick_id = SDL_JoystickInstanceID(joystick);
+
+                if (joystick_id == event->which) {
+                        SDL_GameControllerClose(controllers[i]);
+                        if (i < n_controllers - 1)
+                                controllers[i] = controllers[n_controllers - 1];
+                        data->game_controllers.length -=
+                                sizeof (SDL_GameController *);
+                        break;
+                }
+        }
 }
 
 static void
@@ -673,14 +941,13 @@ handle_event(struct data *data,
                 handle_key_event(data, &event->key);
                 goto handled;
 
-        case SDL_MOUSEBUTTONDOWN:
-        case SDL_MOUSEBUTTONUP:
-                handle_mouse_button(data, &event->button);
+        case SDL_CONTROLLERBUTTONDOWN:
+        case SDL_CONTROLLERBUTTONUP:
+                handle_game_controller_button(data, &event->cbutton);
                 goto handled;
 
-        case SDL_JOYBUTTONDOWN:
-        case SDL_JOYBUTTONUP:
-                handle_joystick_button(data, &event->jbutton);
+        case SDL_CONTROLLERAXISMOTION:
+                handle_game_controller_axis_motion(data, &event->caxis);
                 goto handled;
 
         case SDL_JOYDEVICEADDED:
@@ -708,15 +975,15 @@ paint_hud(struct data *data,
         case MENU_STATE_CHOOSING_N_PLAYERS:
                 fv_hud_paint_player_select(data->graphics.hud,
                                            data->vk_command_buffer,
+                                           data->n_players,
                                            w, h);
                 break;
-        case MENU_STATE_CHOOSING_KEYS:
-                fv_hud_paint_key_select(data->graphics.hud,
-                                        data->vk_command_buffer,
-                                        w, h,
-                                        data->next_player,
-                                        data->next_key,
-                                        data->n_players);
+        case MENU_STATE_CHOOSING_CONTROLLERS:
+                fv_hud_paint_controller_select(data->graphics.hud,
+                                               data->vk_command_buffer,
+                                               w, h,
+                                               data->next_player,
+                                               data->n_players);
                 break;
         case MENU_STATE_PLAYING:
                 fv_hud_paint_game_state(data->graphics.hud,
@@ -728,16 +995,18 @@ paint_hud(struct data *data,
 }
 
 static void
-close_joysticks(struct data *data)
+close_game_controllers(struct data *data)
 {
-        SDL_Joystick **joysticks = (SDL_Joystick **) data->joysticks.data;
-        int n_joysticks = data->joysticks.length / sizeof (SDL_Joystick *);
+        SDL_GameController **controllers =
+                (SDL_GameController **) data->game_controllers.data;
+        int n_controllers = (data->game_controllers.length /
+                             sizeof (SDL_GameController *));
         int i;
 
-        for (i = 0; i < n_joysticks; i++)
-                SDL_JoystickClose(joysticks[i]);
+        for (i = 0; i < n_controllers; i++)
+                SDL_GameControllerClose(controllers[i]);
 
-        fv_buffer_destroy(&data->joysticks);
+        fv_buffer_destroy(&data->game_controllers);
 }
 
 static void
@@ -2061,14 +2330,16 @@ main(int argc, char **argv)
                 goto out_data;
         }
 
-        res = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
+        res = SDL_Init(SDL_INIT_VIDEO |
+                       SDL_INIT_JOYSTICK |
+                       SDL_INIT_GAMECONTROLLER);
         if (res < 0) {
                 fv_error_message("Unable to init SDL: %s\n", SDL_GetError());
                 ret = EXIT_FAILURE;
                 goto out_libvulkan;
         }
 
-        fv_buffer_init(&data->joysticks);
+        fv_buffer_init(&data->game_controllers);
 
         flags = SDL_WINDOW_RESIZABLE;
         if (data->is_fullscreen)
@@ -2132,7 +2403,7 @@ out_logic:
 out_window:
         SDL_DestroyWindow(data->window);
 out_sdl:
-        close_joysticks(data);
+        close_game_controllers(data);
         SDL_Quit();
 out_libvulkan:
         fv_vk_unload_libvulkan();

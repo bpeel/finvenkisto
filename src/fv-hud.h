@@ -33,17 +33,17 @@ fv_hud_new(const struct fv_vk_data *vk_data,
 void
 fv_hud_paint_player_select(struct fv_hud *hud,
                            VkCommandBuffer command_buffer,
+                           int n_players,
                            int screen_width,
                            int screen_height);
 
 void
-fv_hud_paint_key_select(struct fv_hud *hud,
-                        VkCommandBuffer command_buffer,
-                        int screen_width,
-                        int screen_height,
-                        int player_num,
-                        int key_num,
-                        int n_players);
+fv_hud_paint_controller_select(struct fv_hud *hud,
+                               VkCommandBuffer command_buffer,
+                               int screen_width,
+                               int screen_height,
+                               int player_num,
+                               int n_players);
 
 void
 fv_hud_paint_game_state(struct fv_hud *hud,
