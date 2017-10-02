@@ -73,7 +73,6 @@ enum key_code {
 enum key_type {
         KEY_TYPE_KEYBOARD,
         KEY_TYPE_GAME_CONTROLLER,
-        KEY_TYPE_MOUSE
 };
 
 struct key {
@@ -247,7 +246,6 @@ is_key(const struct key *key,
                 return key->keycode == other_key->keycode;
 
         case KEY_TYPE_GAME_CONTROLLER:
-        case KEY_TYPE_MOUSE:
                 return (key->device_id == other_key->device_id &&
                         key->button == other_key->button);
         }
@@ -530,20 +528,6 @@ handle_joystick_removed(struct data *data,
 }
 
 static void
-handle_mouse_button(struct data *data,
-                    const SDL_MouseButtonEvent *event)
-{
-        struct key key;
-
-        key.type = KEY_TYPE_MOUSE;
-        key.device_id = event->which;
-        key.button = event->button;
-        key.down = event->state == SDL_PRESSED;
-
-        handle_key(data, &key);
-}
-
-static void
 destroy_graphics(struct data *data)
 {
         if (data->graphics.game) {
@@ -638,11 +622,6 @@ handle_event(struct data *data,
         case SDL_KEYDOWN:
         case SDL_KEYUP:
                 handle_key_event(data, &event->key);
-                goto handled;
-
-        case SDL_MOUSEBUTTONDOWN:
-        case SDL_MOUSEBUTTONUP:
-                handle_mouse_button(data, &event->button);
                 goto handled;
 
         case SDL_CONTROLLERBUTTONDOWN:
