@@ -38,6 +38,11 @@ AC_SUBST([WARNING_CFLAGS])
 PKG_CHECK_MODULES([VULKAN], [vulkan])
 PKG_CHECK_MODULES([SDL], [sdl2])
 
+AS_IF([test ${host_os#mingw} = $host_os],
+      [EXTRA_LIBS=-ldl],
+      [EXTRA_LIBS=])
+AC_SUBST([EXTRA_LIBS])
+
 AC_OUTPUT(
 Makefile
 src/data/Makefile

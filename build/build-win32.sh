@@ -2,18 +2,12 @@
 
 set -e
 
-SDL_VERSION=2.0.3
+SDL_VERSION=2.0.6
 
 SDL_FILENAME=SDL2-devel-${SDL_VERSION}-mingw.tar.gz
 SDL_URL="http://libsdl.org/release/$SDL_FILENAME"
 
 CONFIG_GUESS_URL="http://git.savannah.gnu.org/gitweb/?p=automake.git;a=blob_plain;f=lib/config.guess"
-
-GL_HEADER_URLS=( \
-    http://cgit.freedesktop.org/mesa/mesa/plain/include/GL/gl.h \
-    http://www.opengl.org/registry/api/glext.h );
-
-GL_HEADERS=( gl.h glext.h );
 
 SRC_BUILD_DIR=`dirname "$0"`
 SRC_DIR=`cd "$SRC_BUILD_DIR"/.. && pwd`
@@ -69,8 +63,8 @@ rm -rf "$DEPS_DIR"
 rm -rf "$INSTALL_DIR"
 rm -rf "$RESULT_DIR" "$RESULT_FILE"
 mkdir -p "$DEPS_DIR"
-mkdir -p "$INSTALL_DIR/include/GL"
 mkdir -p "$RESULT_DIR"
+mkdir -p "$INSTALL_DIR/lib/pkgconfig"
 
 function do_download ()
 {
@@ -82,15 +76,6 @@ function do_download ()
 
 do_download "$SDL_URL" "$SDL_FILENAME"
 do_download "$CONFIG_GUESS_URL" "config.guess"
-
-for dep in "${GL_HEADER_URLS[@]}"; do
-    bn="${dep##*/}";
-    do_download "$dep" "$bn";
-done
-
-for header in "${GL_HEADERS[@]}"; do
-    cp "$DOWNLOADS_DIR/$header" "$INSTALL_DIR/include/GL/"
-done
 
 find_compiler
 BUILD=`bash $DOWNLOADS_DIR/config.guess`
@@ -114,6 +99,31 @@ exec pkg-config "\$@"
 EOF
 
 chmod a+x "$RUN_PKG_CONFIG";
+
+echo "Looking for Vulkan SDK in Wine C drive"
+
+vulkan_lib=$(find ~/.wine/drive_c/VulkanSDK \
+                  \( -name vulkan-1.lib -print \) -o \
+                  \( -name Source -prune \) | head -n 1)
+if test -z "$vulkan_lib"; then
+    echo "Couldn't find Vulkan SDK. Try installing it with Wine."
+    exit 1
+fi
+
+vulkan_root=$(cd $(dirname "$vulkan_lib")/.. && pwd)
+
+cat > "$INSTALL_DIR/lib/pkgconfig/vulkan.pc" <<EOF
+prefix=$vulkan_root
+exec_prefix=$vulkan_root
+libdir=\${exec_prefix}/Lib32
+includedir=\${prefix}/Include
+
+Name: VULKAN
+Description: Vulkan Loader
+Version: 1.0.61
+Libs: -L\${libdir} -lvulkan-1
+Cflags: -I\${includedir}
+EOF
 
 tar -vxf "$DOWNLOADS_DIR/$SDL_FILENAME" -C "$INSTALL_DIR" \
     "SDL2-$SDL_VERSION/i686-w64-mingw32" \

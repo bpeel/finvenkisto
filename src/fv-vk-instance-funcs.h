@@ -1,6 +1,4 @@
 FV_VK_FUNC(vkCreateDevice)
-FV_VK_FUNC(vkCreateXlibSurfaceKHR)
-FV_VK_FUNC(vkCreateWaylandSurfaceKHR)
 FV_VK_FUNC(vkDestroyInstance)
 FV_VK_FUNC(vkDestroySurfaceKHR)
 FV_VK_FUNC(vkEnumerateDeviceExtensionProperties)
@@ -14,3 +12,10 @@ FV_VK_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
 FV_VK_FUNC(vkGetPhysicalDeviceSurfaceFormatsKHR)
 FV_VK_FUNC(vkGetPhysicalDeviceSurfacePresentModesKHR)
 FV_VK_FUNC(vkGetPhysicalDeviceSurfaceSupportKHR)
+
+#ifdef WIN32
+FV_VK_FUNC(vkCreateWin32SurfaceKHR)
+#else
+FV_VK_FUNC(vkCreateXlibSurfaceKHR)
+FV_VK_FUNC(vkCreateWaylandSurfaceKHR)
+#endif

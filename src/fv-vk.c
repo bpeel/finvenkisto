@@ -19,7 +19,11 @@
 
 #include "config.h"
 
+#ifdef WIN32
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
 
 #include "fv-vk.h"
 #include "fv-error-message.h"
@@ -77,6 +81,19 @@ init_functions(func_getter getter,
 bool
 fv_vk_load_libvulkan(void)
 {
+#ifdef WIN32
+
+        lib_vulkan = LoadLibrary("vulkan-1.dll");
+
+        if (lib_vulkan == NULL) {
+                fv_error_message("Error openining vulkan-1.dll");
+                return false;
+        }
+
+        fv_vk.vkGetInstanceProcAddr = (void *)
+                GetProcAddress(lib_vulkan, "vkGetInstanceProcAddr");
+
+#else
         lib_vulkan = dlopen("libvulkan.so.1", RTLD_LAZY | RTLD_GLOBAL);
 
         if (lib_vulkan == NULL) {
@@ -87,6 +104,8 @@ fv_vk_load_libvulkan(void)
 
         fv_vk.vkGetInstanceProcAddr =
                 dlsym(lib_vulkan, "vkGetInstanceProcAddr");
+
+#endif /* WIN32 */
 
         init_functions((func_getter) fv_vk.vkGetInstanceProcAddr,
                        NULL, /* object */
@@ -117,5 +136,9 @@ fv_vk_init_device(VkDevice device)
 void
 fv_vk_unload_libvulkan(void)
 {
+#ifdef WIN32
+        FreeLibrary(lib_vulkan);
+#else
         dlclose(lib_vulkan);
+#endif
 }

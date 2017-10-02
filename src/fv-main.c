@@ -1745,6 +1745,30 @@ create_vk_surface_wayland(struct data *data)
 }
 #endif /* SDL_VIDEO_DRIVER_WAYLAND */
 
+#ifdef SDL_VIDEO_DRIVER_WINDOWS
+static bool
+create_vk_surface_windows(struct data *data)
+{
+        VkResult res;
+
+        VkWin32SurfaceCreateInfoKHR win32_surface_create_info = {
+                .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+                .hinstance = GetModuleHandle(NULL),
+                .hwnd = data->window_info.info.win.window
+        };
+        res = fv_vk.vkCreateWin32SurfaceKHR(data->vk_instance,
+                                            &win32_surface_create_info,
+                                            NULL, /* allocator */
+                                            &data->vk_surface);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error allocating Win32 Vulkan surface");
+                return false;
+        }
+
+        return true;
+}
+#endif /* SDL_VIDEO_DRIVER_WINDOWS */
+
 static bool
 create_vk_surface(struct data *data)
 {
@@ -1756,6 +1780,10 @@ create_vk_surface(struct data *data)
 #ifdef SDL_VIDEO_DRIVER_WAYLAND
         case SDL_SYSWM_WAYLAND:
                 return create_vk_surface_wayland(data);
+#endif
+#ifdef SDL_VIDEO_DRIVER_WINDOWS
+        case SDL_SYSWM_WINDOWS:
+                return create_vk_surface_windows(data);
 #endif
         default:
                 fv_error_message("Unknown window system chosen by SDL");
@@ -1774,6 +1802,10 @@ get_system_surface_extension(struct data *data)
 #ifdef SDL_VIDEO_DRIVER_WAYLAND
         case SDL_SYSWM_WAYLAND:
                 return VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
+#endif
+#ifdef SDL_VIDEO_DRIVER_WINDOWS
+        case SDL_SYSWM_WINDOWS:
+                return VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
 #endif
         default:
                 fv_error_message("Unknown window system chosen by SDL");

@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include <alloca.h>
+#include <stdlib.h>
 
 #include "fv-allocate-store.h"
 #include "fv-util.h"

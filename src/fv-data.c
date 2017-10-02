@@ -19,6 +19,8 @@
 
 #include "config.h"
 
+#include <string.h>
+
 #include "fv-data.h"
 #include "fv-util.h"
 

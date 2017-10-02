@@ -72,7 +72,7 @@ finvenkisto_SOURCES = \
 	$(NULL)
 finvenkisto_LDADD = \
 	$(SDL_LIBS) \
-	-ldl \
+	$(EXTRA_LIBS) \
 	rply/librply.a \
 	$(NULL)
 
