@@ -72,7 +72,7 @@ enum key_code {
 
 enum key_type {
         KEY_TYPE_KEYBOARD,
-        KEY_TYPE_JOYSTICK,
+        KEY_TYPE_GAME_CONTROLLER,
         KEY_TYPE_MOUSE
 };
 
@@ -128,7 +128,7 @@ struct data {
         int next_player;
         enum key_code next_key;
 
-        struct fv_buffer joysticks;
+        struct fv_buffer game_controllers;
 
         struct player players[FV_LOGIC_MAX_PLAYERS];
 };
@@ -246,7 +246,7 @@ is_key(const struct key *key,
         case KEY_TYPE_KEYBOARD:
                 return key->keycode == other_key->keycode;
 
-        case KEY_TYPE_JOYSTICK:
+        case KEY_TYPE_GAME_CONTROLLER:
         case KEY_TYPE_MOUSE:
                 return (key->device_id == other_key->device_id &&
                         key->button == other_key->button);
@@ -430,12 +430,12 @@ handle_key_event(struct data *data,
 }
 
 static void
-handle_joystick_button(struct data *data,
-                       const SDL_JoyButtonEvent *event)
+handle_game_controller_button(struct data *data,
+                              const SDL_ControllerButtonEvent *event)
 {
         struct key key;
 
-        key.type = KEY_TYPE_JOYSTICK;
+        key.type = KEY_TYPE_GAME_CONTROLLER;
         key.device_id = event->which;
         key.button = event->button;
         key.down = event->state == SDL_PRESSED;
@@ -447,44 +447,63 @@ static void
 handle_joystick_added(struct data *data,
                       const SDL_JoyDeviceEvent *event)
 {
-        SDL_Joystick *joystick = SDL_JoystickOpen(event->which);
-        SDL_Joystick **joysticks = (SDL_Joystick **) data->joysticks.data;
-        int n_joysticks = data->joysticks.length / sizeof (SDL_Joystick *);
+        SDL_GameController *controller = SDL_GameControllerOpen(event->which);
+        SDL_Joystick *joystick, *other_joystick;
+        SDL_JoystickID joystick_id, other_joystick_id;
+        SDL_GameController **controllers =
+                (SDL_GameController **) data->game_controllers.data;
+        int n_controllers = (data->game_controllers.length /
+                             sizeof (SDL_GameController *));
         int i;
 
-        if (joystick == NULL) {
-                fprintf(stderr, "failed to open joystick %i: %s\n",
+        if (controller == NULL) {
+                fprintf(stderr, "failed to open game controller %i: %s\n",
                         event->which,
                         SDL_GetError());
                 return;
         }
 
-        /* Check if we already have this joystick open */
-        for (i = 0; i < n_joysticks; i++) {
-                if (SDL_JoystickInstanceID(joysticks[i]) ==
-                    SDL_JoystickInstanceID(joystick)) {
-                        SDL_JoystickClose(joystick);
+        joystick = SDL_GameControllerGetJoystick(controller);
+        joystick_id = SDL_JoystickInstanceID(joystick);
+
+        /* Check if we already have this controller open */
+        for (i = 0; i < n_controllers; i++) {
+                other_joystick = SDL_GameControllerGetJoystick(controllers[i]);
+                other_joystick_id = SDL_JoystickInstanceID(other_joystick);
+
+                if (joystick_id == other_joystick_id) {
+                        SDL_GameControllerClose(controller);
                         return;
                 }
         }
 
-        fv_buffer_append(&data->joysticks, &joystick, sizeof joystick);
+        fv_buffer_append(&data->game_controllers,
+                         &controller,
+                         sizeof controller);
 }
 
 static void
 handle_joystick_removed(struct data *data,
                         const SDL_JoyDeviceEvent *event)
 {
-        SDL_Joystick **joysticks = (SDL_Joystick **) data->joysticks.data;
-        int n_joysticks = data->joysticks.length / sizeof (SDL_Joystick *);
+        SDL_Joystick *joystick;
+        SDL_JoystickID joystick_id;
+        SDL_GameController **controllers =
+                (SDL_GameController **) data->game_controllers.data;
+        int n_controllers = (data->game_controllers.length /
+                             sizeof (SDL_GameController *));
         int i;
 
-        for (i = 0; i < n_joysticks; i++) {
-                if (SDL_JoystickInstanceID(joysticks[i]) == event->which) {
-                        SDL_JoystickClose(joysticks[i]);
-                        if (i < n_joysticks - 1)
-                                joysticks[i] = joysticks[n_joysticks - 1];
-                        data->joysticks.length -= sizeof (SDL_Joystick *);
+        for (i = 0; i < n_controllers; i++) {
+                joystick = SDL_GameControllerGetJoystick(controllers[i]);
+                joystick_id = SDL_JoystickInstanceID(joystick);
+
+                if (joystick_id == event->which) {
+                        SDL_GameControllerClose(controllers[i]);
+                        if (i < n_controllers - 1)
+                                controllers[i] = controllers[n_controllers - 1];
+                        data->game_controllers.length -=
+                                sizeof (SDL_GameController *);
                         break;
                 }
         }
@@ -606,9 +625,9 @@ handle_event(struct data *data,
                 handle_mouse_button(data, &event->button);
                 goto handled;
 
-        case SDL_JOYBUTTONDOWN:
-        case SDL_JOYBUTTONUP:
-                handle_joystick_button(data, &event->jbutton);
+        case SDL_CONTROLLERBUTTONDOWN:
+        case SDL_CONTROLLERBUTTONUP:
+                handle_game_controller_button(data, &event->cbutton);
                 goto handled;
 
         case SDL_JOYDEVICEADDED:
@@ -659,16 +678,18 @@ paint_hud(struct data *data,
 }
 
 static void
-close_joysticks(struct data *data)
+close_game_controllers(struct data *data)
 {
-        SDL_Joystick **joysticks = (SDL_Joystick **) data->joysticks.data;
-        int n_joysticks = data->joysticks.length / sizeof (SDL_Joystick *);
+        SDL_GameController **controllers =
+                (SDL_GameController **) data->game_controllers.data;
+        int n_controllers = (data->game_controllers.length /
+                             sizeof (SDL_GameController *));
         int i;
 
-        for (i = 0; i < n_joysticks; i++)
-                SDL_JoystickClose(joysticks[i]);
+        for (i = 0; i < n_controllers; i++)
+                SDL_GameControllerClose(controllers[i]);
 
-        fv_buffer_destroy(&data->joysticks);
+        fv_buffer_destroy(&data->game_controllers);
 }
 
 static void
@@ -1060,14 +1081,16 @@ main(int argc, char **argv)
                 goto out;
         }
 
-        res = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
+        res = SDL_Init(SDL_INIT_VIDEO |
+                       SDL_INIT_JOYSTICK |
+                       SDL_INIT_GAMECONTROLLER);
         if (res < 0) {
                 fv_error_message("Unable to init SDL: %s\n", SDL_GetError());
                 ret = EXIT_FAILURE;
                 goto out;
         }
 
-        fv_buffer_init(&data.joysticks);
+        fv_buffer_init(&data.game_controllers);
 
         SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
@@ -1176,7 +1199,7 @@ main(int argc, char **argv)
  out_window:
         SDL_DestroyWindow(data.window);
  out_sdl:
-        close_joysticks(&data);
+        close_game_controllers(&data);
         SDL_Quit();
  out:
         return ret;
