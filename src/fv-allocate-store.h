@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2016, 2017 Neil Roberts
+ * Copyright (C) 2017 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,8 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_FV_ALLOCATE_STORE_H
-#define FV_FV_ALLOCATE_STORE_H
+#ifndef FV_ALLOCATE_STORE_H
+#define FV_ALLOCATE_STORE_H
 
 #include "fv-vk-data.h"
 
@@ -38,4 +38,4 @@ fv_allocate_store_buffer(const struct fv_vk_data *vk_data,
                          VkDeviceMemory *memory_out,
                          int *offsets);
 
-#endif /* FV_FV_ALLOCATE_STORE_H */
+#endif /* FV_ALLOCATE_STORE_H */
