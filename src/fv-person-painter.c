@@ -33,6 +33,7 @@
 #include "fv-list.h"
 #include "fv-vertex.h"
 #include "fv-allocate-store.h"
+#include "fv-flush-memory.h"
 
 /* Textures to use for the different person types. These must match
  * the order of the enum in fv_person_type */
@@ -70,6 +71,8 @@ struct instance_buffer {
         struct fv_list link;
         VkBuffer buffer;
         VkDeviceMemory memory;
+        VkDeviceSize watermark;
+        int memory_type_index;
 };
 
 #define FV_PERSON_PAINTER_INSTANCES_PER_BUFFER 16
@@ -221,6 +224,10 @@ unmap_buffer(struct fv_person_painter *painter)
         instance_buffer = fv_container_of(painter->in_use_instance_buffers.next,
                                           struct instance_buffer,
                                           link);
+        fv_flush_memory(painter->vk_data,
+                        instance_buffer->memory_type_index,
+                        instance_buffer->memory,
+                        instance_buffer->watermark);
         fv_vk.vkUnmapMemory(painter->vk_data->device, instance_buffer->memory);
         painter->instance_buffer_map = NULL;
 }
@@ -272,6 +279,9 @@ flush_people(struct paint_closure *data)
                                0, /* vertexOffset */
                                0 /* firstInstance */);
 
+        instance_buffer->watermark =
+                (painter->buffer_offset + data->n_instances) *
+                sizeof (struct fv_instance_person);
         painter->buffer_offset += data->n_instances;
         data->n_instances = 0;
 }
@@ -282,6 +292,7 @@ create_instance_buffer(struct fv_person_painter *painter)
         struct instance_buffer *instance_buffer;
         VkBuffer buffer;
         VkDeviceMemory memory;
+        int memory_type_index;
         VkResult res;
 
         VkBufferCreateInfo buffer_create_info = {
@@ -305,6 +316,7 @@ create_instance_buffer(struct fv_person_painter *painter)
                                        1, /* n_buffers */
                                        &buffer,
                                        &memory,
+                                       &memory_type_index,
                                        NULL);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating instance memory");
@@ -317,6 +329,7 @@ create_instance_buffer(struct fv_person_painter *painter)
         instance_buffer = fv_alloc(sizeof *instance_buffer);
         instance_buffer->buffer = buffer;
         instance_buffer->memory = memory;
+        instance_buffer->memory_type_index = memory_type_index;
 
         return instance_buffer;
 }
@@ -361,6 +374,8 @@ start_instance(struct paint_closure *data)
                 fv_list_insert(&painter->instance_buffers, &buffer->link);
                 return false;
         }
+
+        buffer->watermark = 0;
 
         fv_list_insert(&painter->in_use_instance_buffers, &buffer->link);
         painter->buffer_offset = 0;

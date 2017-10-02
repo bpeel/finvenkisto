@@ -34,6 +34,7 @@
 #include "fv-allocate-store.h"
 #include "fv-list.h"
 #include "fv-model.h"
+#include "fv-flush-memory.h"
 
 #define FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE 64
 #define FV_MAP_PAINTER_INSTANCES_PER_BUFFER 8
@@ -79,6 +80,8 @@ struct instance_buffer {
         struct fv_list link;
         VkBuffer buffer;
         VkDeviceMemory memory;
+        VkDeviceSize watermark;
+        int memory_type_index;
 };
 
 struct fv_map_painter {
@@ -479,6 +482,7 @@ fv_map_painter_new(const struct fv_vk_data *vk_data,
         struct fv_map_painter_tile *tile;
         void *memory_map;
         int tx, ty;
+        int map_memory_type_index;
         VkResult res;
 
         painter = fv_alloc(sizeof *painter);
@@ -544,6 +548,7 @@ fv_map_painter_new(const struct fv_vk_data *vk_data,
                                        1, /* n_buffers */
                                        &painter->map_buffer,
                                        &painter->map_memory,
+                                       &map_memory_type_index,
                                        NULL /* offsets */);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating map memory");
@@ -564,6 +569,10 @@ fv_map_painter_new(const struct fv_vk_data *vk_data,
         memcpy((uint8_t *) memory_map + data.indices.length,
                data.vertices.data,
                data.vertices.length);
+        fv_flush_memory(vk_data,
+                        map_memory_type_index,
+                        painter->map_memory,
+                        VK_WHOLE_SIZE);
         fv_vk.vkUnmapMemory(vk_data->device, painter->map_memory);
 
         painter->vertices_offset = data.indices.length;
@@ -615,6 +624,10 @@ unmap_instance_buffer(struct fv_map_painter *painter)
                                  struct instance_buffer,
                                  link);
 
+        fv_flush_memory(painter->vk_data,
+                        buffer->memory_type_index,
+                        buffer->memory,
+                        buffer->watermark);
         fv_vk.vkUnmapMemory(painter->vk_data->device, buffer->memory);
         painter->instance_buffer_map = NULL;
 }
@@ -660,6 +673,9 @@ flush_specials(struct fv_map_painter *painter,
                                0, /* vertexOffset */
                                0 /* firstInstance */);
 
+        instance_buffer->watermark =
+                (painter->instance_buffer_offset + painter->n_instances) *
+                sizeof (struct fv_instance_special);
         painter->instance_buffer_offset += painter->n_instances;
         painter->n_instances = 0;
 }
@@ -668,6 +684,7 @@ static struct instance_buffer *
 create_instance_buffer(struct fv_map_painter *painter)
 {
         struct instance_buffer *instance_buffer;
+        int memory_type_index;
         VkBuffer buffer;
         VkDeviceMemory memory;
         VkResult res;
@@ -693,6 +710,7 @@ create_instance_buffer(struct fv_map_painter *painter)
                                        1, /* n_buffers */
                                        &buffer,
                                        &memory,
+                                       &memory_type_index,
                                        NULL /* offsets */);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating map memory");
@@ -705,6 +723,7 @@ create_instance_buffer(struct fv_map_painter *painter)
         instance_buffer = fv_alloc(sizeof *instance_buffer);
         instance_buffer->buffer = buffer;
         instance_buffer->memory = memory;
+        instance_buffer->memory_type_index = memory_type_index;
 
         return instance_buffer;
 }
@@ -748,6 +767,8 @@ start_special(struct fv_map_painter *painter,
                 fv_list_insert(&painter->instance_buffers, &buffer->link);
                 return false;
         }
+
+        buffer->watermark = 0;
 
         fv_list_insert(&painter->in_use_instance_buffers, &buffer->link);
 

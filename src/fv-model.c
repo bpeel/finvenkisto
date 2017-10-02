@@ -33,6 +33,7 @@
 #include "fv-error-message.h"
 #include "fv-vertex.h"
 #include "fv-allocate-store.h"
+#include "fv-flush-memory.h"
 
 struct property {
         int n_components;
@@ -253,6 +254,7 @@ create_buffer(const struct fv_vk_data *vk_data,
         struct fv_model *model = data->model;
         void *memory_map;
         VkResult res;
+        int memory_type_index;
 
         model->n_vertices = data->n_vertices;
         model->n_indices = data->indices.length / sizeof (uint16_t);
@@ -281,6 +283,7 @@ create_buffer(const struct fv_vk_data *vk_data,
                                        1, /* n_buffers */
                                        &model->buffer,
                                        &model->memory,
+                                       &memory_type_index,
                                        NULL);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating model memory");
@@ -305,6 +308,10 @@ create_buffer(const struct fv_vk_data *vk_data,
                data->indices.data,
                data->indices.length);
 
+        fv_flush_memory(vk_data,
+                        memory_type_index,
+                        model->memory,
+                        VK_WHOLE_SIZE);
         fv_vk.vkUnmapMemory(vk_data->device, model->memory);
 
         return true;

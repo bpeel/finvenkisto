@@ -17,26 +17,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_ALLOCATE_STORE_H
-#define FV_ALLOCATE_STORE_H
+#ifndef FV_FLUSH_MEMORY_H
+#define FV_FLUSH_MEMORY_H
 
 #include "fv-vk-data.h"
 
 VkResult
-fv_allocate_store_image(const struct fv_vk_data *data,
-                        uint32_t memory_type_flags,
-                        int n_images,
-                        const VkImage *images,
-                        VkDeviceMemory *memory_out,
-                        int *memory_type_index_out);
+fv_flush_memory(const struct fv_vk_data *vk_data,
+                int memory_type_index,
+                VkDeviceMemory memory,
+                VkDeviceSize size);
 
-VkResult
-fv_allocate_store_buffer(const struct fv_vk_data *vk_data,
-                         uint32_t memory_type_flags,
-                         int n_buffers,
-                         const VkBuffer *buffers,
-                         VkDeviceMemory *memory_out,
-                         int *memory_type_index_out,
-                         int *offsets);
-
-#endif /* FV_ALLOCATE_STORE_H */
+#endif /* FV_FLUSH_MEMORY_H */

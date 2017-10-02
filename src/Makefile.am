@@ -29,6 +29,8 @@ finvenkisto_SOURCES = \
 	fv-ease.h \
 	fv-error-message.c \
 	fv-error-message.h \
+	fv-flush-memory.c \
+	fv-flush-memory.h \
 	fv-game.c \
 	fv-game.h \
 	fv-hud.c \

@@ -32,6 +32,7 @@
 #include "fv-error-message.h"
 #include "fv-vertex.h"
 #include "fv-allocate-store.h"
+#include "fv-flush-memory.h"
 
 /* If all of the players are shouting at the same time then a shout
  * will be painted for each of them in each screen, so we need to be
@@ -50,6 +51,8 @@ struct fv_shout_painter {
         VkDescriptorSet descriptor_set;
         VkBuffer vertex_buffer;
         VkDeviceMemory vertex_memory;
+        int vertex_memory_type_index;
+        VkDeviceSize vertex_memory_watermark;
 
         struct fv_vertex_shout *vertex_memory_map;
 
@@ -181,6 +184,7 @@ create_buffer(struct fv_shout_painter *painter)
                                        1, /* n_buffers */
                                        &painter->vertex_buffer,
                                        &painter->vertex_memory,
+                                       &painter->vertex_memory_type_index,
                                        NULL);
         if (res != VK_SUCCESS) {
                 painter->vertex_memory = NULL;
@@ -286,6 +290,7 @@ void
 fv_shout_painter_begin_frame(struct fv_shout_painter *painter)
 {
         painter->buffer_offset = 0;
+        painter->vertex_memory_watermark = 0;
 }
 
 void
@@ -329,11 +334,18 @@ fv_shout_painter_paint(struct fv_shout_painter *painter,
                         0 /* firstInstance */);
 
         painter->buffer_offset += data.n_shouts;
+        painter->vertex_memory_watermark =
+                (painter->buffer_offset + data.n_shouts) *
+                sizeof (struct fv_vertex_shout) * 3;
 }
 
 void
 fv_shout_painter_end_frame(struct fv_shout_painter *painter)
 {
+        fv_flush_memory(painter->vk_data,
+                        painter->vertex_memory_type_index,
+                        painter->vertex_memory,
+                        painter->vertex_memory_watermark);
 }
 
 void

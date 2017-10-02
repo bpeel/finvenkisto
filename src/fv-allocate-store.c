@@ -50,6 +50,7 @@ fv_allocate_store_buffer(const struct fv_vk_data *vk_data,
                          int n_buffers,
                          const VkBuffer *buffers,
                          VkDeviceMemory *memory_out,
+                         int *memory_type_index_out,
                          int *offsets)
 {
         VkDeviceMemory memory;
@@ -104,6 +105,8 @@ fv_allocate_store_buffer(const struct fv_vk_data *vk_data,
         }
 
         *memory_out = memory;
+        if (memory_type_index_out)
+                *memory_type_index_out = memory_type_index;
 
         return VK_SUCCESS;
 }

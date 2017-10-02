@@ -28,6 +28,7 @@
 #include "fv-vertex.h"
 #include "fv-error-message.h"
 #include "fv-allocate-store.h"
+#include "fv-flush-memory.h"
 
 struct fv_hud {
         const struct fv_vk_data *vk_data;
@@ -36,6 +37,7 @@ struct fv_hud {
         VkPipelineLayout layout;
         VkBuffer buffer;
         VkDeviceMemory memory;
+        int memory_type_index;
         void *memory_map;
         VkImage texture_image;
         VkDeviceMemory texture_memory;
@@ -219,6 +221,7 @@ create_buffer(struct fv_hud *hud)
                                        1, /* n_buffers */
                                        &hud->buffer,
                                        &hud->memory,
+                                       &hud->memory_type_index,
                                        NULL /* offsets */);
         if (res != VK_SUCCESS) {
                 hud->memory = NULL;
@@ -347,6 +350,12 @@ fv_hud_end_rectangles(struct fv_hud *hud,
                       VkCommandBuffer command_buffer)
 {
         VkDeviceSize vertices_offset = 0;
+
+        fv_flush_memory(hud->vk_data,
+                        hud->memory_type_index,
+                        hud->memory,
+                        hud->n_rectangles * 4 *
+                        sizeof (struct fv_vertex_hud));
 
         fv_vk.vkCmdBindPipeline(command_buffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,

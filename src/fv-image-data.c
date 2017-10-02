@@ -24,6 +24,7 @@
 #include "fv-util.h"
 #include "fv-error-message.h"
 #include "fv-allocate-store.h"
+#include "fv-flush-memory.h"
 
 #define STB_IMAGE_IMPLEMENTATION 1
 #define STB_IMAGE_STATIC 1
@@ -348,6 +349,7 @@ fv_image_data_new(const struct fv_vk_data *vk_data,
         int i;
         bool res;
         VkResult vres;
+        int memory_type_index;
 
         data = fv_alloc(sizeof *data);
 
@@ -371,12 +373,18 @@ fv_image_data_new(const struct fv_vk_data *vk_data,
                                         FV_N_ELEMENTS(data->buffers),
                                         data->buffers,
                                         &data->memory,
+                                        &memory_type_index,
                                         data->offsets);
         if (vres != VK_SUCCESS)
                 goto error_buffers;
 
         if (!copy_images(data))
                 goto error_memory;
+
+        fv_flush_memory(vk_data,
+                        memory_type_index,
+                        data->memory,
+                        VK_WHOLE_SIZE);
 
         return data;
 
