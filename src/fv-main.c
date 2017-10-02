@@ -435,6 +435,26 @@ handle_game_controller_button(struct data *data,
 {
         struct key key;
 
+        if (data->menu_state == MENU_STATE_CHOOSING_N_PLAYERS &&
+            event->state == SDL_PRESSED) {
+                switch (event->button) {
+                case SDL_CONTROLLER_BUTTON_DPAD_UP:
+                        decrease_n_players(data);
+                        return;
+                case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+                case SDL_CONTROLLER_BUTTON_BACK:
+                        increase_n_players(data);
+                        return;
+                case SDL_CONTROLLER_BUTTON_START:
+                case SDL_CONTROLLER_BUTTON_A:
+                case SDL_CONTROLLER_BUTTON_B:
+                case SDL_CONTROLLER_BUTTON_X:
+                case SDL_CONTROLLER_BUTTON_Y:
+                        n_players_chosen(data);
+                        return;
+                }
+        }
+
         key.type = KEY_TYPE_GAME_CONTROLLER;
         key.device_id = event->which;
         key.button = event->button;
