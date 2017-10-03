@@ -75,17 +75,13 @@ get_gl_version(void)
         const char *number_start, *p;
         int major_version = 0;
         int minor_version = 0;
-        int version_string_len;
 
-        version_string_len = strlen(version_string);
-        if (version_string_len < sizeof version_string_prefix ||
-            memcmp(version_string,
-                   version_string_prefix,
-                   sizeof version_string_prefix - 1))
+        number_start = strstr(version_string, version_string_prefix);
+        if (number_start == NULL)
                 goto invalid;
-        version_string += sizeof version_string_prefix - 1;
 
-        number_start = p = version_string;
+        number_start += strlen(version_string_prefix);
+        p = number_start;
 
         while (*p >= '0' && *p <= '9') {
                 major_version = major_version * 10 + *p - '0';
