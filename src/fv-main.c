@@ -1194,18 +1194,28 @@ static void
 emscripten_loop_cb(void *user_data)
 {
         struct data *data = user_data;
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event))
+                handle_event(data, &event);
 
         paint(data);
 }
 
 static int
-emscripten_event_filter(void *userdata,
+emscripten_event_filter(void *user_data,
                         SDL_Event *event)
 {
-        handle_event(userdata, event);
+        struct data *data = user_data;
 
-        /* Filter the event */
-        return 0;
+        if (event->type == data->image_data_event) {
+                handle_event(data, event);
+
+                /* Filter the event */
+                return 0;
+        }
+
+        return 1;
 }
 
 static EM_BOOL
