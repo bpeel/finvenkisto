@@ -75,7 +75,8 @@ struct instance_buffer {
         int memory_type_index;
 };
 
-#define FV_PERSON_PAINTER_INSTANCES_PER_BUFFER 16
+#define FV_PERSON_PAINTER_INSTANCES_PER_BUFFER \
+        (4096 / sizeof (struct fv_instance_person))
 
 static bool
 create_texture(struct fv_person_painter *painter,

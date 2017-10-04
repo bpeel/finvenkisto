@@ -37,7 +37,8 @@
 #include "fv-flush-memory.h"
 
 #define FV_MAP_PAINTER_TEXTURE_BLOCK_SIZE 64
-#define FV_MAP_PAINTER_INSTANCES_PER_BUFFER 8
+#define FV_MAP_PAINTER_INSTANCES_PER_BUFFER \
+        (4096 / sizeof (struct fv_instance_special))
 
 #define FV_MAP_PAINTER_N_MODELS FV_N_ELEMENTS(fv_map_painter_models)
 
