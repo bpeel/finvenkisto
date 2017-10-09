@@ -28,13 +28,14 @@ layout(location = 3) in vec3 color_attrib;
 layout(location = 4) in mat4 transform;
 layout(location = 8) in mat3 normal_transform;
 
-layout(location = 0) out vec3 color;
+layout(location = 0) out vec4 color;
 
 void
 main()
 {
         gl_Position = transform * vec4(position, 1.0);
-        color = color_attrib * get_lighting_tint(normal_transform,
-                                                 normal_attrib);
+        color.rgb = color_attrib * get_lighting_tint(normal_transform,
+                                                     normal_attrib);
+        color.a = 1.0;
 }
 
