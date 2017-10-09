@@ -41,6 +41,9 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                      VkCommandBuffer command_buffer,
                      struct fv_paint_state *paint_state);
 
+bool
+fv_map_painter_map_changed(struct fv_map_painter *painter);
+
 void
 fv_map_painter_end_frame(struct fv_map_painter *painter);
 
