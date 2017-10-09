@@ -280,7 +280,6 @@ fv_game_paint(struct fv_game *game,
         update_modelview(game, logic);
 
         fv_map_painter_paint(game->map_painter,
-                             logic,
                              command_buffer,
                              &game->paint_state);
         fv_person_painter_paint(game->person_painter,

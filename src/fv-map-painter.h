@@ -36,7 +36,6 @@ fv_map_painter_begin_frame(struct fv_map_painter *painter);
 
 void
 fv_map_painter_paint(struct fv_map_painter *painter,
-                     struct fv_logic *logic,
                      VkCommandBuffer command_buffer,
                      struct fv_paint_state *paint_state);
 
