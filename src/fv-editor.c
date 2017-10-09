@@ -620,40 +620,72 @@ handled:
         (void) 0;
 }
 
+static float
+highlight_z_pos(struct data *data,
+                int x, int y)
+{
+        int block_pos = x + y * FV_MAP_WIDTH;
+
+        switch (FV_MAP_GET_BLOCK_TYPE(data->map.blocks[block_pos])) {
+        case FV_MAP_BLOCK_TYPE_FULL_WALL:
+                return 2.1f;
+        case FV_MAP_BLOCK_TYPE_HALF_WALL:
+                return 1.1f;
+        default:
+                return 0.1f;
+        }
+
+}
+
 static void
 draw_highlights(struct data *data,
                 struct fv_paint_state *paint_state)
 {
-        int block_pos = data->x_pos + data->y_pos * FV_MAP_WIDTH;
-        float z_pos;
+        struct fv_highlight_painter_highlight highlights[FV_MAP_MAX_SPECIALS *
+                                                         FV_MAP_TILES_X *
+                                                         FV_MAP_TILES_Y +
+                                                         1];
+        int n_highlights = 0;
+        fv_map_block_t block;
+        int y, x;
 
-        switch (FV_MAP_GET_BLOCK_TYPE(data->map.blocks[block_pos])) {
-        case FV_MAP_BLOCK_TYPE_FULL_WALL:
-                z_pos = 2.1f;
-                break;
-        case FV_MAP_BLOCK_TYPE_HALF_WALL:
-                z_pos = 1.1f;
-                break;
-        default:
-                z_pos = 0.1f;
-                break;
+        highlights[n_highlights].x = data->x_pos;
+        highlights[n_highlights].y = data->y_pos;
+        highlights[n_highlights].z =
+                highlight_z_pos(data, data->x_pos, data->y_pos);
+        highlights[n_highlights].w = 1.0f;
+        highlights[n_highlights].h = 1.0f;
+        highlights[n_highlights].r = 0.75f * 0.8f * 255.0f;
+        highlights[n_highlights].g = 0.75f * 0.8f * 255.0f;
+        highlights[n_highlights].b = 1.00f * 0.8f * 255.0f;
+        highlights[n_highlights].a = 0.8f * 255.0;
+        n_highlights++;
+
+        for (y = 0; y < FV_MAP_HEIGHT; y++) {
+                for (x = 0; x < FV_MAP_WIDTH; x++) {
+                        block = data->map.blocks[x + y * FV_MAP_WIDTH];
+                        if (FV_MAP_GET_BLOCK_TYPE(block) !=
+                            FV_MAP_BLOCK_TYPE_SPECIAL)
+                                continue;
+
+                        highlights[n_highlights].x = x;
+                        highlights[n_highlights].y = y;
+                        highlights[n_highlights].z =
+                                highlight_z_pos(data, x, y);
+                        highlights[n_highlights].w = 1.0f;
+                        highlights[n_highlights].h = 1.0f;
+                        highlights[n_highlights].r = 0.75f * 0.8f * 255.0f;
+                        highlights[n_highlights].g = 1.00f * 0.8f * 255.0f;
+                        highlights[n_highlights].b = 0.75f * 0.8f * 255.0f;
+                        highlights[n_highlights].a = 0.8f * 255.0;
+                        n_highlights++;
+                }
         }
 
-        struct fv_highlight_painter_highlight highlight = {
-                .x = data->x_pos,
-                .y = data->y_pos,
-                .z = z_pos,
-                .w = 1.0f,
-                .h = 1.0f,
-                .r = 0.75f * 0.8f * 255.0f,
-                .g = 0.75f * 0.8f * 255.0f,
-                .b = 1.00f * 0.8f * 255.0f,
-                .a = 0.8f * 255.0f
-        };
         fv_highlight_painter_paint(data->highlight_painter,
                                    data->vk_data->command_buffer,
-                                   1, /* n_highlights */
-                                   &highlight,
+                                   n_highlights,
+                                   highlights,
                                    paint_state);
 }
 

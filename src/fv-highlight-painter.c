@@ -36,6 +36,9 @@
 
 #define FV_HIGHLIGHT_PAINTER_MAX_HIGHLIGHTS (FV_MAP_TILES_X + 1 +       \
                                              FV_MAP_TILES_Y + 1 +       \
+                                             (FV_MAP_MAX_SPECIALS *     \
+                                              FV_MAP_TILES_X *          \
+                                              FV_MAP_TILES_Y) +         \
                                              1)
 #define FV_HIGHLIGHT_PAINTER_INDICES_OFFSET             \
         (sizeof (struct fv_vertex_highlight) * 4 *      \
