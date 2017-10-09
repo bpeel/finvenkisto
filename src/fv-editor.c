@@ -24,6 +24,8 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
+#include <errno.h>
 #include <SDL.h>
 
 #include "fv-image-data.h"
@@ -36,6 +38,7 @@
 #include "fv-window.h"
 #include "fv-map-painter.h"
 #include "fv-highlight-painter.h"
+#include "fv-error-message.h"
 
 #define FV_EDITOR_FRUSTUM_TOP 1.428f
 /* 40° vertical FOV angle when the height of the display is
@@ -78,6 +81,19 @@ side_map[] = {
         { 0x00, 0x00, 0x22, 37 }, /* chalkboard 2 */
         { -1 }
 };
+
+static const struct color_map
+special_map[] = {
+        { 0xdd, 0x55, 0x33 }, /* table */
+        { 0x22, 0x55, 0x99 }, /* toilet */
+        { 0x11, 0xdd, 0xff }, /* teaset */
+        { 0x00, 0x00, 0xee }, /* chair */
+        { 0xdd, 0x55, 0x55 }, /* bed */
+        { 0xbb, 0x33, 0xbb }, /* barrel */
+};
+
+static const struct color_map
+black = { 0x00, 0x00, 0x00 };
 
 struct data {
         struct fv_window *window;
@@ -249,6 +265,154 @@ next_side(struct data *data,
         next_image(data, side_num + 1, side_map);
 }
 
+static void
+set_pixel(uint8_t *buf,
+          int x, int y,
+          int ox, int oy,
+          const struct color_map *color)
+{
+        y = FV_MAP_HEIGHT - 1 - y;
+        buf += (x * 4 + ox) * 3 + (y * 4 + oy) * FV_MAP_WIDTH * 4 * 3;
+        buf[0] = color->r;
+        buf[1] = color->g;
+        buf[2] = color->b;
+}
+
+static void
+set_corners(uint8_t *buf,
+            int x, int y,
+            const struct color_map *color)
+{
+        set_pixel(buf, x, y, 0, 0, color);
+        set_pixel(buf, x, y, 3, 0, color);
+        set_pixel(buf, x, y, 0, 3, color);
+        set_pixel(buf, x, y, 3, 3, color);
+}
+
+static void
+save_block(uint8_t *buf,
+           int x, int y,
+           fv_map_block_t block)
+{
+        const struct color_map *color;
+        int type;
+        int i, j;
+
+        color = lookup_color(top_map, FV_MAP_GET_BLOCK_TOP_IMAGE(block));
+
+        for (i = 0; i < 4; i++) {
+                for (j = 0; j < 4; j++) {
+                        set_pixel(buf, x, y, i, j, color);
+                }
+        }
+
+        type = FV_MAP_GET_BLOCK_TYPE(block);
+
+        if (type == FV_MAP_BLOCK_TYPE_SPECIAL) {
+                set_pixel(buf, x, y, 2, 1, &black);
+                set_corners(buf, x, y, &black);
+        } else if (type != FV_MAP_BLOCK_TYPE_FLOOR) {
+                color = lookup_color(side_map,
+                                     FV_MAP_GET_BLOCK_NORTH_IMAGE(block));
+                for (i = 0; i < 3; i++)
+                        set_pixel(buf, x, y, i, 0, color);
+                color = lookup_color(side_map,
+                                     FV_MAP_GET_BLOCK_EAST_IMAGE(block));
+                for (i = 0; i < 3; i++)
+                        set_pixel(buf, x, y, 3, i, color);
+                color = lookup_color(side_map,
+                                     FV_MAP_GET_BLOCK_SOUTH_IMAGE(block));
+                for (i = 0; i < 3; i++)
+                        set_pixel(buf, x, y, i + 1, 3, color);
+                color = lookup_color(side_map,
+                                     FV_MAP_GET_BLOCK_WEST_IMAGE(block));
+                for (i = 0; i < 3; i++)
+                        set_pixel(buf, x, y, 0, i + 1, color);
+
+                if (type == FV_MAP_BLOCK_TYPE_HALF_WALL)
+                        set_pixel(buf, x, y, 1, 2, color);
+        }
+}
+
+static void
+save_special(struct data *data,
+             uint8_t *buf,
+             const struct fv_map_special *special)
+{
+        struct color_map rotation;
+
+        set_pixel(buf,
+                  special->x, special->y,
+                  2, 1,
+                  special_map + special->num);
+
+        rotation.r = special->rotation >> 8;
+        rotation.g = special->rotation & 0xff;
+        set_pixel(buf,
+                  special->x, special->y,
+                  2, 2,
+                  &rotation);
+}
+
+static void
+save(struct data *data)
+{
+        uint8_t *buf;
+        char *filename;
+        FILE *out;
+        int y, x, i, j;
+        int img_width, img_height;
+
+        filename = fv_data_get_filename("../fv-map.ppm");
+
+        if (filename == NULL) {
+                fv_error_message("error getting save filename");
+                return;
+        }
+
+        img_width = FV_MAP_WIDTH * 4;
+        img_height = FV_MAP_HEIGHT * 4;
+
+        buf = fv_alloc(img_width * img_height * 3);
+
+        for (y = 0; y < FV_MAP_HEIGHT; y++) {
+                for (x = 0; x < FV_MAP_WIDTH; x++) {
+                        save_block(buf,
+                                   x, y,
+                                   data->map.blocks[y * FV_MAP_WIDTH + x]);
+                }
+        }
+
+        for (i = 0; i < FV_MAP_TILES_X * FV_MAP_TILES_Y; i++) {
+                for (j = 0; j < data->map.tiles[i].n_specials; j++) {
+                        save_special(data,
+                                     buf,
+                                     data->map.tiles[i].specials + j);
+                }
+        }
+
+        out = fopen(filename, "wb");
+
+        fv_free(filename);
+
+        if (out == NULL) {
+                fv_error_message("error saving: %s", strerror(errno));
+        } else {
+                fprintf(out,
+                        "P6\n"
+                        "%i %i\n"
+                        "255\n",
+                        img_width,
+                        img_height);
+
+                fwrite(buf, img_width * img_height * 3, 1, out);
+
+                fclose(out);
+        }
+
+        fv_free(buf);
+}
+
 static bool
 handle_key_event(struct data *data,
                  const SDL_KeyboardEvent *event)
@@ -296,6 +460,10 @@ handle_key_event(struct data *data,
 
         case SDLK_h:
                 toggle_height(data);
+                break;
+
+        case SDLK_s:
+                save(data);
                 break;
 
         case SDLK_t:
