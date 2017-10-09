@@ -77,4 +77,9 @@ struct fv_vertex_shout {
         float s, t;
 };
 
+struct fv_vertex_highlight {
+        float x, y, z;
+        uint8_t r, g, b, a;
+};
+
 #endif /* FV_VERTEX_H */

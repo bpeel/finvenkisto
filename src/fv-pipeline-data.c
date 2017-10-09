@@ -39,6 +39,7 @@ enum fv_pipeline_data_shader {
         FV_PIPELINE_DATA_SHADER_SPECIAL_TEXTURE_VERTEX,
         FV_PIPELINE_DATA_SHADER_PERSON_VERTEX,
         FV_PIPELINE_DATA_SHADER_TEXTURE_VERTEX,
+        FV_PIPELINE_DATA_SHADER_HIGHLIGHT_VERTEX,
         FV_PIPELINE_DATA_SHADER_COLOR_FRAGMENT,
         FV_PIPELINE_DATA_SHADER_TEXTURE_FRAGMENT,
         FV_PIPELINE_DATA_SHADER_LIGHTING_TEXTURE_FRAGMENT,
@@ -68,6 +69,9 @@ shader_data[] = {
         },
         [FV_PIPELINE_DATA_SHADER_TEXTURE_VERTEX] = {
                 .filename = "fv-texture-vertex.spirv"
+        },
+        [FV_PIPELINE_DATA_SHADER_HIGHLIGHT_VERTEX] = {
+                .filename = "fv-highlight-vertex.spirv"
         },
         [FV_PIPELINE_DATA_SHADER_COLOR_FRAGMENT] = {
                 .filename = "fv-color-fragment.spirv"
@@ -1271,6 +1275,98 @@ create_shout_pipeline(const struct fv_vk_data *vk_data,
 }
 
 static bool
+create_highlight_pipeline(const struct fv_vk_data *vk_data,
+                          VkRenderPass render_pass,
+                          VkPipelineCache pipeline_cache,
+                          VkShaderModule *shaders,
+                          struct fv_pipeline_data *data)
+{
+        VkResult res;
+
+        VkPipelineShaderStageCreateInfo stages[] = {
+                {
+                        .sType =
+                        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                        .module =
+                        shaders[FV_PIPELINE_DATA_SHADER_HIGHLIGHT_VERTEX],
+                        .pName = "main"
+                },
+                {
+                        .sType =
+                        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                        .module =
+                        shaders[FV_PIPELINE_DATA_SHADER_COLOR_FRAGMENT],
+                        .pName = "main"
+                },
+        };
+        VkVertexInputBindingDescription input_binding_descriptions[] = {
+                {
+                        .binding = 0,
+                        .stride = sizeof (struct fv_vertex_highlight),
+                        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+                }
+        };
+        VkVertexInputAttributeDescription attribute_descriptions[] = {
+                {
+                        .location = 0,
+                        .binding = 0,
+                        .format = VK_FORMAT_R32G32B32_SFLOAT,
+                        .offset = offsetof(struct fv_vertex_highlight, x)
+                },
+                {
+                        .location = 1,
+                        .binding = 0,
+                        .format = VK_FORMAT_R8G8B8A8_UNORM,
+                        .offset = offsetof(struct fv_vertex_highlight, r)
+                },
+        };
+        VkPipelineVertexInputStateCreateInfo vertex_input_state = {
+                .sType =
+                VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+                .vertexBindingDescriptionCount =
+                FV_N_ELEMENTS(input_binding_descriptions),
+                .pVertexBindingDescriptions = input_binding_descriptions,
+                .vertexAttributeDescriptionCount =
+                FV_N_ELEMENTS(attribute_descriptions),
+                .pVertexAttributeDescriptions = attribute_descriptions
+        };
+        VkPipelineInputAssemblyStateCreateInfo input_assembly_state = {
+                .sType =
+                VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+                .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+                .primitiveRestartEnable = false
+        };
+
+        VkGraphicsPipelineCreateInfo info = base_pipeline_create_info;
+
+        info.stageCount = FV_N_ELEMENTS(stages);
+        info.pStages = stages;
+        info.pVertexInputState = &vertex_input_state;
+        info.pInputAssemblyState = &input_assembly_state;
+        info.layout = data->layouts[FV_PIPELINE_DATA_LAYOUT_SHOUT];
+        info.renderPass = render_pass;
+        info.pColorBlendState = &base_blend_enabled_state;
+
+        VkPipeline *pipeline =
+                data->pipelines + FV_PIPELINE_DATA_PIPELINE_HIGHLIGHT;
+        res = fv_vk.vkCreateGraphicsPipelines(vk_data->device,
+                                              pipeline_cache,
+                                              1, /* nCreateInfos */
+                                              &info,
+                                              NULL, /* allocator */
+                                              pipeline);
+
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating highlight pipeline");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
 create_objects(const struct fv_vk_data *vk_data,
                VkRenderPass render_pass,
                VkPipelineCache pipeline_cache,
@@ -1359,6 +1455,13 @@ create_objects(const struct fv_vk_data *vk_data,
                                    pipeline_cache,
                                    shaders,
                                    data))
+                return false;
+
+        if (!create_highlight_pipeline(vk_data,
+                                       render_pass,
+                                       pipeline_cache,
+                                       shaders,
+                                       data))
                 return false;
 
         return true;
