@@ -17,22 +17,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FV_VK_DATA_H
-#define FV_VK_DATA_H
+#ifndef FV_WINDOW_H
+#define FV_WINDOW_H
 
+#include <stdbool.h>
 #include "fv-vk.h"
+#include "fv-vk-data.h"
 
-struct fv_vk_data {
-        VkDevice device;
-        VkPhysicalDevice physical_device;
-        VkPhysicalDeviceMemoryProperties memory_properties;
-        VkPhysicalDeviceProperties device_properties;
-        VkDescriptorPool descriptor_pool;
-        VkCommandPool command_pool;
-        VkCommandBuffer command_buffer;
-        VkRenderPass render_pass;
-        VkQueue queue;
-        int queue_family;
-};
+struct fv_window *
+fv_window_new(bool is_fullscreen);
 
-#endif /* FV_VK_DATA_H */
+void
+fv_window_resized(struct fv_window *window);
+
+void
+fv_window_toggle_fullscreen(struct fv_window *window);
+
+void
+fv_window_get_extent(struct fv_window *window,
+                     VkExtent2D *extent);
+
+struct fv_vk_data *
+fv_window_get_vk_data(struct fv_window *window);
+
+bool
+fv_window_begin_paint(struct fv_window *window,
+                      bool need_clear);
+
+bool
+fv_window_end_paint(struct fv_window *window);
+
+void
+fv_window_free(struct fv_window *window);
+
+#endif /* FV_WINDOW_H */

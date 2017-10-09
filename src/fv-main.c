@@ -1,7 +1,7 @@
 /*
  * Finvenkisto
  *
- * Copyright (C) 2013, 2014, 2015, 2016 Neil Roberts
+ * Copyright (C) 2013, 2014, 2015, 2016, 2017 Neil Roberts
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <SDL.h>
-#include <SDL_syswm.h>
 
 #include "fv-game.h"
 #include "fv-logic.h"
@@ -34,12 +33,11 @@
 #include "fv-util.h"
 #include "fv-hud.h"
 #include "fv-map.h"
-#include "fv-error-message.h"
 #include "fv-data.h"
 #include "fv-pipeline-data.h"
 #include "fv-vk-data.h"
-#include "fv-allocate-store.h"
 #include "fv-input.h"
+#include "fv-window.h"
 
 struct viewport {
         int x, y;
@@ -47,44 +45,9 @@ struct viewport {
         float center_x, center_y;
 };
 
-struct swapchain_image {
-        VkImage image;
-        VkImageView image_view;
-        VkFramebuffer framebuffer;
-};
-
 struct data {
-        /* Permanant vulkan resources */
-        struct fv_vk_data vk_data;
-        VkInstance vk_instance;
-        VkFormat vk_depth_format;
-        VkQueue vk_queue;
-        VkCommandPool vk_command_pool;
-        VkCommandBuffer vk_command_buffer;
-        VkRenderPass vk_render_pass;
-        VkFence vk_fence;
-        VkSurfaceKHR vk_surface;
-        VkSemaphore vk_semaphore;
-        VkFormat vk_surface_format;
-        VkPresentModeKHR vk_present_mode;
-
-        /* Resources that are recreated lazily whenever the
-         * framebuffer size changes.
-         */
-        struct {
-                VkSwapchainKHR swapchain;
-                uint32_t n_swapchain_images;
-                struct swapchain_image *swapchain_images;
-                VkImage depth_image;
-                VkDeviceMemory depth_image_memory;
-                VkImageView depth_image_view;
-                VkSurfaceCapabilitiesKHR caps;
-                VkExtent2D extent;
-        } vk_fb;
-
-        SDL_Window *window;
-        SDL_SysWMinfo window_info;
-        int last_fb_width, last_fb_height;
+        struct fv_window *window;
+        struct fv_vk_data *vk_data;
 
         struct {
                 struct fv_game *game;
@@ -96,7 +59,6 @@ struct data {
         struct fv_logic *logic;
 
         bool quit;
-        bool is_fullscreen;
 
         bool viewports_dirty;
         int n_viewports;
@@ -105,7 +67,10 @@ struct data {
 
         struct fv_input *input;
 
+        int last_fb_width, last_fb_height;
         struct viewport viewports[FV_LOGIC_MAX_PLAYERS];
+
+        bool fullscreen_opt;
 };
 
 static void
@@ -131,27 +96,6 @@ reset_menu_state(struct data *data)
         fv_logic_reset(data->logic, 0);
 }
 
-static void
-toggle_fullscreen(struct data *data)
-{
-        int display_index;
-        SDL_DisplayMode mode;
-
-        display_index = SDL_GetWindowDisplayIndex(data->window);
-
-        if (display_index == -1)
-                return;
-
-        if (SDL_GetDesktopDisplayMode(display_index, &mode) == -1)
-                return;
-
-        SDL_SetWindowDisplayMode(data->window, &mode);
-
-        data->is_fullscreen = !data->is_fullscreen;
-
-        SDL_SetWindowFullscreen(data->window, data->is_fullscreen);
-}
-
 static bool
 handle_key_event(struct data *data,
                  const SDL_KeyboardEvent *event)
@@ -173,7 +117,7 @@ handle_key_event(struct data *data,
 
         case SDLK_F11:
                 if (event->state == SDL_PRESSED) {
-                        toggle_fullscreen(data);
+                        fv_window_toggle_fullscreen(data->window);
                         return true;
                 }
                 break;
@@ -219,11 +163,11 @@ create_graphics(struct data *data)
 
         VkCommandBufferAllocateInfo command_buffer_allocate_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                .commandPool = data->vk_command_pool,
+                .commandPool = data->vk_data->command_pool,
                 .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                 .commandBufferCount = 1
         };
-        res = fv_vk.vkAllocateCommandBuffers(data->vk_data.device,
+        res = fv_vk.vkAllocateCommandBuffers(data->vk_data->device,
                                              &command_buffer_allocate_info,
                                              &command_buffer);
         if (res != VK_SUCCESS)
@@ -235,22 +179,20 @@ create_graphics(struct data *data)
         };
         fv_vk.vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
 
-        image_data = fv_image_data_new(&data->vk_data, command_buffer);
+        image_data = fv_image_data_new(data->vk_data, command_buffer);
         if (image_data == NULL)
                 goto error_command_buffer;
 
         memset(&data->graphics, 0, sizeof data->graphics);
 
-        data->last_fb_width = data->last_fb_height = 0;
-
-        data->graphics.hud = fv_hud_new(&data->vk_data,
+        data->graphics.hud = fv_hud_new(data->vk_data,
                                         &data->pipeline_data,
                                         image_data);
 
         if (data->graphics.hud == NULL)
                 goto error;
 
-        data->graphics.game = fv_game_new(&data->vk_data,
+        data->graphics.game = fv_game_new(data->vk_data,
                                           &data->pipeline_data,
                                           image_data);
 
@@ -264,14 +206,17 @@ create_graphics(struct data *data)
                 .commandBufferCount = 1,
                 .pCommandBuffers = &command_buffer
         };
-        fv_vk.vkQueueSubmit(data->vk_queue, 1, &submitInfo, VK_NULL_HANDLE);
+        fv_vk.vkQueueSubmit(data->vk_data->queue,
+                            1,
+                            &submitInfo,
+                            VK_NULL_HANDLE);
 
-        fv_vk.vkQueueWaitIdle(data->vk_queue);
+        fv_vk.vkQueueWaitIdle(data->vk_data->queue);
 
         fv_image_data_free(image_data);
 
-        fv_vk.vkFreeCommandBuffers(data->vk_data.device,
-                                   data->vk_command_pool,
+        fv_vk.vkFreeCommandBuffers(data->vk_data->device,
+                                   data->vk_data->command_pool,
                                    1, /* commandBufferCount */
                                    &command_buffer);
 
@@ -281,74 +226,11 @@ error:
         destroy_graphics(data);
         fv_image_data_free(image_data);
 error_command_buffer:
-        fv_vk.vkFreeCommandBuffers(data->vk_data.device,
-                                   data->vk_command_pool,
+        fv_vk.vkFreeCommandBuffers(data->vk_data->device,
+                                   data->vk_data->command_pool,
                                    1, /* commandBufferCount */
                                    &command_buffer);
         return false;
-}
-
-static void
-destroy_swapchain_image(struct data *data,
-                        struct swapchain_image *swapchain_image)
-{
-        if (swapchain_image->framebuffer) {
-                fv_vk.vkDestroyFramebuffer(data->vk_data.device,
-                                           swapchain_image->framebuffer,
-                                           NULL /* allocator */);
-        }
-        if (swapchain_image->image_view) {
-                fv_vk.vkDestroyImageView(data->vk_data.device,
-                                         swapchain_image->image_view,
-                                         NULL /* allocator */);
-        }
-}
-
-static void
-destroy_framebuffer_resources(struct data *data)
-{
-        int i;
-
-        if (data->vk_fb.depth_image_view)
-                fv_vk.vkDestroyImageView(data->vk_data.device,
-                                         data->vk_fb.depth_image_view,
-                                         NULL /* allocator */);
-        if (data->vk_fb.depth_image_memory)
-                fv_vk.vkFreeMemory(data->vk_data.device,
-                                   data->vk_fb.depth_image_memory,
-                                   NULL /* allocator */);
-        if (data->vk_fb.depth_image)
-                fv_vk.vkDestroyImage(data->vk_data.device,
-                                     data->vk_fb.depth_image,
-                                     NULL /* allocator */);
-        if (data->vk_fb.swapchain_images) {
-                for (i = 0; i < data->vk_fb.n_swapchain_images; i++) {
-                        destroy_swapchain_image(data,
-                                                data->vk_fb.swapchain_images +
-                                                i);
-                }
-                fv_free(data->vk_fb.swapchain_images);
-        }
-        if (data->vk_fb.swapchain)
-                fv_vk.vkDestroySwapchainKHR(data->vk_data.device,
-                                            data->vk_fb.swapchain,
-                                            NULL /* allocator */);
-
-        memset(&data->vk_fb, 0, sizeof data->vk_fb);
-}
-
-static void
-handle_window_size_changed(struct data *data)
-{
-        /* If the window size is determined by the swap chain size
-         * then we’ll destroy the fb resources in order to trigger it
-         * to recreate them at the right size. Otherwise this should
-         * be recognised when we try to acquire an out-of-date buffer.
-         */
-        if (data->vk_fb.swapchain &&
-            data->vk_fb.caps.currentExtent.width == 0xffffffff) {
-                destroy_framebuffer_resources(data);
-        }
 }
 
 static void
@@ -362,7 +244,7 @@ handle_event(struct data *data,
                         data->quit = true;
                         break;
                 case SDL_WINDOWEVENT_SIZE_CHANGED:
-                        handle_window_size_changed(data);
+                        fv_window_resized(data->window);
                         break;
                 }
                 goto handled;
@@ -395,20 +277,20 @@ paint_hud(struct data *data,
         switch (fv_input_get_state(data->input)) {
         case FV_INPUT_STATE_CHOOSING_N_PLAYERS:
                 fv_hud_paint_player_select(data->graphics.hud,
-                                           data->vk_command_buffer,
+                                           data->vk_data->command_buffer,
                                            n_players,
                                            w, h);
                 break;
         case FV_INPUT_STATE_CHOOSING_CONTROLLERS:
                 fv_hud_paint_controller_select(data->graphics.hud,
-                                               data->vk_command_buffer,
+                                               data->vk_data->command_buffer,
                                                w, h,
                                                next_player,
                                                n_players);
                 break;
         case FV_INPUT_STATE_PLAYING:
                 fv_hud_paint_game_state(data->graphics.hud,
-                                        data->vk_command_buffer,
+                                        data->vk_data->command_buffer,
                                         w, h,
                                         data->logic);
                 break;
@@ -504,308 +386,23 @@ need_clear(struct data *data)
         return false;
 }
 
-static bool
-create_swapchain_image(struct data *data,
-                       struct swapchain_image *swapchain_image)
-{
-        VkResult res;
-
-        VkImageViewCreateInfo image_view_create_info = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = swapchain_image->image,
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = data->vk_surface_format,
-                .components = {
-                        .r = VK_COMPONENT_SWIZZLE_R,
-                        .g = VK_COMPONENT_SWIZZLE_G,
-                        .b = VK_COMPONENT_SWIZZLE_B,
-                        .a = VK_COMPONENT_SWIZZLE_A
-                },
-                .subresourceRange = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .baseMipLevel = 0,
-                        .levelCount = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1
-                }
-        };
-        res = fv_vk.vkCreateImageView(data->vk_data.device,
-                                      &image_view_create_info,
-                                      NULL, /* allocator */
-                                      &swapchain_image->image_view);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating image view");
-                goto error;
-        }
-
-        VkImageView attachments[] = {
-                swapchain_image->image_view,
-                data->vk_fb.depth_image_view
-        };
-        VkFramebufferCreateInfo framebuffer_create_info = {
-                .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-                .renderPass = data->vk_render_pass,
-                .attachmentCount = FV_N_ELEMENTS(attachments),
-                .pAttachments = attachments,
-                .width = data->vk_fb.extent.width,
-                .height = data->vk_fb.extent.height,
-                .layers = 1
-        };
-        res = fv_vk.vkCreateFramebuffer(data->vk_data.device,
-                                        &framebuffer_create_info,
-                                        NULL, /* allocator */
-                                        &swapchain_image->framebuffer);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating framebuffer");
-                goto error;
-        }
-
-        return true;
-
-error:
-        return false;
-}
-
-static bool
-create_swapchain_images(struct data *data)
-{
-        VkResult res;
-        VkImage *images;
-        uint32_t n_images;
-        int i;
-
-        res = fv_vk.vkGetSwapchainImagesKHR(data->vk_data.device,
-                                            data->vk_fb.swapchain,
-                                            &n_images,
-                                            NULL /* images */);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error getting swapchain images");
-                goto error;
-        }
-        images = alloca(sizeof *images * n_images);
-        res = fv_vk.vkGetSwapchainImagesKHR(data->vk_data.device,
-                                            data->vk_fb.swapchain,
-                                            &n_images,
-                                            images);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error getting swapchain images");
-                goto error;
-        }
-
-        data->vk_fb.swapchain_images =
-                fv_calloc(sizeof *data->vk_fb.swapchain_images * n_images);
-        data->vk_fb.n_swapchain_images = n_images;
-
-        for (i = 0; i < n_images; i++) {
-                data->vk_fb.swapchain_images[i].image = images[i];
-                if (!create_swapchain_image(data,
-                                            data->vk_fb.swapchain_images + i))
-                        goto error;
-        }
-
-        return true;
-
-error:
-        return false;
-}
-
-static void
-get_fb_extent(struct data *data)
-{
-        int w, h;
-
-        /* This value is used when the window size is determined by
-         * the swap chain size, such as on Wayland. In that case will
-         * ask SDL for the right size. */
-        if (data->vk_fb.caps.currentExtent.width == 0xffffffff) {
-                SDL_GetWindowSize(data->window, &w, &h);
-                data->vk_fb.extent.width = w;
-                data->vk_fb.extent.height = h;
-        } else {
-                data->vk_fb.extent = data->vk_fb.caps.currentExtent;
-        }
-}
-
-static bool
-create_framebuffer_resources(struct data *data)
-{
-        VkPhysicalDevice physical_device = data->vk_data.physical_device;
-        VkSurfaceCapabilitiesKHR *caps = &data->vk_fb.caps;
-
-        VkResult res;
-
-        res = fv_vk.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device,
-                                                              data->vk_surface,
-                                                              caps);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error getting device surface caps");
-                goto error;
-        }
-
-        get_fb_extent(data);
-
-        VkSwapchainCreateInfoKHR swapchain_create_info = {
-                .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-                .surface = data->vk_surface,
-                .minImageCount = MAX(caps->minImageCount, 2),
-                .imageFormat = data->vk_surface_format,
-                .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
-                .imageExtent = data->vk_fb.extent,
-                .imageArrayLayers = 1,
-                .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                .queueFamilyIndexCount = 1,
-                .pQueueFamilyIndices =
-                (uint32_t[]) { data->vk_data.queue_family },
-                .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-                .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-                .presentMode = data->vk_present_mode,
-                .clipped = VK_TRUE
-        };
-        res = fv_vk.vkCreateSwapchainKHR(data->vk_data.device,
-                                         &swapchain_create_info,
-                                         NULL, /* allocator */
-                                         &data->vk_fb.swapchain);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating swapchain");
-                goto error;
-        }
-
-        VkImageCreateInfo image_create_info = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                .imageType = VK_IMAGE_TYPE_2D,
-                .format = data->vk_depth_format,
-                .extent = {
-                        .width = data->vk_fb.extent.width,
-                        .height = data->vk_fb.extent.height,
-                        .depth = 1
-                },
-                .mipLevels = 1,
-                .arrayLayers = 1,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .tiling = VK_IMAGE_TILING_OPTIMAL,
-                .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
-        };
-        res = fv_vk.vkCreateImage(data->vk_data.device,
-                                  &image_create_info,
-                                  NULL, /* allocator */
-                                  &data->vk_fb.depth_image);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating depth image");
-                goto error;
-        }
-
-        res = fv_allocate_store_image(&data->vk_data,
-                                      0, /* memory_type_flags */
-                                      1, /* n_images */
-                                      &data->vk_fb.depth_image,
-                                      &data->vk_fb.depth_image_memory,
-                                      NULL /* memory_type_index */);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error allocating depthbuffer memory");
-                goto error;
-        }
-
-        VkImageViewCreateInfo image_view_create_info = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = data->vk_fb.depth_image,
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = data->vk_depth_format,
-                .components = {
-                        .r = VK_COMPONENT_SWIZZLE_R,
-                        .g = VK_COMPONENT_SWIZZLE_G,
-                        .b = VK_COMPONENT_SWIZZLE_B,
-                        .a = VK_COMPONENT_SWIZZLE_A
-                },
-                .subresourceRange = {
-                        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-                        .baseMipLevel = 0,
-                        .levelCount = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1
-                }
-        };
-        res = fv_vk.vkCreateImageView(data->vk_data.device,
-                                      &image_view_create_info,
-                                      NULL, /* allocator */
-                                      &data->vk_fb.depth_image_view);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating depth-stencil image view");
-                goto error;
-        }
-
-        if (!create_swapchain_images(data))
-                goto error;
-
-        return true;
-
-error:
-        destroy_framebuffer_resources(data);
-
-        return false;
-}
-
-static bool
-acquire_image(struct data *data,
-              uint32_t *swapchain_image_index)
-{
-        VkResult res;
-        int i;
-
-        for (i = 0; i < 2; i++) {
-                if (data->vk_fb.swapchain == NULL &&
-                    !create_framebuffer_resources(data)) {
-                        data->quit = true;
-                        return false;
-                }
-
-                res = fv_vk.vkAcquireNextImageKHR(data->vk_data.device,
-                                                  data->vk_fb.swapchain,
-                                                  UINT64_MAX,
-                                                  data->vk_semaphore,
-                                                  VK_NULL_HANDLE, /* fence */
-                                                  swapchain_image_index);
-                if (i == 0 &&
-                    (res == VK_ERROR_OUT_OF_DATE_KHR ||
-                     res == VK_SUBOPTIMAL_KHR)) {
-                        /* This will probably happen if the window is
-                         * resized while we are waiting. Try
-                         * recreating the resources with the right
-                         * size. */
-                        destroy_framebuffer_resources(data);
-                } else if (res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) {
-                        return true;
-                } else {
-                        fv_error_message("Error getting swapchain image 0x%x",
-                                         res);
-                        data->quit = true;
-                        return false;
-                }
-        }
-
-        return true;
-}
-
 static void
 paint(struct data *data)
 {
-        VkResult res;
-        uint32_t swapchain_image_index;
-        struct swapchain_image *swapchain_image;
-        const VkExtent2D *extent;
+        VkExtent2D extent;
         int i;
 
-        if (!acquire_image(data, &swapchain_image_index))
+        if (!fv_window_begin_paint(data->window, need_clear(data))) {
+                data->quit = true;
                 return;
+        }
 
-        extent = &data->vk_fb.extent;
+        fv_window_get_extent(data->window, &extent);
 
-        if (extent->width != data->last_fb_width ||
-            extent->height != data->last_fb_height) {
-                data->last_fb_width = extent->width;
-                data->last_fb_height = extent->height;
+        if (extent.width != data->last_fb_width ||
+            extent.height != data->last_fb_height) {
+                data->last_fb_width = extent.width;
+                data->last_fb_height = extent.height;
                 data->viewports_dirty = true;
         }
 
@@ -813,73 +410,6 @@ paint(struct data *data)
 
         update_viewports(data);
         update_centers(data);
-
-        swapchain_image = data->vk_fb.swapchain_images + swapchain_image_index;
-
-        VkCommandBufferBeginInfo begin_command_buffer_info = {
-                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
-        };
-        res = fv_vk.vkBeginCommandBuffer(data->vk_command_buffer,
-                                         &begin_command_buffer_info);
-        if (res != VK_SUCCESS)
-                return;
-
-        VkClearValue clear_values[] = {
-                [1] = {
-                        .depthStencil = {
-                                .depth = 1.0f,
-                                .stencil = 0
-                        }
-                }
-        };
-        VkRenderPassBeginInfo render_pass_begin_info = {
-                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-                .renderPass = data->vk_render_pass,
-                .framebuffer = swapchain_image->framebuffer,
-                .renderArea = {
-                        .offset = { 0, 0 },
-                        .extent = *extent
-                },
-                .clearValueCount = FV_N_ELEMENTS(clear_values),
-                .pClearValues = clear_values
-        };
-        fv_vk.vkCmdBeginRenderPass(data->vk_command_buffer,
-                                   &render_pass_begin_info,
-                                   VK_SUBPASS_CONTENTS_INLINE);
-
-        if (need_clear(data)) {
-                VkClearAttachment color_clear_attachment = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .colorAttachment = 0,
-                        .clearValue = {
-                                .color = {
-                                        .float32 = { 0.0f, 0.0f, 0.0f, 0.0f }
-                                }
-                        },
-                };
-                VkClearRect color_clear_rect = {
-                        .rect = {
-                                .offset = { 0, 0 },
-                                .extent = *extent
-                        },
-                        .baseArrayLayer = 0,
-                        .layerCount = 1
-                };
-                fv_vk.vkCmdClearAttachments(data->vk_command_buffer,
-                                            1, /* attachmentCount */
-                                            &color_clear_attachment,
-                                            1,
-                                            &color_clear_rect);
-        }
-
-        VkRect2D scissor = {
-                .offset = { .x = 0, .y = 0 },
-                .extent = *extent
-        };
-        fv_vk.vkCmdSetScissor(data->vk_command_buffer,
-                              0, /* firstScissor */
-                              1, /* scissorCount */
-                              &scissor);
 
         fv_game_begin_frame(data->graphics.game);
 
@@ -892,7 +422,7 @@ paint(struct data *data)
                         .minDepth = 0.0f,
                         .maxDepth = 1.0f
                 };
-                fv_vk.vkCmdSetViewport(data->vk_command_buffer,
+                fv_vk.vkCmdSetViewport(data->vk_data->command_buffer,
                                        0, /* firstViewport */
                                        1, /* viewportCount */
                                        &viewport);
@@ -902,7 +432,7 @@ paint(struct data *data)
                               data->viewports[i].width,
                               data->viewports[i].height,
                               data->logic,
-                              data->vk_command_buffer);
+                              data->vk_data->command_buffer);
         }
 
         fv_game_end_frame(data->graphics.game);
@@ -911,67 +441,21 @@ paint(struct data *data)
                 VkViewport viewport = {
                         .x = 0,
                         .y = 0,
-                        .width = extent->width,
-                        .height = extent->height,
+                        .width = extent.width,
+                        .height = extent.height,
                         .minDepth = 0.0f,
                         .maxDepth = 1.0f
                 };
-                fv_vk.vkCmdSetViewport(data->vk_command_buffer,
+                fv_vk.vkCmdSetViewport(data->vk_data->command_buffer,
                                        0, /* firstViewport */
                                        1, /* viewportCount */
                                        &viewport);
         }
 
-        paint_hud(data, extent->width, extent->height);
+        paint_hud(data, extent.width, extent.height);
 
-        fv_vk.vkCmdEndRenderPass(data->vk_command_buffer);
-
-        res = fv_vk.vkEndCommandBuffer(data->vk_command_buffer);
-        if (res != VK_SUCCESS)
-                return;
-
-        fv_vk.vkResetFences(data->vk_data.device,
-                            1, /* fenceCount */
-                            &data->vk_fence);
-
-        VkSubmitInfo submit_info = {
-                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                .commandBufferCount = 1,
-                .pCommandBuffers = &data->vk_command_buffer,
-                .waitSemaphoreCount = 1,
-                .pWaitSemaphores = (VkSemaphore[]) { data->vk_semaphore },
-                .pWaitDstStageMask =
-                (VkPipelineStageFlagBits[])
-                { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }
-        };
-        res = fv_vk.vkQueueSubmit(data->vk_queue,
-                                  1, /* submitCount */
-                                  &submit_info,
-                                  data->vk_fence);
-        if (res != VK_SUCCESS)
-                return;
-
-        res = fv_vk.vkWaitForFences(data->vk_data.device,
-                                    1, /* fenceCount */
-                                    &data->vk_fence,
-                                    VK_TRUE, /* waitAll */
-                                    UINT64_MAX);
-        if (res != VK_SUCCESS)
-                return;
-
-        VkPresentInfoKHR present_info = {
-                .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-                .swapchainCount = 1,
-                .pSwapchains = (VkSwapchainKHR[]) { data->vk_fb.swapchain },
-                .pImageIndices = (uint32_t[]) { swapchain_image_index },
-        };
-        res = fv_vk.vkQueuePresentKHR(data->vk_queue,
-                                      &present_info);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error presenting image");
+        if (!fv_window_end_paint(data->window))
                 data->quit = true;
-                return;
-        }
 }
 
 static void
@@ -996,11 +480,11 @@ process_argument_flags(struct data *data,
                         return false;
 
                 case 'f':
-                        data->is_fullscreen = false;
+                        data->fullscreen_opt = false;
                         break;
 
                 case 'p':
-                        data->is_fullscreen = true;
+                        data->fullscreen_opt = true;
                         break;
 
                 default:
@@ -1048,682 +532,13 @@ iterate_main_loop(struct data *data)
         paint(data);
 }
 
-static int
-find_queue_family(struct data *data,
-                  VkPhysicalDevice physical_device)
-{
-        VkQueueFamilyProperties *queues;
-        uint32_t count = 0;
-        uint32_t i;
-        VkBool32 supported;
-
-        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
-                                                       &count,
-                                                       NULL /* queues */);
-
-        queues = fv_alloc(sizeof *queues * count);
-
-        fv_vk.vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
-                                                       &count,
-                                                       queues);
-
-        for (i = 0; i < count; i++) {
-                if ((queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0 ||
-                    queues[i].queueCount < 1)
-                        continue;
-
-                supported = false;
-                fv_vk.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device,
-                                                           i,
-                                                           data->vk_surface,
-                                                           &supported);
-                if (supported)
-                        break;
-        }
-
-        fv_free(queues);
-
-        if (i >= count)
-                return -1;
-        else
-                return i;
-}
-
-static VkFormat
-get_depth_format(struct data *data)
-{
-        /* According to the spec at least one of these formats must be
-         * supported for depth so we'll just try them both until one
-         * of them works.
-         */
-        static const VkFormat formats[] = {
-                VK_FORMAT_X8_D24_UNORM_PACK32,
-                VK_FORMAT_D32_SFLOAT
-        };
-        VkFormatProperties format_properties;
-        VkPhysicalDevice physical_device = data->vk_data.physical_device;
-        int i;
-
-        for (i = 0; i < FV_N_ELEMENTS(formats); i++) {
-                fv_vk.vkGetPhysicalDeviceFormatProperties(physical_device,
-                                                          formats[i],
-                                                          &format_properties);
-                if ((format_properties.optimalTilingFeatures &
-                     VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT))
-                        return formats[i];
-        }
-
-        assert(false);
-}
-
-static void
-deinit_vk(struct data *data)
-{
-        if (data->vk_fence) {
-                fv_vk.vkDestroyFence(data->vk_data.device,
-                                     data->vk_fence,
-                                     NULL /* allocator */);
-        }
-        if (data->vk_render_pass) {
-                fv_vk.vkDestroyRenderPass(data->vk_data.device,
-                                          data->vk_render_pass,
-                                          NULL /* allocator */);
-        }
-        if (data->vk_data.descriptor_pool) {
-                fv_vk.vkDestroyDescriptorPool(data->vk_data.device,
-                                              data->vk_data.descriptor_pool,
-                                              NULL /* allocator */);
-        }
-        if (data->vk_command_buffer) {
-                fv_vk.vkFreeCommandBuffers(data->vk_data.device,
-                                           data->vk_command_pool,
-                                           1, /* commandBufferCount */
-                                           &data->vk_command_buffer);
-        }
-        if (data->vk_command_pool) {
-                fv_vk.vkDestroyCommandPool(data->vk_data.device,
-                                           data->vk_command_pool,
-                                           NULL /* allocator */);
-        }
-        if (data->vk_semaphore) {
-                fv_vk.vkDestroySemaphore(data->vk_data.device,
-                                         data->vk_semaphore,
-                                         NULL /* allocator */);
-        }
-        if (data->vk_data.device) {
-                fv_vk.vkDestroyDevice(data->vk_data.device,
-                                      NULL /* allocator */);
-        }
-        if (data->vk_surface) {
-                fv_vk.vkDestroySurfaceKHR(data->vk_instance,
-                                          data->vk_surface,
-                                          NULL /* allocator */);
-        }
-        if (data->vk_instance) {
-                fv_vk.vkDestroyInstance(data->vk_instance,
-                                        NULL /* allocator */);
-        }
-}
-
-static bool
-check_device_extension(struct data *data,
-                       VkPhysicalDevice physical_device,
-                       const char *extension)
-{
-        VkExtensionProperties *extensions;
-        uint32_t count;
-        VkResult res;
-        int i;
-
-        res = fv_vk.vkEnumerateDeviceExtensionProperties(physical_device,
-                                                         NULL, /* layerName */
-                                                         &count,
-                                                         NULL /* properties */);
-        if (res != VK_SUCCESS)
-                return false;
-
-        extensions = alloca(sizeof *extensions * count);
-
-        res = fv_vk.vkEnumerateDeviceExtensionProperties(physical_device,
-                                                         NULL, /* layerName */
-                                                         &count,
-                                                         extensions);
-        if (res != VK_SUCCESS)
-                return false;
-
-        for (i = 0; i < count; i++) {
-                if (!strcmp(extensions[i].extensionName, extension))
-                        return true;
-        }
-
-        return false;
-}
-
-static bool
-check_physical_device_surface_capabilities(struct data *data,
-                                           VkPhysicalDevice physical_device)
-{
-        VkSurfaceCapabilitiesKHR caps;
-        VkResult res;
-
-        res = fv_vk.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device,
-                                                              data->vk_surface,
-                                                              &caps);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error getting device surface caps");
-                return false;
-        }
-
-        if (caps.maxImageCount != 0 && caps.maxImageCount < 2)
-                return false;
-        if (!(caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR))
-                return false;
-        if (!(caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR))
-                return false;
-        if (!(caps.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT))
-                return false;
-
-        return true;
-}
-
-static bool
-find_physical_device(struct data *data)
-{
-        VkResult res;
-        uint32_t count;
-        VkPhysicalDevice *devices;
-        int i, queue_family;
-
-        res = fv_vk.vkEnumeratePhysicalDevices(data->vk_instance,
-                                               &count,
-                                               NULL);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error enumerating VkPhysicalDevices");
-                return false;
-        }
-
-        devices = alloca(count * sizeof *devices);
-
-        res = fv_vk.vkEnumeratePhysicalDevices(data->vk_instance,
-                                               &count,
-                                               devices);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error enumerating VkPhysicalDevices");
-                return false;
-        }
-
-        for (i = 0; i < count; i++) {
-                if (!check_device_extension(data,
-                                            devices[i],
-                                            VK_KHR_SWAPCHAIN_EXTENSION_NAME))
-                        continue;
-
-                queue_family = find_queue_family(data, devices[i]);
-                if (queue_family == -1)
-                        continue;
-
-                if (!check_physical_device_surface_capabilities(data,
-                                                                devices[i]))
-                        continue;
-
-                data->vk_data.physical_device = devices[i];
-                data->vk_data.queue_family = queue_family;
-
-                return true;
-        }
-
-        fv_error_message("No suitable device and queue family found");
-        return false;
-}
-
-static bool
-find_surface_format(struct data *data)
-{
-        VkPhysicalDevice physical_device = data->vk_data.physical_device;
-        VkSurfaceFormatKHR *formats;
-        uint32_t count = 0;
-        VkResult res;
-        int i;
-
-        res = fv_vk.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device,
-                                                         data->vk_surface,
-                                                         &count,
-                                                         NULL /* formats */);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error getting supported surface formats");
-                return false;
-        }
-
-        formats = alloca(sizeof *formats * count);
-
-        res = fv_vk.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device,
-                                                         data->vk_surface,
-                                                         &count,
-                                                         formats);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error getting supported surface formats");
-                return false;
-        }
-
-        for (i = 0; i < count; i++) {
-                switch (formats[i].format) {
-                case VK_FORMAT_B8G8R8A8_UNORM:
-                case VK_FORMAT_R8G8B8A8_UNORM:
-                        data->vk_surface_format = formats[i].format;
-                        return true;
-                default:
-                        continue;
-                }
-        }
-
-        fv_error_message("No suitable surface format found");
-        return false;
-}
-
-static bool
-find_present_mode(struct data *data)
-{
-        static const VkPresentModeKHR mode_preference[] = {
-                VK_PRESENT_MODE_MAILBOX_KHR,
-                VK_PRESENT_MODE_FIFO_KHR
-        };
-        VkPhysicalDevice physical_device = data->vk_data.physical_device;
-        VkPresentModeKHR *present_modes;
-        int chosen_preference = -1;
-        uint32_t count = 0;
-        VkResult res;
-        int i, j;
-
-        res = fv_vk.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device,
-                                                              data->vk_surface,
-                                                              &count,
-                                                              NULL);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error getting supported present modes");
-                return false;
-        }
-
-        present_modes = alloca(sizeof *present_modes * count);
-
-        res = fv_vk.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device,
-                                                              data->vk_surface,
-                                                              &count,
-                                                              present_modes);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error getting supported present modes");
-                return false;
-        }
-
-        for (i = 0; i < count; i++) {
-                for (j = 0; j < FV_N_ELEMENTS(mode_preference); j++) {
-                        if (mode_preference[j] == present_modes[i]) {
-                                if (j > chosen_preference)
-                                        chosen_preference = j;
-                                break;
-                        }
-                }
-        }
-
-        if (chosen_preference == -1) {
-                fv_error_message("No suitable present mode found");
-                return false;
-        }
-
-        data->vk_present_mode = mode_preference[chosen_preference];
-        return true;
-}
-
-#ifdef SDL_VIDEO_DRIVER_X11
-static bool
-create_vk_surface_x11(struct data *data)
-{
-        VkResult res;
-
-        VkXlibSurfaceCreateInfoKHR xlib_surface_create_info = {
-                .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
-                .dpy = data->window_info.info.x11.display,
-                .window = data->window_info.info.x11.window
-        };
-        res = fv_vk.vkCreateXlibSurfaceKHR(data->vk_instance,
-                                           &xlib_surface_create_info,
-                                           NULL, /* allocator */
-                                           &data->vk_surface);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error allocating Xlib Vulkan surface");
-                return false;
-        }
-
-        return true;
-}
-#endif /* SDL_VIDEO_DRIVER_X11 */
-
-#ifdef SDL_VIDEO_DRIVER_WAYLAND
-static bool
-create_vk_surface_wayland(struct data *data)
-{
-        VkResult res;
-
-        VkWaylandSurfaceCreateInfoKHR xlib_surface_create_info = {
-                .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
-                .display = data->window_info.info.wl.display,
-                .surface = data->window_info.info.wl.surface
-        };
-        res = fv_vk.vkCreateWaylandSurfaceKHR(data->vk_instance,
-                                              &xlib_surface_create_info,
-                                              NULL, /* allocator */
-                                              &data->vk_surface);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error allocating Wayland Vulkan surface");
-                return false;
-        }
-
-        return true;
-}
-#endif /* SDL_VIDEO_DRIVER_WAYLAND */
-
-#ifdef SDL_VIDEO_DRIVER_WINDOWS
-static bool
-create_vk_surface_windows(struct data *data)
-{
-        VkResult res;
-
-        VkWin32SurfaceCreateInfoKHR win32_surface_create_info = {
-                .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-                .hinstance = GetModuleHandle(NULL),
-                .hwnd = data->window_info.info.win.window
-        };
-        res = fv_vk.vkCreateWin32SurfaceKHR(data->vk_instance,
-                                            &win32_surface_create_info,
-                                            NULL, /* allocator */
-                                            &data->vk_surface);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error allocating Win32 Vulkan surface");
-                return false;
-        }
-
-        return true;
-}
-#endif /* SDL_VIDEO_DRIVER_WINDOWS */
-
-static bool
-create_vk_surface(struct data *data)
-{
-        switch (data->window_info.subsystem) {
-#ifdef SDL_VIDEO_DRIVER_X11
-        case SDL_SYSWM_X11:
-                return create_vk_surface_x11(data);
-#endif
-#ifdef SDL_VIDEO_DRIVER_WAYLAND
-        case SDL_SYSWM_WAYLAND:
-                return create_vk_surface_wayland(data);
-#endif
-#ifdef SDL_VIDEO_DRIVER_WINDOWS
-        case SDL_SYSWM_WINDOWS:
-                return create_vk_surface_windows(data);
-#endif
-        default:
-                fv_error_message("Unknown window system chosen by SDL");
-                return false;
-        }
-}
-
-static const char *
-get_system_surface_extension(struct data *data)
-{
-        switch (data->window_info.subsystem) {
-#ifdef SDL_VIDEO_DRIVER_X11
-        case SDL_SYSWM_X11:
-                return VK_KHR_XLIB_SURFACE_EXTENSION_NAME;
-#endif
-#ifdef SDL_VIDEO_DRIVER_WAYLAND
-        case SDL_SYSWM_WAYLAND:
-                return VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
-#endif
-#ifdef SDL_VIDEO_DRIVER_WINDOWS
-        case SDL_SYSWM_WINDOWS:
-                return VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
-#endif
-        default:
-                fv_error_message("Unknown window system chosen by SDL");
-                return false;
-        }
-}
-
-static bool
-init_vk(struct data *data)
-{
-        VkPhysicalDeviceMemoryProperties *memory_properties =
-                &data->vk_data.memory_properties;
-        VkResult res;
-        const char *sys_surface_extension;
-
-        sys_surface_extension = get_system_surface_extension(data);
-        if (sys_surface_extension == NULL)
-                return false;
-
-        struct VkInstanceCreateInfo instance_create_info = {
-                .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-                .pApplicationInfo = &(VkApplicationInfo) {
-                        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                        .pApplicationName = "finvenkisto",
-                        .apiVersion = VK_MAKE_VERSION(1, 0, 2)
-                },
-                .enabledExtensionCount = 2,
-                .ppEnabledExtensionNames = (const char * const []) {
-                        VK_KHR_SURFACE_EXTENSION_NAME,
-                        sys_surface_extension
-                },
-        };
-        res = fv_vk.vkCreateInstance(&instance_create_info,
-                                     NULL, /* allocator */
-                                     &data->vk_instance);
-
-        if (res != VK_SUCCESS) {
-                fv_error_message("Failed to create VkInstance");
-                goto error;
-        }
-
-        fv_vk_init_instance(data->vk_instance);
-
-        if (!create_vk_surface(data))
-                goto error;
-
-        if (!find_physical_device(data))
-                goto error;
-
-        fv_vk.vkGetPhysicalDeviceProperties(data->vk_data.physical_device,
-                                            &data->vk_data.device_properties);
-        fv_vk.vkGetPhysicalDeviceMemoryProperties(data->vk_data.physical_device,
-                                                  memory_properties);
-
-        data->vk_depth_format = get_depth_format(data);
-
-        VkPhysicalDeviceFeatures features;
-        memset(&features, 0, sizeof features);
-
-        VkDeviceCreateInfo device_create_info = {
-                .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-                .queueCreateInfoCount = 1,
-                .pQueueCreateInfos = &(VkDeviceQueueCreateInfo) {
-                        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                        .queueFamilyIndex = data->vk_data.queue_family,
-                        .queueCount = 1,
-                        .pQueuePriorities = (float[]) { 1.0f }
-                },
-                .pEnabledFeatures = &features,
-                .enabledExtensionCount = 1,
-                .ppEnabledExtensionNames = (const char * const []) {
-                        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-                },
-        };
-        res = fv_vk.vkCreateDevice(data->vk_data.physical_device,
-                                   &device_create_info,
-                                   NULL, /* allocator */
-                                   &data->vk_data.device);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating VkDevice");
-                goto error;
-        }
-
-        fv_vk_init_device(data->vk_data.device);
-
-        fv_vk.vkGetDeviceQueue(data->vk_data.device,
-                               data->vk_data.queue_family,
-                               0, /* queueIndex */
-                               &data->vk_queue);
-
-        VkSemaphoreCreateInfo semaphore_create_info = {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-        };
-        res = fv_vk.vkCreateSemaphore(data->vk_data.device,
-                                      &semaphore_create_info,
-                                      NULL, /* allocator */
-                                      &data->vk_semaphore);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating semaphore");
-                goto error;
-        }
-
-        if (!find_surface_format(data))
-                goto error;
-
-        if (!find_present_mode(data))
-                goto error;
-
-        VkCommandPoolCreateInfo command_pool_create_info = {
-                .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-                .queueFamilyIndex = data->vk_data.queue_family
-        };
-        res = fv_vk.vkCreateCommandPool(data->vk_data.device,
-                                        &command_pool_create_info,
-                                        NULL, /* allocator */
-                                        &data->vk_command_pool);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating VkCommandPool");
-                goto error;
-        }
-
-        VkCommandBufferAllocateInfo command_buffer_allocate_info = {
-                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                .commandPool = data->vk_command_pool,
-                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                .commandBufferCount = 1
-        };
-        res = fv_vk.vkAllocateCommandBuffers(data->vk_data.device,
-                                             &command_buffer_allocate_info,
-                                             &data->vk_command_buffer);
-
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating command buffer");
-                goto error;
-        }
-
-        VkDescriptorPoolSize pool_size = {
-                .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .descriptorCount = 4
-        };
-        VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-                .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-                .maxSets = 4,
-                .poolSizeCount = 1,
-                .pPoolSizes = &pool_size
-        };
-        res = fv_vk.vkCreateDescriptorPool(data->vk_data.device,
-                                           &descriptor_pool_create_info,
-                                           NULL, /* allocator */
-                                           &data->vk_data.descriptor_pool);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating VkDescriptorPool");
-                goto error;
-        }
-
-        VkAttachmentDescription attachment_descriptions[] = {
-                {
-                        .format = data->vk_surface_format,
-                        .samples = VK_SAMPLE_COUNT_1_BIT,
-                        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                },
-                {
-                        .format = data->vk_depth_format,
-                        .samples = VK_SAMPLE_COUNT_1_BIT,
-                        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                        .finalLayout =
-                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-                },
-        };
-        VkSubpassDescription subpass_descriptions[] = {
-                {
-                        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        .colorAttachmentCount = 1,
-                        .pColorAttachments = &(VkAttachmentReference) {
-                                .attachment = 0,
-                                .layout =
-                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                        },
-                        .pDepthStencilAttachment = &(VkAttachmentReference) {
-                                .attachment = 1,
-                                .layout =
-                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-                        }
-                }
-        };
-        VkRenderPassCreateInfo render_pass_create_info = {
-                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-                .attachmentCount = FV_N_ELEMENTS(attachment_descriptions),
-                .pAttachments = attachment_descriptions,
-                .subpassCount = FV_N_ELEMENTS(subpass_descriptions),
-                .pSubpasses = subpass_descriptions
-        };
-        res = fv_vk.vkCreateRenderPass(data->vk_data.device,
-                                       &render_pass_create_info,
-                                       NULL, /* allocator */
-                                       &data->vk_render_pass);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating render pass");
-                goto error;
-        }
-
-        VkFenceCreateInfo fence_create_info = {
-                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
-        };
-        res = fv_vk.vkCreateFence(data->vk_data.device,
-                                  &fence_create_info,
-                                  NULL, /* allocator */
-                                  &data->vk_fence);
-        if (res != VK_SUCCESS) {
-                fv_error_message("Error creating fence");
-                goto error;
-        }
-
-        memset(&data->vk_fb, 0, sizeof data->vk_fb);
-
-        return true;
-
-error:
-        deinit_vk(data);
-        return false;
-}
-
 int
 main(int argc, char **argv)
 {
         struct data *data = fv_calloc(sizeof *data);
-        Uint32 flags;
         int ret = EXIT_SUCCESS;
-        int res;
 
-        data->is_fullscreen = true;
+        data->fullscreen_opt = true;
 
         fv_data_init(argv[0]);
 
@@ -1732,49 +547,11 @@ main(int argc, char **argv)
                 goto out_data;
         }
 
-        if (!fv_vk_load_libvulkan()) {
-                ret = EXIT_FAILURE;
+        data->window = fv_window_new(data->fullscreen_opt);
+        if (data->window == NULL)
                 goto out_data;
-        }
 
-        res = SDL_Init(SDL_INIT_VIDEO |
-                       SDL_INIT_JOYSTICK |
-                       SDL_INIT_GAMECONTROLLER);
-        if (res < 0) {
-                fv_error_message("Unable to init SDL: %s\n", SDL_GetError());
-                ret = EXIT_FAILURE;
-                goto out_libvulkan;
-        }
-
-        flags = SDL_WINDOW_RESIZABLE;
-        if (data->is_fullscreen)
-                flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
-
-        data->window = SDL_CreateWindow("Finvenkisto",
-                                        SDL_WINDOWPOS_UNDEFINED,
-                                        SDL_WINDOWPOS_UNDEFINED,
-                                        800, 600,
-                                        flags);
-        if (data->window == NULL) {
-                fv_error_message("Failed to create SDL window: %s",
-                                 SDL_GetError());
-                ret = EXIT_FAILURE;
-                goto out_sdl;
-        }
-
-        SDL_VERSION(&data->window_info.version);
-
-        if (!SDL_GetWindowWMInfo(data->window, &data->window_info)) {
-                fv_error_message("Error getting SDL window info: %s",
-                                 SDL_GetError());
-                ret = EXIT_FAILURE;
-                goto out_window;
-        }
-
-        if (!init_vk(data)) {
-                ret = EXIT_FAILURE;
-                goto out_window;
-        }
+        data->vk_data = fv_window_get_vk_data(data->window);
 
         data->quit = false;
 
@@ -1784,8 +561,8 @@ main(int argc, char **argv)
                                       input_state_changed_cb,
                                       data);
 
-        if (!fv_pipeline_data_init(&data->vk_data,
-                                   data->vk_render_pass,
+        if (!fv_pipeline_data_init(data->vk_data,
+                                   data->vk_data->render_pass,
                                    &data->pipeline_data))
                 goto out_input;
 
@@ -1799,23 +576,15 @@ main(int argc, char **argv)
         while (!data->quit)
                 iterate_main_loop(data);
 
-        destroy_framebuffer_resources(data);
-
         destroy_graphics(data);
 
 out_pipeline_data:
-        fv_pipeline_data_destroy(&data->vk_data,
+        fv_pipeline_data_destroy(data->vk_data,
                                  &data->pipeline_data);
 out_input:
         fv_input_free(data->input);
         fv_logic_free(data->logic);
-        deinit_vk(data);
-out_window:
-        SDL_DestroyWindow(data->window);
-out_sdl:
-        SDL_Quit();
-out_libvulkan:
-        fv_vk_unload_libvulkan();
+        fv_window_free(data->window);
 out_data:
         fv_data_deinit();
         fv_free(data);
