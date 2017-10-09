@@ -35,6 +35,7 @@
 #include "fv-vk-data.h"
 #include "fv-window.h"
 #include "fv-map-painter.h"
+#include "fv-highlight-painter.h"
 
 #define FV_EDITOR_FRUSTUM_TOP 1.428f
 /* 40° vertical FOV angle when the height of the display is
@@ -52,7 +53,9 @@ struct data {
         struct fv_vk_data *vk_data;
 
         struct fv_pipeline_data pipeline_data;
+
         struct fv_map_painter *map_painter;
+        struct fv_highlight_painter *highlight_painter;
 
         bool quit;
         bool redraw_queued;
@@ -176,11 +179,25 @@ handle_key_event(struct data *data,
         return false;
 }
 
-static bool
-create_map_painter(struct data *data)
+static void
+destroy_graphics(struct data *data)
 {
-        VkCommandBuffer command_buffer;
-        struct fv_image_data *image_data;
+        if (data->map_painter) {
+                fv_map_painter_free(data->map_painter);
+                data->map_painter = NULL;
+        }
+
+        if (data->highlight_painter) {
+                fv_highlight_painter_free(data->highlight_painter);
+                data->highlight_painter = NULL;
+        }
+}
+
+static bool
+create_graphics(struct data *data)
+{
+        VkCommandBuffer command_buffer = NULL;
+        struct fv_image_data *image_data = NULL;
         VkResult res;
 
         VkCommandBufferAllocateInfo command_buffer_allocate_info = {
@@ -192,8 +209,10 @@ create_map_painter(struct data *data)
         res = fv_vk.vkAllocateCommandBuffers(data->vk_data->device,
                                              &command_buffer_allocate_info,
                                              &command_buffer);
-        if (res != VK_SUCCESS)
-                return false;
+        if (res != VK_SUCCESS) {
+                command_buffer = NULL;
+                goto error;
+        }
 
         VkCommandBufferBeginInfo command_buffer_begin_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -203,13 +222,19 @@ create_map_painter(struct data *data)
 
         image_data = fv_image_data_new(data->vk_data, command_buffer);
         if (image_data == NULL)
-                goto error_command_buffer;
+                goto error;
 
         data->map_painter = fv_map_painter_new(data->vk_data,
                                                &data->pipeline_data,
                                                image_data);
         if (data->map_painter == NULL)
-                goto error_image_data;
+                goto error;
+
+        data->highlight_painter =
+                fv_highlight_painter_new(data->vk_data,
+                                         &data->pipeline_data);
+        if (data->highlight_painter == NULL)
+                goto error;
 
         fv_vk.vkEndCommandBuffer(command_buffer);
 
@@ -234,13 +259,18 @@ create_map_painter(struct data *data)
 
         return true;
 
-error_image_data:
-        fv_image_data_free(image_data);
-error_command_buffer:
-        fv_vk.vkFreeCommandBuffers(data->vk_data->device,
-                                   data->vk_data->command_pool,
-                                   1, /* commandBufferCount */
-                                   &command_buffer);
+error:
+        destroy_graphics(data);
+
+        if (image_data)
+                fv_image_data_free(image_data);
+        if (command_buffer) {
+                fv_vk.vkFreeCommandBuffers(data->vk_data->device,
+                                           data->vk_data->command_pool,
+                                           1, /* commandBufferCount */
+                                           &command_buffer);
+        }
+
         return false;
 }
 
@@ -276,6 +306,43 @@ handle_event(struct data *data,
 
 handled:
         (void) 0;
+}
+
+static void
+draw_highlights(struct data *data,
+                struct fv_paint_state *paint_state)
+{
+        int block_pos = data->x_pos + data->y_pos * FV_MAP_WIDTH;
+        float z_pos;
+
+        switch (FV_MAP_GET_BLOCK_TYPE(fv_map[block_pos])) {
+        case FV_MAP_BLOCK_TYPE_FULL_WALL:
+                z_pos = 2.1f;
+                break;
+        case FV_MAP_BLOCK_TYPE_HALF_WALL:
+                z_pos = 1.1f;
+                break;
+        default:
+                z_pos = 0.1f;
+                break;
+        }
+
+        struct fv_highlight_painter_highlight highlight = {
+                .x = data->x_pos,
+                .y = data->y_pos,
+                .z = z_pos,
+                .w = 1.0f,
+                .h = 1.0f,
+                .r = 0.75f * 0.8f * 255.0f,
+                .g = 0.75f * 0.8f * 255.0f,
+                .b = 1.00f * 0.8f * 255.0f,
+                .a = 0.8f * 255.0f
+        };
+        fv_highlight_painter_paint(data->highlight_painter,
+                                   data->vk_data->command_buffer,
+                                   1, /* n_highlights */
+                                   &highlight,
+                                   paint_state);
 }
 
 static void
@@ -351,9 +418,15 @@ paint(struct data *data)
         fv_transform_dirty(&paint_state.transform);
 
         fv_map_painter_begin_frame(data->map_painter);
+        fv_highlight_painter_begin_frame(data->highlight_painter);
+
         fv_map_painter_paint(data->map_painter,
                              data->vk_data->command_buffer,
                              &paint_state);
+
+        draw_highlights(data, &paint_state);
+
+        fv_highlight_painter_end_frame(data->highlight_painter);
         fv_map_painter_end_frame(data->map_painter);
 
         if (!fv_window_end_paint(data->window))
@@ -480,13 +553,13 @@ main(int argc, char **argv)
                                    &data->pipeline_data))
                 goto out_window;
 
-        if (!create_map_painter(data))
+        if (!create_graphics(data))
                 goto out_pipeline_data;
 
         queue_redraw(data);
         run_main_loop(data);
 
-        fv_map_painter_free(data->map_painter);
+        destroy_graphics(data);
 
 out_pipeline_data:
         fv_pipeline_data_destroy(data->vk_data,
