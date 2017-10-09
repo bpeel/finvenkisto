@@ -48,6 +48,37 @@
 #define FV_EDITOR_MIN_DISTANCE 14.286f
 #define FV_EDITOR_MAX_DISTANCE 42.857f
 
+struct color_map {
+        int r, g, b, value;
+};
+
+static const struct color_map
+top_map[] = {
+        { 0xbb, 0x99, 0x55, 4 }, /* brick flooring */
+        { 0xcc, 0x99, 0x00, 0 }, /* wall top */
+        { 0x44, 0x55, 0x22, 6 }, /* grass */
+        { 0xee, 0xee, 0xee, 2 }, /* bathroom floor */
+        { 0x55, 0x22, 0x22, 19 }, /* room floor */
+        { 0x99, 0x33, 0x33, 21 }, /* wood */
+        { 0x55, 0x44, 0xcc, 31 }, /* sleeping bag 1 */
+        { 0x55, 0x44, 0xdd, 32 }, /* sleeping bag 2 */
+        { -1 }
+};
+
+static const struct color_map
+side_map[] = {
+        { 0x66, 0x44, 0x44, 8 }, /* brick wall */
+        { 0x99, 0xcc, 0xcc, 11 }, /* inner wall */
+        { 0xdd, 0xdd, 0xdd, 14 }, /* bathroom wall */
+        { 0xcc, 0xcc, 0xcc, 16 }, /* bathroom wall special */
+        { 0x99, 0x11, 0x11, 23 }, /* table side */
+        { 0x55, 0x66, 0xcc, 25 }, /* welcome poster 1 */
+        { 0x55, 0x66, 0xdd, 28 }, /* welcome poster 2 */
+        { 0x00, 0x00, 0x11, 34 }, /* chalkboard 1 */
+        { 0x00, 0x00, 0x22, 37 }, /* chalkboard 2 */
+        { -1 }
+};
+
 struct data {
         struct fv_window *window;
         struct fv_vk_data *vk_data;
@@ -56,6 +87,8 @@ struct data {
 
         struct fv_map_painter *map_painter;
         struct fv_highlight_painter *highlight_painter;
+
+        struct fv_map map;
 
         bool quit;
         bool redraw_queued;
@@ -72,6 +105,13 @@ static void
 queue_redraw(struct data *data)
 {
         data->redraw_queued = true;
+}
+
+static void
+redraw_map(struct data *data)
+{
+        fv_map_painter_map_changed(data->map_painter);
+        queue_redraw(data);
 }
 
 static void
@@ -130,6 +170,85 @@ update_distance(struct data *data,
         queue_redraw(data);
 }
 
+static void
+toggle_height(struct data *data)
+{
+        fv_map_block_t *block = (data->map.blocks +
+                                 data->x_pos +
+                                 data->y_pos * FV_MAP_WIDTH);
+        int new_type;
+
+        switch (FV_MAP_GET_BLOCK_TYPE(*block)) {
+        case FV_MAP_BLOCK_TYPE_FLOOR:
+                new_type = FV_MAP_BLOCK_TYPE_HALF_WALL;
+                break;
+        case FV_MAP_BLOCK_TYPE_HALF_WALL:
+                new_type = FV_MAP_BLOCK_TYPE_FULL_WALL;
+                break;
+        case FV_MAP_BLOCK_TYPE_FULL_WALL:
+                new_type = FV_MAP_BLOCK_TYPE_SPECIAL;
+                break;
+        case FV_MAP_BLOCK_TYPE_SPECIAL:
+                new_type = FV_MAP_BLOCK_TYPE_FLOOR;
+                break;
+        default:
+                /* Don't modify special blocks */
+                return;
+        }
+
+        *block = (*block & ~FV_MAP_BLOCK_TYPE_MASK) | new_type;
+
+        redraw_map(data);
+}
+
+static const struct color_map *
+lookup_color(const struct color_map *map,
+             int value)
+{
+        int i;
+
+        for (i = 0; map[i].r != -1; i++) {
+                if (map[i].value == value)
+                        return map + i;
+        }
+
+        return map;
+}
+
+static void
+next_image(struct data *data,
+           int image_offset,
+           const struct color_map *map)
+{
+        fv_map_block_t *block =
+                data->map.blocks + data->x_pos + data->y_pos * FV_MAP_WIDTH;
+        int value = (*block >> (image_offset * 6)) & ((1 << 6) - 1);
+        const struct color_map *color;
+
+        color = lookup_color(map, value) + 1;
+        if (color->r == -1)
+                color = map;
+
+        *block = ((*block & ~(((1 << 6) - 1) << (image_offset * 6))) |
+                  (color->value << (image_offset * 6)));
+
+        redraw_map(data);
+}
+
+static void
+next_top(struct data *data)
+{
+        next_image(data, 0, top_map);
+}
+
+static void
+next_side(struct data *data,
+          int side_num)
+{
+        side_num = (side_num + data->rotation) % 4;
+        next_image(data, side_num + 1, side_map);
+}
+
 static bool
 handle_key_event(struct data *data,
                  const SDL_KeyboardEvent *event)
@@ -174,6 +293,30 @@ handle_key_event(struct data *data,
                 data->rotation = (data->rotation + 1) % 4;
                 queue_redraw(data);
                 return true;
+
+        case SDLK_h:
+                toggle_height(data);
+                break;
+
+        case SDLK_t:
+                next_top(data);
+                break;
+
+        case SDLK_i:
+                next_side(data, 0);
+                break;
+
+        case SDLK_l:
+                next_side(data, 1);
+                break;
+
+        case SDLK_k:
+                next_side(data, 2);
+                break;
+
+        case SDLK_j:
+                next_side(data, 3);
+                break;
         }
 
         return false;
@@ -224,7 +367,7 @@ create_graphics(struct data *data)
         if (image_data == NULL)
                 goto error;
 
-        data->map_painter = fv_map_painter_new(&fv_map,
+        data->map_painter = fv_map_painter_new(&data->map,
                                                data->vk_data,
                                                &data->pipeline_data,
                                                image_data);
@@ -316,7 +459,7 @@ draw_highlights(struct data *data,
         int block_pos = data->x_pos + data->y_pos * FV_MAP_WIDTH;
         float z_pos;
 
-        switch (FV_MAP_GET_BLOCK_TYPE(fv_map.blocks[block_pos])) {
+        switch (FV_MAP_GET_BLOCK_TYPE(data->map.blocks[block_pos])) {
         case FV_MAP_BLOCK_TYPE_FULL_WALL:
                 z_pos = 2.1f;
                 break;
@@ -533,6 +676,7 @@ main(int argc, char **argv)
         data->y_pos = FV_MAP_HEIGHT / 2;
         data->distance = FV_EDITOR_MIN_DISTANCE;
         data->rotation = 0;
+        data->map = fv_map;
 
         fv_data_init(argv[0]);
 
