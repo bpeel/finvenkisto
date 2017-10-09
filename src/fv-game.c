@@ -74,7 +74,8 @@ fv_game_new(const struct fv_vk_data *vk_data,
                          -30.0f,
                          1.0f, 0.0f, 0.0f);
 
-        game->map_painter = fv_map_painter_new(vk_data,
+        game->map_painter = fv_map_painter_new(&fv_map,
+                                               vk_data,
                                                pipeline_data,
                                                image_data);
         if (game->map_painter == NULL)

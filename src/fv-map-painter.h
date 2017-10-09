@@ -25,9 +25,11 @@
 #include "fv-paint-state.h"
 #include "fv-vk-data.h"
 #include "fv-image-data.h"
+#include "fv-map.h"
 
 struct fv_map_painter *
-fv_map_painter_new(const struct fv_vk_data *vk_data,
+fv_map_painter_new(const struct fv_map *map,
+                   const struct fv_vk_data *vk_data,
                    const struct fv_pipeline_data *pipeline_data,
                    const struct fv_image_data *image_data);
 

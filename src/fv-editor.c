@@ -224,7 +224,8 @@ create_graphics(struct data *data)
         if (image_data == NULL)
                 goto error;
 
-        data->map_painter = fv_map_painter_new(data->vk_data,
+        data->map_painter = fv_map_painter_new(&fv_map,
+                                               data->vk_data,
                                                &data->pipeline_data,
                                                image_data);
         if (data->map_painter == NULL)
