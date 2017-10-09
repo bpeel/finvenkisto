@@ -71,24 +71,106 @@ queue_redraw(struct data *data)
         data->redraw_queued = true;
 }
 
+static void
+update_position(struct data *data,
+                int x_offset,
+                int y_offset)
+{
+        int t;
+
+        switch (data->rotation) {
+        case 1:
+                t = x_offset;
+                x_offset = y_offset;
+                y_offset = -t;
+                break;
+
+        case 2:
+                x_offset = -x_offset;
+                y_offset = -y_offset;
+                break;
+
+        case 3:
+                t = x_offset;
+                x_offset = -y_offset;
+                y_offset = t;
+                break;
+        }
+
+        data->x_pos += x_offset;
+        data->y_pos += y_offset;
+
+        if (data->x_pos < 0)
+                data->x_pos = 0;
+        else if (data->x_pos >= FV_MAP_WIDTH)
+                data->x_pos = FV_MAP_WIDTH - 1;
+
+        if (data->y_pos < 0)
+                data->y_pos = 0;
+        else if (data->y_pos >= FV_MAP_HEIGHT)
+                data->y_pos = FV_MAP_HEIGHT - 1;
+
+        queue_redraw(data);
+}
+
+static void
+update_distance(struct data *data,
+                int offset)
+{
+        data->distance += offset;
+
+        if (data->distance > FV_EDITOR_MAX_DISTANCE)
+                data->distance = FV_EDITOR_MAX_DISTANCE;
+        else if (data->distance < FV_EDITOR_MIN_DISTANCE)
+                data->distance = FV_EDITOR_MIN_DISTANCE;
+
+        queue_redraw(data);
+}
+
 static bool
 handle_key_event(struct data *data,
                  const SDL_KeyboardEvent *event)
 {
+        if (event->state != SDL_PRESSED)
+                return false;
+
         switch (event->keysym.sym) {
         case SDLK_ESCAPE:
-                if (event->state == SDL_PRESSED) {
-                        data->quit = true;
-                        return true;
-                }
-                break;
+                data->quit = true;
+                return true;
 
         case SDLK_F11:
-                if (event->state == SDL_PRESSED) {
-                        fv_window_toggle_fullscreen(data->window);
-                        return true;
-                }
-                break;
+                fv_window_toggle_fullscreen(data->window);
+                return true;
+
+        case SDLK_LEFT:
+                update_position(data, -1, 0);
+                return true;
+
+        case SDLK_RIGHT:
+                update_position(data, 1, 0);
+                return true;
+
+        case SDLK_DOWN:
+                update_position(data, 0, -1);
+                return true;
+
+        case SDLK_UP:
+                update_position(data, 0, 1);
+                return true;
+
+        case SDLK_a:
+                update_distance(data, -1);
+                return true;
+
+        case SDLK_z:
+                update_distance(data, 1);
+                return true;
+
+        case SDLK_r:
+                data->rotation = (data->rotation + 1) % 4;
+                queue_redraw(data);
+                return true;
         }
 
         return false;
