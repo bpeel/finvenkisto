@@ -97,6 +97,8 @@ finvenkisto_editor_SOURCES = \
 	fv-error-message.h \
 	fv-flush-memory.c \
 	fv-flush-memory.h \
+	fv-highlight-painter.c \
+	fv-highlight-painter.h \
 	fv-image-data.c \
 	fv-image-data.h \
 	fv-list.c \
