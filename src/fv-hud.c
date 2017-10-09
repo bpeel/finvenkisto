@@ -281,6 +281,11 @@ fv_hud_new(const struct fv_vk_data *vk_data,
                 indices[i * 6 + 5] = i * 4 + 2;
         }
 
+        fv_flush_memory(hud->vk_data,
+                        hud->memory_type_index,
+                        hud->memory,
+                        VK_WHOLE_SIZE);
+
         return hud;
 
 error:
