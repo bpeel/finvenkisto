@@ -241,7 +241,7 @@ is_wall(int x, int y)
             y < 0 || y >= FV_MAP_HEIGHT)
                 return true;
 
-        return FV_MAP_IS_WALL(fv_map[y * FV_MAP_WIDTH + x]);
+        return FV_MAP_IS_WALL(fv_map.blocks[y * FV_MAP_WIDTH + x]);
 }
 
 static bool
