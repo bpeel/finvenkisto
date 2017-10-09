@@ -21,6 +21,7 @@
 /src/Makefile.in
 /src/Makefile
 /src/finvenkisto
+/src/finvenkisto-editor
 /src/fv-map.c
 /src/rply/Makefile
 /src/rply/Makefile.in
