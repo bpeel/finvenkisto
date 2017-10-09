@@ -62,9 +62,6 @@ enum fv_map_block_type {
 
 typedef uint32_t fv_map_block_t;
 
-extern const fv_map_block_t
-fv_map[FV_MAP_WIDTH * FV_MAP_HEIGHT];
-
 struct fv_map_special {
         uint16_t x, y;
         uint16_t rotation;
@@ -76,7 +73,12 @@ struct fv_map_tile {
         int n_specials;
 };
 
-extern const struct fv_map_tile
-fv_map_tiles[FV_MAP_TILES_X * FV_MAP_TILES_Y];
+struct fv_map {
+        fv_map_block_t blocks[FV_MAP_WIDTH * FV_MAP_HEIGHT];
+        struct fv_map_tile tiles[FV_MAP_TILES_X * FV_MAP_TILES_Y];
+};
+
+extern const struct fv_map
+fv_map;
 
 #endif /* FV_MAP_H */

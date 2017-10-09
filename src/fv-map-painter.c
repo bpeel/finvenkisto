@@ -140,7 +140,7 @@ get_position_height(int x, int y)
             y < 0 || y >= FV_MAP_HEIGHT)
                 return 0.0f;
 
-        return get_block_height(fv_map[y * FV_MAP_WIDTH + x]);
+        return get_block_height(fv_map.blocks[y * FV_MAP_WIDTH + x]);
 }
 
 static struct fv_vertex_map *
@@ -260,7 +260,7 @@ generate_square(struct fv_map_painter *painter,
                 struct tile_data *data,
                 int x, int y)
 {
-        fv_map_block_t block = fv_map[y * FV_MAP_WIDTH + x];
+        fv_map_block_t block = fv_map.blocks[y * FV_MAP_WIDTH + x];
         struct fv_vertex_map *v;
         int i;
         int z, oz;
@@ -866,7 +866,7 @@ fv_map_painter_paint(struct fv_map_painter *painter,
 
         for (y = y_min; y < y_max; y++) {
                 for (x = x_max - 1; x >= x_min; x--) {
-                        map_tile = fv_map_tiles + y * FV_MAP_TILES_X + x;
+                        map_tile = fv_map.tiles + y * FV_MAP_TILES_X + x;
                         for (i = 0; i < map_tile->n_specials; i++) {
                                 paint_special(painter,
                                               map_tile->specials + i,

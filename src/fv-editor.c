@@ -315,7 +315,7 @@ draw_highlights(struct data *data,
         int block_pos = data->x_pos + data->y_pos * FV_MAP_WIDTH;
         float z_pos;
 
-        switch (FV_MAP_GET_BLOCK_TYPE(fv_map[block_pos])) {
+        switch (FV_MAP_GET_BLOCK_TYPE(fv_map.blocks[block_pos])) {
         case FV_MAP_BLOCK_TYPE_FULL_WALL:
                 z_pos = 2.1f;
                 break;
