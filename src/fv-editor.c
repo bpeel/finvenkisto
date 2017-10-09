@@ -682,6 +682,32 @@ draw_highlights(struct data *data,
                 }
         }
 
+        for (x = 0; x <= FV_MAP_TILES_X; x++) {
+                highlights[n_highlights].x = x * FV_MAP_TILE_WIDTH - 0.025;;
+                highlights[n_highlights].y = 0.0f;
+                highlights[n_highlights].z = 0.1f;
+                highlights[n_highlights].w = 0.05f;
+                highlights[n_highlights].h = FV_MAP_HEIGHT;
+                highlights[n_highlights].r = 1.00f * 0.8f * 255.0f;
+                highlights[n_highlights].g = 0.00f * 0.8f * 255.0f;
+                highlights[n_highlights].b = 0.00f * 0.8f * 255.0f;
+                highlights[n_highlights].a = 0.8f * 255.0;
+                n_highlights++;
+        }
+
+        for (y = 0; y <= FV_MAP_TILES_Y; y++) {
+                highlights[n_highlights].x = 0.0f;
+                highlights[n_highlights].y = y * FV_MAP_TILE_HEIGHT - 0.025;
+                highlights[n_highlights].z = 0.1f;
+                highlights[n_highlights].w = FV_MAP_WIDTH;
+                highlights[n_highlights].h = 0.05f;
+                highlights[n_highlights].r = 1.00f * 0.8f * 255.0f;
+                highlights[n_highlights].g = 0.00f * 0.8f * 255.0f;
+                highlights[n_highlights].b = 0.00f * 0.8f * 255.0f;
+                highlights[n_highlights].a = 0.8f * 255.0;
+                n_highlights++;
+        }
+
         fv_highlight_painter_paint(data->highlight_painter,
                                    data->vk_data->command_buffer,
                                    n_highlights,
