@@ -38,7 +38,7 @@ void
 fv_shout_painter_paint(struct fv_shout_painter *painter,
                        struct fv_logic *logic,
                        VkCommandBuffer command_buffer,
-                       const struct fv_paint_state *paint_state);
+                       struct fv_paint_state *paint_state);
 
 void
 fv_shout_painter_end_frame(struct fv_shout_painter *painter);

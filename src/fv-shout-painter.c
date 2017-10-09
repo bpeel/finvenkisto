@@ -297,7 +297,7 @@ void
 fv_shout_painter_paint(struct fv_shout_painter *painter,
                        struct fv_logic *logic,
                        VkCommandBuffer command_buffer,
-                       const struct fv_paint_state *paint_state)
+                       struct fv_paint_state *paint_state)
 {
         struct paint_closure data;
         VkDeviceSize vertices_offset =
@@ -311,6 +311,8 @@ fv_shout_painter_paint(struct fv_shout_painter *painter,
         if (data.n_shouts <= 0)
                 return;
 
+        fv_transform_ensure_mvp(&paint_state->transform);
+
         fv_vk.vkCmdBindPipeline(command_buffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 painter->pipeline);
@@ -322,6 +324,13 @@ fv_shout_painter_paint(struct fv_shout_painter *painter,
                                       &painter->descriptor_set,
                                       0, /* dynamicOffsetCount */
                                       NULL /* pDynamicOffsets */);
+        fv_vk.vkCmdPushConstants(command_buffer,
+                                 painter->layout,
+                                 VK_SHADER_STAGE_VERTEX_BIT,
+                                 offsetof(struct fv_vertex_shout_push_constants,
+                                          transform),
+                                 sizeof (float) * 16,
+                                 &paint_state->transform.mvp.xx);
         fv_vk.vkCmdBindVertexBuffers(command_buffer,
                                      0, /* firstBinding */
                                      1, /* bindingCount */
