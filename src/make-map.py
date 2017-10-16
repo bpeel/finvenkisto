@@ -1,6 +1,6 @@
 # Finvenkisto
 #
-# Copyright (C) 2014, 2015 Neil Roberts
+# Copyright (C) 2014, 2015, 2017 Neil Roberts
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,8 +34,8 @@ IMAGE_BLOCK_SIZE = 4
 # following significance:
 #
 #     xnxx
-#     wtpe
-#     xhrx
+#     wtxe
+#     xhxx
 #     xsxx
 #
 # Where the letters represent the following:
@@ -45,15 +45,27 @@ IMAGE_BLOCK_SIZE = 4
 #  n, e, s, w: The colour for the walls of the block. However if the
 #              colour is the same as the top of the block then it is ignored.
 #              Otherwise they are indexed from the SIDES dict.
-#  p:          If this is different from the top of the block then the SPECIALS
-#              dict is used to select a special model to place on this block.
-#  r:          Rotation about the z-axis for the special model. Ignored if the
-#              color is the same as the top of the block, otherwise
-#              the r and g components together make a 16-bit rotation
-#              value where 65536 is a full circle.
-#  h:          If this isn't a floor tile and the value is different from t
-#              then this is treated as a half-wall block.
+#  h:          If this is different from the top colour then the tile is either
+#              a half-height wall, or an invisible block (ie, a
+#              special) depending on whether the walls are marked.
 #  x:          The colour is ignored.
+#
+# The ignored pixels are usually set to something as a reminder if
+# there are specials at that location although this script doesn't
+# check that.
+#
+# The area below the main map is used to describe the positions of the
+# specials. Each pair of pixels that is not white encodes a special.
+# The colours are interpreted as follows:
+#
+# R1  - x position
+# G1  - y position
+# B1  - special number
+# G2  - Most-significant byte of the rotation
+# B2  - Least-significant byte of the rotation
+#
+# The rotation is a 16-bit number where 65536 represents a full
+# rotation.
 
 TOPS = {
     'b95': 4, # brick flooring
@@ -78,16 +90,6 @@ SIDES = {
     '002': 37, # chalkboard 2
 }
 
-SPECIALS = {
-    'd53': 0, # table
-    '259': 1, # toilet
-    '1df': 2, # teaset
-    '00e': 3, # chair
-    'd55': 4, # bed
-    'b3b': 5, # barrel
-    '000': None # covered by a neighbouring special
-}
-
 def peek_color(image, bx, by, x, y):
     x += bx * IMAGE_BLOCK_SIZE
     y += by * IMAGE_BLOCK_SIZE
@@ -100,48 +102,62 @@ def peek_color(image, bx, by, x, y):
 
     return ''.join(map(make_nibble, image.getpixel((x, y))[0:3]))
 
-def get_rotation(image, x, y):
-    top_color = image.getpixel((x * IMAGE_BLOCK_SIZE + 1,
-                                y * IMAGE_BLOCK_SIZE + 1))
-    rotation_color = image.getpixel((x * IMAGE_BLOCK_SIZE + 2,
-                                     y * IMAGE_BLOCK_SIZE + 2))
-    if top_color == rotation_color:
-        return 0
-    else:
-        return (rotation_color[0] << 8) | rotation_color[1]
+def compare_special(special):
+    # Sort by the special number
+    return special[3]
 
-def generate_tile(image, tx, ty):
-    specials = []
+def generate_tiles(image):
+    tiles = [[] for i in range(0, MAP_TILES_X * MAP_TILES_Y)]
 
-    for x in range(tx * MAP_TILE_WIDTH, (tx + 1) * MAP_TILE_WIDTH):
-        for y in range((ty + 1) * MAP_TILE_HEIGHT - 1,
-                       ty * MAP_TILE_HEIGHT - 1,
-                       -1):
-            top_color = peek_color(image, x, y, 1, 1)
-            special_color = peek_color(image, x, y, 2, 1)
+    for x in range(0, image.size[0] - 1, 2):
+        for y in range(MAP_HEIGHT * IMAGE_BLOCK_SIZE, image.size[1]):
+            pos = image.getpixel((x, y))[0:3]
 
-            if special_color != top_color:
-                special_index = SPECIALS[special_color]
-                if special_index != None:
-                    rotation = get_rotation(image, x, y)
-                    specials.append((x, MAP_HEIGHT - 1 - y,
-                                     rotation,
-                                     special_index))
+            if pos == (255, 255, 255):
+                continue
 
-    # Sort according to the model number so that the render can
-    # combine multiple copies of a model into a single draw call
-    specials.sort(key = lambda x: x[3])
+            details = image.getpixel((x + 1, y))
 
-    for special in specials:
-        print("                        { ",
-              ", ".join(map(str, special)),
-              " },\n")
+            sx = pos[0]
+            sy = pos[1]
+            special_index = pos[2]
+            rotation = (details[1] << 8) | details[2]
 
-    return len(specials)
+            tx = sx // MAP_TILE_WIDTH
+            ty = sy // MAP_TILE_HEIGHT
+            specials = tiles[tx + ty * MAP_TILES_X]
+
+            specials.append((sx, sy,
+                             rotation,
+                             special_index))
+
+    for ty in range(0, MAP_TILES_Y):
+        for tx in range(0, MAP_TILES_X):
+            print("        {\n")
+
+            specials = tiles[tx + ty * MAP_TILES_X]
+            # Sort according to the model number so that the render can
+            # combine multiple copies of a model into a single draw call
+            specials.sort(key = compare_special)
+
+            if len(specials) == 0:
+                print("                NULL,")
+            else:
+                print("                (const struct fv_map_special[])\n"
+                      "                {\n")
+                for special in specials:
+                    print("                        { ",
+                          ", ".join(map(str, special)),
+                          " },\n")
+                print("                },")
+
+            print("                " + str(len(specials)) + "\n" +
+                  "        },\n")
 
 image = Image.open(sys.argv[1])
 
-if image.size != (MAP_WIDTH * IMAGE_BLOCK_SIZE, MAP_HEIGHT * IMAGE_BLOCK_SIZE):
+if (image.size[0] < MAP_WIDTH * IMAGE_BLOCK_SIZE or
+    image.size[1] < MAP_HEIGHT * IMAGE_BLOCK_SIZE):
     sys.stderr.write("Map image is not the correct size\n")
     sys.exit(1)
 
@@ -168,6 +184,7 @@ for y in range(MAP_HEIGHT - 1, -1, -1):
     for x in range(0, MAP_WIDTH):
         top_color = peek_color(image, x, y, 1, 1)
         top = TOPS[top_color]
+        half_height_or_special = peek_color(image, x, y, 1, 2) != top_color
 
         north_color = peek_color(image, x, y, 1, 0)
         if north_color == top_color:
@@ -176,21 +193,19 @@ for y in range(MAP_HEIGHT - 1, -1, -1):
             south = 0
             west = 0
 
-            special_color = peek_color(image, x, y, 2, 1)
-            if special_color == top_color:
-                block_type = 'FLOOR'
-            else:
+            if half_height_or_special:
                 block_type = 'SPECIAL'
+            else:
+                block_type = 'FLOOR'
         else:
             north = SIDES[north_color]
             east = SIDES[peek_color(image, x, y, 3, 1)]
             south = SIDES[peek_color(image, x, y, 1, 3)]
             west = SIDES[peek_color(image, x, y, 0, 1)]
-            if peek_color(image, x, y, 1, 2) == top_color:
-                block_type = 'FULL_WALL'
-            else:
+            if half_height_or_special:
                 block_type = 'HALF_WALL'
-
+            else:
+                block_type = 'FULL_WALL'
         print('                B(' + block_type, end='')
 
         for image_index in (top, north, east, south, west):
@@ -204,16 +219,7 @@ print('''
         .tiles = {
 ''')
 
-for y in range(MAP_TILES_Y - 1, -1, -1):
-    for x in range(0, MAP_TILES_X):
-        print("                {\n"
-              "                        {\n")
-
-        count = generate_tile(image, x, y)
-
-        print("                        },\n" +
-              "                        " + str(count) + "\n" +
-              "                },\n")
+generate_tiles(image)
 
 print('''
         }

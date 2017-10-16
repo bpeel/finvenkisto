@@ -37,6 +37,9 @@
 
 #define FV_MAP_PAINTER_N_MODELS FV_N_ELEMENTS(fv_map_painter_models)
 
+/* Maximum number of special instances to render in one draw call */
+#define FV_MAP_PAINTER_MAX_SPECIALS 16
+
 /* The normals for the map are only ever one of the the following
  * directions so instead of encoding each component of the normal in
  * the vertex we just encode a byte with one of the following values
@@ -515,7 +518,7 @@ fv_map_painter_new(struct fv_image_data *image_data,
                 fv_gl.glBindBuffer(GL_ARRAY_BUFFER, painter->instance_buffer);
                 fv_gl.glBufferData(GL_ARRAY_BUFFER,
                                    sizeof (struct instance) *
-                                   FV_MAP_MAX_SPECIALS,
+                                   FV_MAP_PAINTER_MAX_SPECIALS,
                                    NULL, /* data */
                                    GL_DYNAMIC_DRAW);
         }
@@ -696,7 +699,7 @@ paint_special(struct fv_map_painter *painter,
         GLuint texture;
 
         if (painter->current_special != special->num ||
-            painter->n_instances >= FV_MAP_MAX_SPECIALS)
+            painter->n_instances >= FV_MAP_PAINTER_MAX_SPECIALS)
                 flush_specials(painter);
 
         fv_matrix_translate(&transform.modelview,
@@ -720,7 +723,7 @@ paint_special(struct fv_map_painter *painter,
                         painter->instance_buffer_map =
                                 fv_map_buffer_map(GL_ARRAY_BUFFER,
                                                   sizeof (struct instance) *
-                                                  FV_MAP_MAX_SPECIALS,
+                                                  FV_MAP_PAINTER_MAX_SPECIALS,
                                                   true /* flush_explicit */,
                                                   GL_DYNAMIC_DRAW);
                         painter->current_special = special->num;

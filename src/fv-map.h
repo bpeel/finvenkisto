@@ -27,7 +27,6 @@
 
 #define FV_MAP_TILE_WIDTH 8
 #define FV_MAP_TILE_HEIGHT 8
-#define FV_MAP_MAX_SPECIALS 8
 
 #define FV_MAP_TILES_X (FV_MAP_WIDTH / FV_MAP_TILE_WIDTH)
 #define FV_MAP_TILES_Y (FV_MAP_HEIGHT / FV_MAP_TILE_HEIGHT)
@@ -69,7 +68,7 @@ struct fv_map_special {
 };
 
 struct fv_map_tile {
-        struct fv_map_special specials[FV_MAP_MAX_SPECIALS];
+        const struct fv_map_special *specials;
         int n_specials;
 };
 
