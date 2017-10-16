@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <SDL.h>
+#include <stdio.h>
 
 #include "fv-input.h"
 #include "fv-buffer.h"
