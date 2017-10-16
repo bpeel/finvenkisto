@@ -51,6 +51,8 @@
 #define FV_EDITOR_MIN_DISTANCE 14.286f
 #define FV_EDITOR_MAX_DISTANCE 42.857f
 
+#define FV_EDITOR_N_SPECIALS (FV_N_ELEMENTS(special_map))
+
 struct color_map {
         int r, g, b, value;
 };
@@ -128,6 +130,62 @@ redraw_map(struct data *data)
 {
         fv_map_painter_map_changed(data->map_painter);
         queue_redraw(data);
+}
+
+static struct fv_map_special *
+get_special(struct data *data,
+            int x, int y)
+{
+        int tx = x / FV_MAP_TILE_WIDTH;
+        int ty = y / FV_MAP_TILE_HEIGHT;
+        struct fv_map_tile *tile =
+                data->map.tiles + tx + ty * FV_MAP_TILES_X;
+        struct fv_map_special *specials = tile->specials;
+        int i;
+
+        for (i = 0; i < tile->n_specials; i++) {
+                if (specials[i].x == x && specials[i].y == y)
+                        return specials + i;
+        }
+
+        return NULL;
+}
+
+static struct fv_map_special *
+add_special(struct data *data,
+            int x, int y,
+            int special_num)
+{
+        int tx = x / FV_MAP_TILE_WIDTH;
+        int ty = y / FV_MAP_TILE_HEIGHT;
+        struct fv_map_tile *tile =
+                data->map.tiles + tx + ty * FV_MAP_TILES_X;
+        struct fv_map_special *special;
+
+        if (tile->n_specials >= FV_MAP_MAX_SPECIALS)
+                return NULL;
+
+        special = get_special(data, x, y);
+        if (special != NULL)
+                return NULL;
+
+        special = tile->specials + tile->n_specials;
+
+        special->num = special_num;
+        special->x = x;
+        special->y = y;
+        special->rotation = 0;
+
+        tile->n_specials++;
+
+        return special;
+}
+
+static void
+add_special_at_cursor(struct data *data)
+{
+        add_special(data, data->x_pos, data->y_pos, 0);
+        redraw_map(data);
 }
 
 static void
@@ -263,6 +321,62 @@ next_side(struct data *data,
 {
         side_num = (side_num + data->rotation) % 4;
         next_image(data, side_num + 1, side_map);
+}
+
+static void
+next_special(struct data *data)
+{
+        struct fv_map_special *special =
+                get_special(data,
+                            data->x_pos, data->y_pos);
+
+        if (special == NULL)
+                return;
+
+        special->num = (special->num + 1) % FV_EDITOR_N_SPECIALS;
+
+        redraw_map(data);
+}
+
+static void
+remove_special(struct data *data,
+               int x, int y)
+{
+        struct fv_map_special *special = get_special(data, x, y);
+        struct fv_map_tile *tile;
+        int tx, ty;
+
+        if (special == NULL)
+                return;
+
+        tx = x / FV_MAP_TILE_WIDTH;
+        ty = y / FV_MAP_TILE_HEIGHT;
+        tile = data->map.tiles + tx + ty * FV_MAP_TILES_X;
+
+        /* Replace this special with the last one */
+        *special = tile->specials[--tile->n_specials];
+}
+
+static void
+remove_special_at_cursor(struct data *data)
+{
+        remove_special(data, data->x_pos, data->y_pos);
+        redraw_map(data);
+}
+
+static void
+rotate_special(struct data *data,
+               int amount)
+{
+        struct fv_map_special *special =
+                get_special(data, data->x_pos, data->y_pos);
+
+        if (special == NULL)
+                return;
+
+        special->rotation += amount;
+
+        redraw_map(data);
 }
 
 static void
@@ -484,6 +598,28 @@ handle_key_event(struct data *data,
 
         case SDLK_j:
                 next_side(data, 3);
+                break;
+
+        case SDLK_n:
+                remove_special_at_cursor(data);
+                break;
+
+        case SDLK_m:
+                next_special(data);
+                break;
+
+        case SDLK_b:
+                add_special_at_cursor(data);
+                break;
+
+        case SDLK_9:
+        case SDLK_LEFTBRACKET:
+                rotate_special(data, 256);
+                break;
+
+        case SDLK_0:
+        case SDLK_RIGHTBRACKET:
+                rotate_special(data, -256);
                 break;
         }
 
