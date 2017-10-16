@@ -416,7 +416,8 @@ paste(struct data *data)
                 new_special = add_special(data,
                                           data->x_pos, data->y_pos,
                                           old_special->num);
-                new_special->rotation = old_special->rotation;
+                if (new_special != NULL)
+                        new_special->rotation = old_special->rotation;
         }
 
         redraw_map(data);
