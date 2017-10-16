@@ -117,6 +117,12 @@ struct data {
         int y_pos;
         int distance;
         int rotation;
+
+        struct {
+                fv_map_block_t block;
+                bool has_special;
+                struct fv_map_special special;
+        } clipboard;
 };
 
 static void
@@ -380,6 +386,43 @@ rotate_special(struct data *data,
 }
 
 static void
+copy(struct data *data)
+{
+        struct fv_map_special *special;
+
+        data->clipboard.block =
+                data->map.blocks[data->x_pos + data->y_pos * FV_MAP_WIDTH];
+
+        special = get_special(data, data->x_pos, data->y_pos);
+        data->clipboard.has_special = special != NULL;
+
+        if (special)
+                data->clipboard.special = *special;
+}
+
+static void
+paste(struct data *data)
+{
+        struct fv_map_special *new_special, *old_special;
+
+        data->map.blocks[data->x_pos + data->y_pos * FV_MAP_WIDTH] =
+                data->clipboard.block;
+
+        /* Remove any current special */
+        remove_special(data, data->x_pos, data->y_pos);
+
+        if (data->clipboard.has_special) {
+                old_special = &data->clipboard.special;
+                new_special = add_special(data,
+                                          data->x_pos, data->y_pos,
+                                          old_special->num);
+                new_special->rotation = old_special->rotation;
+        }
+
+        redraw_map(data);
+}
+
+static void
 set_pixel(uint8_t *buf,
           int x, int y,
           int ox, int oy,
@@ -610,6 +653,14 @@ handle_key_event(struct data *data,
 
         case SDLK_b:
                 add_special_at_cursor(data);
+                break;
+
+        case SDLK_c:
+                copy(data);
+                break;
+
+        case SDLK_v:
+                paste(data);
                 break;
 
         case SDLK_9:
