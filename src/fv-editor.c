@@ -663,12 +663,12 @@ handle_key_event(struct data *data,
                 paste(data);
                 break;
 
-        case SDLK_9:
+        case SDLK_LEFTPAREN:
         case SDLK_LEFTBRACKET:
                 rotate_special(data, 256);
                 break;
 
-        case SDLK_0:
+        case SDLK_RIGHTPAREN:
         case SDLK_RIGHTBRACKET:
                 rotate_special(data, -256);
                 break;
