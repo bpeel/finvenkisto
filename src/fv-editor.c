@@ -122,6 +122,8 @@ struct data {
                 bool has_special;
                 struct fv_map_special special;
         } clipboard;
+
+        struct fv_buffer highlight_buffer;
 };
 
 static void
@@ -846,28 +848,40 @@ highlight_z_pos(struct data *data,
 
 }
 
+static struct fv_highlight_painter_highlight *
+next_highlight(struct data *data)
+{
+        size_t old_offset = data->highlight_buffer.length;
+
+        fv_buffer_set_length(&data->highlight_buffer,
+                             old_offset +
+                             sizeof (struct fv_highlight_painter_highlight));
+
+        return ((struct fv_highlight_painter_highlight *)
+                (data->highlight_buffer.data + old_offset));
+}
+
 static void
 draw_highlights(struct data *data,
                 struct fv_paint_state *paint_state)
 {
-        struct fv_highlight_painter_highlight highlights[FV_MAP_WIDTH *
-                                                         FV_MAP_HEIGHT +
-                                                         1];
-        int n_highlights = 0;
+        struct fv_highlight_painter_highlight *highlight;
         fv_map_block_t block;
         int y, x;
 
-        highlights[n_highlights].x = data->x_pos;
-        highlights[n_highlights].y = data->y_pos;
-        highlights[n_highlights].z =
-                highlight_z_pos(data, data->x_pos, data->y_pos);
-        highlights[n_highlights].w = 1.0f;
-        highlights[n_highlights].h = 1.0f;
-        highlights[n_highlights].r = 0.75f * 0.8f * 255.0f;
-        highlights[n_highlights].g = 0.75f * 0.8f * 255.0f;
-        highlights[n_highlights].b = 1.00f * 0.8f * 255.0f;
-        highlights[n_highlights].a = 0.8f * 255.0;
-        n_highlights++;
+        data->highlight_buffer.length = 0;
+
+        highlight = next_highlight(data);
+
+        highlight->x = data->x_pos;
+        highlight->y = data->y_pos;
+        highlight->z = highlight_z_pos(data, data->x_pos, data->y_pos);
+        highlight->w = 1.0f;
+        highlight->h = 1.0f;
+        highlight->r = 0.75f * 0.8f * 255.0f;
+        highlight->g = 0.75f * 0.8f * 255.0f;
+        highlight->b = 1.00f * 0.8f * 255.0f;
+        highlight->a = 0.8f * 255.0;
 
         for (y = 0; y < FV_MAP_HEIGHT; y++) {
                 for (x = 0; x < FV_MAP_WIDTH; x++) {
@@ -876,50 +890,53 @@ draw_highlights(struct data *data,
                             FV_MAP_BLOCK_TYPE_SPECIAL)
                                 continue;
 
-                        highlights[n_highlights].x = x;
-                        highlights[n_highlights].y = y;
-                        highlights[n_highlights].z =
-                                highlight_z_pos(data, x, y);
-                        highlights[n_highlights].w = 1.0f;
-                        highlights[n_highlights].h = 1.0f;
-                        highlights[n_highlights].r = 0.75f * 0.8f * 255.0f;
-                        highlights[n_highlights].g = 1.00f * 0.8f * 255.0f;
-                        highlights[n_highlights].b = 0.75f * 0.8f * 255.0f;
-                        highlights[n_highlights].a = 0.8f * 255.0;
-                        n_highlights++;
+                        highlight = next_highlight(data);
+                        highlight->x = x;
+                        highlight->y = y;
+                        highlight->z = highlight_z_pos(data, x, y);
+                        highlight->w = 1.0f;
+                        highlight->h = 1.0f;
+                        highlight->r = 0.75f * 0.8f * 255.0f;
+                        highlight->g = 1.00f * 0.8f * 255.0f;
+                        highlight->b = 0.75f * 0.8f * 255.0f;
+                        highlight->a = 0.8f * 255.0;
                 }
         }
 
         for (x = 0; x <= FV_MAP_TILES_X; x++) {
-                highlights[n_highlights].x = x * FV_MAP_TILE_WIDTH - 0.025;;
-                highlights[n_highlights].y = 0.0f;
-                highlights[n_highlights].z = 0.1f;
-                highlights[n_highlights].w = 0.05f;
-                highlights[n_highlights].h = FV_MAP_HEIGHT;
-                highlights[n_highlights].r = 1.00f * 0.8f * 255.0f;
-                highlights[n_highlights].g = 0.00f * 0.8f * 255.0f;
-                highlights[n_highlights].b = 0.00f * 0.8f * 255.0f;
-                highlights[n_highlights].a = 0.8f * 255.0;
-                n_highlights++;
+                highlight = next_highlight(data);
+                highlight->x = x * FV_MAP_TILE_WIDTH - 0.025;;
+                highlight->y = 0.0f;
+                highlight->z = 0.1f;
+                highlight->w = 0.05f;
+                highlight->h = FV_MAP_HEIGHT;
+                highlight->r = 1.00f * 0.8f * 255.0f;
+                highlight->g = 0.00f * 0.8f * 255.0f;
+                highlight->b = 0.00f * 0.8f * 255.0f;
+                highlight->a = 0.8f * 255.0;
         }
 
         for (y = 0; y <= FV_MAP_TILES_Y; y++) {
-                highlights[n_highlights].x = 0.0f;
-                highlights[n_highlights].y = y * FV_MAP_TILE_HEIGHT - 0.025;
-                highlights[n_highlights].z = 0.1f;
-                highlights[n_highlights].w = FV_MAP_WIDTH;
-                highlights[n_highlights].h = 0.05f;
-                highlights[n_highlights].r = 1.00f * 0.8f * 255.0f;
-                highlights[n_highlights].g = 0.00f * 0.8f * 255.0f;
-                highlights[n_highlights].b = 0.00f * 0.8f * 255.0f;
-                highlights[n_highlights].a = 0.8f * 255.0;
-                n_highlights++;
+                highlight = next_highlight(data);
+                highlight->x = 0.0f;
+                highlight->y = y * FV_MAP_TILE_HEIGHT - 0.025;
+                highlight->z = 0.1f;
+                highlight->w = FV_MAP_WIDTH;
+                highlight->h = 0.05f;
+                highlight->r = 1.00f * 0.8f * 255.0f;
+                highlight->g = 0.00f * 0.8f * 255.0f;
+                highlight->b = 0.00f * 0.8f * 255.0f;
+                highlight->a = 0.8f * 255.0;
         }
+
+        highlight = ((struct fv_highlight_painter_highlight *)
+                     data->highlight_buffer.data);
 
         fv_highlight_painter_paint(data->highlight_painter,
                                    data->vk_data->command_buffer,
-                                   n_highlights,
-                                   highlights,
+                                   data->highlight_buffer.length /
+                                   sizeof *highlight,
+                                   highlight,
                                    paint_state);
 }
 
@@ -1113,6 +1130,8 @@ main(int argc, char **argv)
         data->rotation = 0;
         data->map = fv_map;
 
+        fv_buffer_init(&data->highlight_buffer);
+
         for (i = 0; i < FV_MAP_TILES_X * FV_MAP_TILES_Y; i++) {
                 fv_buffer_init(data->special_buffer + i);
                 fv_buffer_append(data->special_buffer + i,
@@ -1161,6 +1180,7 @@ out_data:
         fv_data_deinit();
         for (i = 0; i < FV_MAP_TILES_X * FV_MAP_TILES_Y; i++)
                 fv_buffer_destroy(data->special_buffer + i);
+        fv_buffer_destroy(&data->highlight_buffer);
         fv_free(data);
 
         return ret;
