@@ -39,6 +39,7 @@
 #include "fv-map-painter.h"
 #include "fv-highlight-painter.h"
 #include "fv-error-message.h"
+#include "fv-buffer.h"
 
 #define FV_EDITOR_FRUSTUM_TOP 1.428f
 /* 40° vertical FOV angle when the height of the display is
@@ -107,6 +108,7 @@ struct data {
         struct fv_highlight_painter *highlight_painter;
 
         struct fv_map map;
+        struct fv_buffer special_buffer[FV_MAP_TILES_X * FV_MAP_TILES_Y];
 
         bool quit;
         bool redraw_queued;
@@ -146,7 +148,9 @@ get_special(struct data *data,
         int ty = y / FV_MAP_TILE_HEIGHT;
         struct fv_map_tile *tile =
                 data->map.tiles + tx + ty * FV_MAP_TILES_X;
-        struct fv_map_special *specials = tile->specials;
+        struct fv_map_special *specials =
+                (struct fv_map_special *)
+                data->special_buffer[tx + ty * FV_MAP_TILES_X].data;
         int i;
 
         for (i = 0; i < tile->n_specials; i++) {
@@ -166,16 +170,22 @@ add_special(struct data *data,
         int ty = y / FV_MAP_TILE_HEIGHT;
         struct fv_map_tile *tile =
                 data->map.tiles + tx + ty * FV_MAP_TILES_X;
+        struct fv_buffer *special_buffer =
+                data->special_buffer + tx + ty * FV_MAP_TILES_X;
         struct fv_map_special *special;
-
-        if (tile->n_specials >= FV_MAP_MAX_SPECIALS)
-                return NULL;
 
         special = get_special(data, x, y);
         if (special != NULL)
                 return NULL;
 
-        special = tile->specials + tile->n_specials;
+        fv_buffer_set_length(special_buffer,
+                             (tile->n_specials + 1) *
+                             sizeof (struct fv_map_special));
+
+        tile->specials = (struct fv_map_special *) special_buffer->data;
+
+        special = ((struct fv_map_special *) special_buffer->data +
+                   tile->n_specials);
 
         special->num = special_num;
         special->x = x;
@@ -829,9 +839,8 @@ static void
 draw_highlights(struct data *data,
                 struct fv_paint_state *paint_state)
 {
-        struct fv_highlight_painter_highlight highlights[FV_MAP_MAX_SPECIALS *
-                                                         FV_MAP_TILES_X *
-                                                         FV_MAP_TILES_Y +
+        struct fv_highlight_painter_highlight highlights[FV_MAP_WIDTH *
+                                                         FV_MAP_HEIGHT +
                                                          1];
         int n_highlights = 0;
         fv_map_block_t block;
@@ -1084,6 +1093,7 @@ main(int argc, char **argv)
 {
         struct data *data = fv_calloc(sizeof *data);
         int ret = EXIT_SUCCESS;
+        int i;
 
         data->fullscreen_opt = false;
         data->x_pos = FV_MAP_WIDTH / 2;
@@ -1091,6 +1101,17 @@ main(int argc, char **argv)
         data->distance = FV_EDITOR_MIN_DISTANCE;
         data->rotation = 0;
         data->map = fv_map;
+
+        for (i = 0; i < FV_MAP_TILES_X * FV_MAP_TILES_Y; i++) {
+                fv_buffer_init(data->special_buffer + i);
+                fv_buffer_append(data->special_buffer + i,
+                                 fv_map.tiles[i].specials,
+                                 fv_map.tiles[i].n_specials *
+                                 sizeof (struct fv_map_special));
+                data->map.tiles[i].specials =
+                        (const struct fv_map_special *)
+                        data->special_buffer[i].data;
+        }
 
         fv_data_init(argv[0]);
 
@@ -1127,6 +1148,8 @@ out_window:
         fv_window_free(data->window);
 out_data:
         fv_data_deinit();
+        for (i = 0; i < FV_MAP_TILES_X * FV_MAP_TILES_Y; i++)
+                fv_buffer_destroy(data->special_buffer + i);
         fv_free(data);
 
         return ret;
