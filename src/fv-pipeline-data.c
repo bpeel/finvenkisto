@@ -107,7 +107,7 @@ base_rasterization_state = {
 static const VkPipelineMultisampleStateCreateInfo
 base_multisample_state = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
+        .rasterizationSamples = VK_SAMPLE_COUNT_4_BIT
 };
 
 static const VkPipelineDepthStencilStateCreateInfo

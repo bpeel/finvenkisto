@@ -58,6 +58,9 @@ struct fv_window {
                 VkImageView depth_image_view;
                 VkSurfaceCapabilitiesKHR caps;
                 VkExtent2D extent;
+                VkImage msaa_image;
+                VkDeviceMemory msaa_image_memory;
+                VkImageView msaa_image_view;
         } vk_fb;
 
         SDL_Window *window;
@@ -125,6 +128,18 @@ destroy_framebuffer_resources(struct fv_window *window)
                 fv_vk.vkDestroyImage(window->vk_data.device,
                                      window->vk_fb.depth_image,
                                      NULL /* allocator */);
+        if (window->vk_fb.msaa_image_view)
+                fv_vk.vkDestroyImageView(window->vk_data.device,
+                                         window->vk_fb.msaa_image_view,
+                                         NULL /* allocator */);
+        if (window->vk_fb.msaa_image_memory)
+                fv_vk.vkFreeMemory(window->vk_data.device,
+                                   window->vk_fb.msaa_image_memory,
+                                   NULL /* allocator */);
+        if (window->vk_fb.msaa_image)
+                fv_vk.vkDestroyImage(window->vk_data.device,
+                                     window->vk_fb.msaa_image,
+                                     NULL /* allocator */);
         if (window->vk_fb.swapchain_images) {
                 for (i = 0; i < window->vk_fb.n_swapchain_images; i++) {
                         destroy_swapchain_image(window,
@@ -190,8 +205,9 @@ create_swapchain_image(struct fv_window *window,
         }
 
         VkImageView attachments[] = {
+                window->vk_fb.msaa_image_view,
+                window->vk_fb.depth_image_view,
                 swapchain_image->image_view,
-                window->vk_fb.depth_image_view
         };
         VkFramebufferCreateInfo framebuffer_create_info = {
                 .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -216,6 +232,7 @@ create_swapchain_image(struct fv_window *window,
 error:
         return false;
 }
+
 
 static bool
 create_swapchain_images(struct fv_window *window)
@@ -252,6 +269,82 @@ create_swapchain_images(struct fv_window *window)
                 if (!create_swapchain_image(window,
                                             window->vk_fb.swapchain_images + i))
                         goto error;
+        }
+
+        return true;
+
+error:
+        return false;
+}
+
+static bool
+create_msaa_image(struct fv_window *window)
+{
+        VkResult res;
+
+        VkImageCreateInfo image_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                .imageType = VK_IMAGE_TYPE_2D,
+                .format = window->vk_surface_format,
+                .extent = {
+                        .width = window->vk_fb.extent.width,
+                        .height = window->vk_fb.extent.height,
+                        .depth = 1
+                },
+                .mipLevels = 1,
+                .arrayLayers = 1,
+                .samples = VK_SAMPLE_COUNT_4_BIT,
+                .tiling = VK_IMAGE_TILING_OPTIMAL,
+                .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+        };
+        res = fv_vk.vkCreateImage(window->vk_data.device,
+                                  &image_create_info,
+                                  NULL, /* allocator */
+                                  &window->vk_fb.msaa_image);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating msaa image");
+                goto error;
+        }
+
+        res = fv_allocate_store_image(&window->vk_data,
+                                      0, /* memory_type_flags */
+                                      1, /* n_images */
+                                      &window->vk_fb.msaa_image,
+                                      &window->vk_fb.msaa_image_memory,
+                                      NULL /* memory_type_index */);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error allocating msaa buffer memory");
+                goto error;
+        }
+
+        VkImageViewCreateInfo image_view_create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = window->vk_fb.msaa_image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = window->vk_surface_format,
+                .components = {
+                        .r = VK_COMPONENT_SWIZZLE_R,
+                        .g = VK_COMPONENT_SWIZZLE_G,
+                        .b = VK_COMPONENT_SWIZZLE_B,
+                        .a = VK_COMPONENT_SWIZZLE_A
+                },
+                .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                }
+        };
+        res = fv_vk.vkCreateImageView(window->vk_data.device,
+                                      &image_view_create_info,
+                                      NULL, /* allocator */
+                                      &window->vk_fb.msaa_image_view);
+        if (res != VK_SUCCESS) {
+                fv_error_message("Error creating msaa image view");
+                goto error;
         }
 
         return true;
@@ -333,7 +426,7 @@ create_framebuffer_resources(struct fv_window *window)
                 },
                 .mipLevels = 1,
                 .arrayLayers = 1,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .samples = VK_SAMPLE_COUNT_4_BIT,
                 .tiling = VK_IMAGE_TILING_OPTIMAL,
                 .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
@@ -386,6 +479,9 @@ create_framebuffer_resources(struct fv_window *window)
                 fv_error_message("Error creating depth-stencil image view");
                 goto error;
         }
+
+        if (!create_msaa_image(window))
+                goto error;
 
         if (!create_swapchain_images(window))
                 goto error;
@@ -1183,17 +1279,17 @@ init_vk(struct fv_window *window)
         VkAttachmentDescription attachment_descriptions[] = {
                 {
                         .format = window->vk_surface_format,
-                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .samples = VK_SAMPLE_COUNT_4_BIT,
                         .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 },
                 {
                         .format = window->vk_depth_format,
-                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .samples = VK_SAMPLE_COUNT_4_BIT,
                         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                         .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -1201,6 +1297,16 @@ init_vk(struct fv_window *window)
                         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                         .finalLayout =
                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                },
+                {
+                        .format = window->vk_surface_format,
+                        .samples = VK_SAMPLE_COUNT_1_BIT,
+                        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                 },
         };
         VkSubpassDescription subpass_descriptions[] = {
@@ -1216,7 +1322,13 @@ init_vk(struct fv_window *window)
                                 .attachment = 1,
                                 .layout =
                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-                        }
+                        },
+                        .pResolveAttachments = &(VkAttachmentReference) {
+                                .attachment = 2,
+                                .layout =
+                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                        },
+
                 }
         };
         VkRenderPassCreateInfo render_pass_create_info = {
