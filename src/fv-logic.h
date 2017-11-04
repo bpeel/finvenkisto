@@ -69,6 +69,9 @@ void
 fv_logic_update(struct fv_logic *logic,
                 unsigned int ticks);
 
+unsigned int
+fv_logic_get_ticks(struct fv_logic *logic);
+
 void
 fv_logic_get_center(struct fv_logic *logic,
                     int player_num,

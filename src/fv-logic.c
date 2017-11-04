@@ -885,3 +885,9 @@ fv_logic_get_time_since_fina_venko(struct fv_logic *logic)
 {
         return (logic->last_ticks - logic->fina_venko_time) / 1000.0f;
 }
+
+unsigned int
+fv_logic_get_ticks(struct fv_logic *logic)
+{
+        return logic->last_ticks;
+}
