@@ -262,18 +262,12 @@ fv_game_covers_framebuffer(struct fv_game *game,
 void
 fv_game_begin_frame(struct fv_game *game)
 {
-        fv_map_painter_begin_frame(game->map_painter);
-        fv_person_painter_begin_frame(game->person_painter);
-        fv_shout_painter_begin_frame(game->shout_painter);
         fv_circle_painter_begin_frame(game->circle_painter);
 }
 
 void
 fv_game_end_frame(struct fv_game *game)
 {
-        fv_map_painter_end_frame(game->map_painter);
-        fv_person_painter_end_frame(game->person_painter);
-        fv_shout_painter_end_frame(game->shout_painter);
         fv_circle_painter_end_frame(game->circle_painter);
 }
 
@@ -291,17 +285,6 @@ fv_game_paint(struct fv_game *game,
 
         update_modelview(game, logic);
 
-        fv_map_painter_paint(game->map_painter,
-                             command_buffer,
-                             &game->paint_state);
-        fv_person_painter_paint(game->person_painter,
-                                logic,
-                                command_buffer,
-                                &game->paint_state);
-        fv_shout_painter_paint(game->shout_painter,
-                               logic,
-                               command_buffer,
-                               &game->paint_state);
         fv_circle_painter_paint(game->circle_painter,
                                 logic,
                                 command_buffer,

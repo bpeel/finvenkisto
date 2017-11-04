@@ -268,36 +268,6 @@ handled:
 }
 
 static void
-paint_hud(struct data *data,
-          int w, int h)
-{
-        int n_players = fv_input_get_n_players(data->input);
-        int next_player = fv_input_get_next_player(data->input);
-
-        switch (fv_input_get_state(data->input)) {
-        case FV_INPUT_STATE_CHOOSING_N_PLAYERS:
-                fv_hud_paint_player_select(data->graphics.hud,
-                                           data->vk_data->command_buffer,
-                                           n_players,
-                                           w, h);
-                break;
-        case FV_INPUT_STATE_CHOOSING_CONTROLLERS:
-                fv_hud_paint_controller_select(data->graphics.hud,
-                                               data->vk_data->command_buffer,
-                                               w, h,
-                                               next_player,
-                                               n_players);
-                break;
-        case FV_INPUT_STATE_PLAYING:
-                fv_hud_paint_game_state(data->graphics.hud,
-                                        data->vk_data->command_buffer,
-                                        w, h,
-                                        data->logic);
-                break;
-        }
-}
-
-static void
 update_viewports(struct data *data)
 {
         int viewport_width, viewport_height;
@@ -354,36 +324,7 @@ update_centers(struct data *data)
 static bool
 need_clear(struct data *data)
 {
-        const struct viewport *viewport;
-        int i;
-
-        /* If there are only 3 divisions then one of the panels will
-         * be blank so we always need to clear */
-        if (data->n_viewports == 3)
-                return true;
-
-        /* If the window is an odd size then the divisions might not
-         * cover the entire window */
-        if (data->n_viewports >= 2) {
-                if (data->last_fb_width & 1)
-                        return true;
-                if (data->n_viewports >= 3 && (data->last_fb_height & 1))
-                        return true;
-        }
-
-        /* Otherwise check if all of the divisions currently cover
-         * their visible area */
-        for (i = 0; i < data->n_viewports; i++) {
-                viewport = data->viewports + i;
-                if (!fv_game_covers_framebuffer(data->graphics.game,
-                                                viewport->center_x,
-                                                viewport->center_y,
-                                                viewport->width,
-                                                viewport->height))
-                        return true;
-        }
-
-        return false;
+        return true;
 }
 
 static void
@@ -451,8 +392,6 @@ paint(struct data *data)
                                        1, /* viewportCount */
                                        &viewport);
         }
-
-        paint_hud(data, extent.width, extent.height);
 
         if (!fv_window_end_paint(data->window))
                 data->quit = true;
