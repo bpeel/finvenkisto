@@ -60,6 +60,14 @@ struct fv_instance_special {
         float normal_transform[3 * 3];
 };
 
+struct fv_instance_circle {
+        float x, y, radius;
+};
+
+struct fv_vertex_circle {
+        float x, y;
+};
+
 struct fv_instance_person {
         float mvp[16];
         float normal_transform[3 * 3];

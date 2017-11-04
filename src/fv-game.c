@@ -32,6 +32,7 @@
 #include "fv-map-painter.h"
 #include "fv-person-painter.h"
 #include "fv-shout-painter.h"
+#include "fv-circle-painter.h"
 #include "fv-map.h"
 #include "fv-paint-state.h"
 
@@ -54,6 +55,7 @@ struct fv_game {
         struct fv_map_painter *map_painter;
         struct fv_person_painter *person_painter;
         struct fv_shout_painter *shout_painter;
+        struct fv_circle_painter *circle_painter;
 
         struct fv_matrix base_transform;
 };
@@ -93,8 +95,15 @@ fv_game_new(const struct fv_vk_data *vk_data,
         if (game->shout_painter == NULL)
                 goto error_person_painter;
 
+        game->circle_painter = fv_circle_painter_new(vk_data,
+                                                     pipeline_data);
+        if (game->circle_painter == NULL)
+                goto error_shout_painter;
+
         return game;
 
+error_shout_painter:
+        fv_shout_painter_free(game->shout_painter);
 error_person_painter:
         fv_person_painter_free(game->person_painter);
 error_map_painter:
@@ -256,6 +265,7 @@ fv_game_begin_frame(struct fv_game *game)
         fv_map_painter_begin_frame(game->map_painter);
         fv_person_painter_begin_frame(game->person_painter);
         fv_shout_painter_begin_frame(game->shout_painter);
+        fv_circle_painter_begin_frame(game->circle_painter);
 }
 
 void
@@ -264,6 +274,7 @@ fv_game_end_frame(struct fv_game *game)
         fv_map_painter_end_frame(game->map_painter);
         fv_person_painter_end_frame(game->person_painter);
         fv_shout_painter_end_frame(game->shout_painter);
+        fv_circle_painter_end_frame(game->circle_painter);
 }
 
 void
@@ -291,11 +302,16 @@ fv_game_paint(struct fv_game *game,
                                logic,
                                command_buffer,
                                &game->paint_state);
+        fv_circle_painter_paint(game->circle_painter,
+                                logic,
+                                command_buffer,
+                                &game->paint_state);
 }
 
 void
 fv_game_free(struct fv_game *game)
 {
+        fv_circle_painter_free(game->circle_painter);
         fv_shout_painter_free(game->shout_painter);
         fv_person_painter_free(game->person_painter);
         fv_map_painter_free(game->map_painter);

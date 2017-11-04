@@ -16,6 +16,15 @@ VERTEX_SHADERS=( \
     fv-texture-vertex.glsl \
     fv-highlight-vertex.glsl \
     fv-person-vertex.glsl \
+    fv-circle-vertex.glsl \
+)
+
+TES_SHADERS=( \
+    fv-circle-tes.glsl \
+)
+
+TCS_SHADERS=( \
+    fv-circle-tcs.glsl \
 )
 
 FRAGMENT_SHADERS=( \
@@ -40,4 +49,6 @@ function compile_shaders() {
 }
 
 compile_shaders vertex "${VERTEX_SHADERS[@]}"
+compile_shaders tesc "${TCS_SHADERS[@]}"
+compile_shaders tese "${TES_SHADERS[@]}"
 compile_shaders fragment "${FRAGMENT_SHADERS[@]}"

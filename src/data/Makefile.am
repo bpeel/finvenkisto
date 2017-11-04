@@ -56,6 +56,9 @@ SPIRV = \
 	shaders/fv-person-vertex.spirv \
 	shaders/fv-texture-vertex.spirv \
 	shaders/fv-highlight-vertex.spirv \
+	shaders/fv-circle-vertex.spirv \
+	shaders/fv-circle-tcs.spirv \
+	shaders/fv-circle-tes.spirv \
 	$(NULL)
 
 MODELS = \

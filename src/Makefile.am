@@ -30,6 +30,8 @@ finvenkisto_SOURCES = \
 	fv-allocate-store.h \
 	fv-buffer.c \
 	fv-buffer.h \
+	fv-circle-painter.c \
+	fv-circle-painter.h \
 	fv-data.c \
 	fv-data.h \
 	fv-ease.c \
