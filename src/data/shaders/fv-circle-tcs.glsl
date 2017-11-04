@@ -27,7 +27,7 @@ layout(location = 1) in vec3 circle_position_radius_in[];
 layout(location = 0) out vec2 position_out[];
 layout(location = 1) patch out vec3 circle_position_radius_out;
 
-const float MAX_TESSELLATION = 8.0;
+const float MAX_TESSELLATION = 16.0;
 
 void
 main()
