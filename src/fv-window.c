@@ -862,6 +862,20 @@ check_physical_device_surface_capabilities(struct fv_window *window,
 }
 
 static bool
+check_physical_device_features(struct fv_window *window,
+                               VkPhysicalDevice physical_device)
+{
+        VkPhysicalDeviceFeatures features;
+
+        fv_vk.vkGetPhysicalDeviceFeatures(physical_device, &features);
+
+        if (!features.tessellationShader)
+                return false;
+
+        return true;
+}
+
+static bool
 find_physical_device(struct fv_window *window)
 {
         VkResult res;
@@ -899,6 +913,10 @@ find_physical_device(struct fv_window *window)
 
                 if (!check_physical_device_surface_capabilities(window,
                                                                 devices[i]))
+                        continue;
+
+                if (!check_physical_device_features(window,
+                                                    devices[i]))
                         continue;
 
                 window->vk_data.physical_device = devices[i];
@@ -1175,8 +1193,9 @@ init_vk(struct fv_window *window)
 
         window->vk_depth_format = get_depth_format(window);
 
-        VkPhysicalDeviceFeatures features;
-        memset(&features, 0, sizeof features);
+        VkPhysicalDeviceFeatures features = {
+                .tessellationShader = true,
+        };
 
         VkDeviceCreateInfo device_create_info = {
                 .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
