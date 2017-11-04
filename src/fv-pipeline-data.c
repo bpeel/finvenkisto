@@ -1468,6 +1468,15 @@ create_circle_pipeline(const struct fv_vk_data *vk_data,
                 VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
                 .patchControlPoints = 3
         };
+        VkPipelineRasterizationStateCreateInfo rasterization_state = {
+                .sType =
+                VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+                .polygonMode = VK_POLYGON_MODE_LINE,
+                .cullMode = VK_CULL_MODE_BACK_BIT,
+                .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .lineWidth = 1.0f
+        };
+
 
         VkGraphicsPipelineCreateInfo info = base_pipeline_create_info;
 
@@ -1476,6 +1485,7 @@ create_circle_pipeline(const struct fv_vk_data *vk_data,
         info.pVertexInputState = &vertex_input_state;
         info.pInputAssemblyState = &input_assembly_state;
         info.pTessellationState = &tessellation_state;
+        info.pRasterizationState = &rasterization_state;
         info.layout = data->layouts[FV_PIPELINE_DATA_LAYOUT_EMPTY];
         info.renderPass = render_pass;
 

@@ -872,6 +872,9 @@ check_physical_device_features(struct fv_window *window,
         if (!features.tessellationShader)
                 return false;
 
+        if (!features.fillModeNonSolid)
+                return false;
+
         return true;
 }
 
@@ -1195,6 +1198,7 @@ init_vk(struct fv_window *window)
 
         VkPhysicalDeviceFeatures features = {
                 .tessellationShader = true,
+                .fillModeNonSolid = true,
         };
 
         VkDeviceCreateInfo device_create_info = {
