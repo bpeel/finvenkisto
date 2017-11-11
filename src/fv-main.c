@@ -387,12 +387,40 @@ need_clear(struct data *data)
 }
 
 static void
+clear_window(struct data *data,
+             const VkExtent2D *extent)
+{
+        VkClearAttachment color_clear_attachment = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .colorAttachment = 0,
+                .clearValue = {
+                        .color = {
+                                .float32 = { 0.0f, 0.0f, 0.0f, 0.0f }
+                        }
+                },
+        };
+        VkClearRect color_clear_rect = {
+                .rect = {
+                        .offset = { 0, 0 },
+                        .extent = *extent
+                },
+                .baseArrayLayer = 0,
+                .layerCount = 1
+        };
+        fv_vk.vkCmdClearAttachments(data->vk_data->command_buffer,
+                                    1, /* attachmentCount */
+                                    &color_clear_attachment,
+                                    1,
+                                    &color_clear_rect);
+}
+
+static void
 paint(struct data *data)
 {
         VkExtent2D extent;
         int i;
 
-        if (!fv_window_begin_paint(data->window, need_clear(data))) {
+        if (!fv_window_begin_paint(data->window)) {
                 data->quit = true;
                 return;
         }
@@ -405,6 +433,9 @@ paint(struct data *data)
                 data->last_fb_height = extent.height;
                 data->viewports_dirty = true;
         }
+
+        if (need_clear(data))
+                clear_window(data, &extent);
 
         fv_logic_update(data->logic, get_ticks(data));
 

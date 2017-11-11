@@ -41,8 +41,7 @@ struct fv_vk_data *
 fv_window_get_vk_data(struct fv_window *window);
 
 bool
-fv_window_begin_paint(struct fv_window *window,
-                      bool need_clear);
+fv_window_begin_paint(struct fv_window *window);
 
 bool
 fv_window_end_paint(struct fv_window *window);

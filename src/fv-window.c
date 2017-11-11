@@ -534,8 +534,7 @@ acquire_image(struct fv_window *window)
 }
 
 bool
-fv_window_begin_paint(struct fv_window *window,
-                      bool need_clear)
+fv_window_begin_paint(struct fv_window *window)
 {
         struct swapchain_image *swapchain_image;
         const VkExtent2D *extent;
@@ -579,31 +578,6 @@ fv_window_begin_paint(struct fv_window *window,
         fv_vk.vkCmdBeginRenderPass(window->vk_data.command_buffer,
                                    &render_pass_begin_info,
                                    VK_SUBPASS_CONTENTS_INLINE);
-
-        if (need_clear) {
-                VkClearAttachment color_clear_attachment = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .colorAttachment = 0,
-                        .clearValue = {
-                                .color = {
-                                        .float32 = { 0.0f, 0.0f, 0.0f, 0.0f }
-                                }
-                        },
-                };
-                VkClearRect color_clear_rect = {
-                        .rect = {
-                                .offset = { 0, 0 },
-                                .extent = *extent
-                        },
-                        .baseArrayLayer = 0,
-                        .layerCount = 1
-                };
-                fv_vk.vkCmdClearAttachments(window->vk_data.command_buffer,
-                                            1, /* attachmentCount */
-                                            &color_clear_attachment,
-                                            1,
-                                            &color_clear_rect);
-        }
 
         VkRect2D scissor = {
                 .offset = { .x = 0, .y = 0 },
