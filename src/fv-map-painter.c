@@ -75,6 +75,7 @@ struct fv_map_painter_tile {
 
 struct fv_map_painter_special {
         struct fv_model model;
+        bool model_loaded;
 };
 
 struct instance_buffer {
@@ -391,9 +392,6 @@ create_texture(struct fv_map_painter *painter,
                                       &painter->texture_view);
         if (res != VK_SUCCESS) {
                 fv_error_message("Error creating image view");
-                fv_vk.vkDestroyImage(painter->vk_data->device,
-                                     painter->texture_image,
-                                     NULL /* allocator */);
                 return false;
         }
 
@@ -457,17 +455,12 @@ load_models(struct fv_map_painter *painter)
                                     &special->model,
                                     fv_map_painter_models[i].filename);
                 if (!res)
-                        goto error;
+                        return false;
+
+                special->model_loaded = true;
         }
 
         return true;
-
-error:
-        while (--i >= 0)
-                fv_model_destroy(painter->vk_data,
-                                 &painter->specials[i].model);
-
-        return false;
 }
 
 static void
@@ -476,8 +469,10 @@ destroy_models(struct fv_map_painter *painter)
         int i;
 
         for (i = 0; i < FV_MAP_PAINTER_N_MODELS; i++) {
-                fv_model_destroy(painter->vk_data,
-                                 &painter->specials[i].model);
+                if (painter->specials[i].model_loaded) {
+                        fv_model_destroy(painter->vk_data,
+                                         &painter->specials[i].model);
+                }
         }
 }
 
@@ -622,32 +617,18 @@ fv_map_painter_new(const struct fv_map *map,
                 goto error;
 
         if (!create_descriptor_set(painter, pipeline_data))
-                goto error_image;
+                goto error;
 
         if (!load_models(painter))
-                goto error_descriptor_set;
+                goto error;
 
         if (!create_map_objects(painter, &painter->map_objects))
-                goto error_models;
+                goto error;
 
         return painter;
 
-error_models:
-        destroy_models(painter);
-error_descriptor_set:
-        fv_vk.vkFreeDescriptorSets(painter->vk_data->device,
-                                   painter->vk_data->descriptor_pool,
-                                   1, /* descriptorSetCount */
-                                   &painter->descriptor_set);
-error_image:
-        fv_vk.vkFreeMemory(painter->vk_data->device,
-                           painter->texture_memory,
-                           NULL /* allocator */);
-        fv_vk.vkDestroyImage(painter->vk_data->device,
-                              painter->texture_image,
-                              NULL /* allocator */);
 error:
-        fv_free(painter);
+        fv_map_painter_free(painter);
 
         return NULL;
 }
@@ -1025,19 +1006,27 @@ fv_map_painter_free(struct fv_map_painter *painter)
 
         destroy_map_objects(painter, &painter->map_objects);
 
-        fv_vk.vkFreeDescriptorSets(painter->vk_data->device,
-                                   painter->vk_data->descriptor_pool,
-                                   1, /* descriptorSetCount */
-                                   &painter->descriptor_set);
-        fv_vk.vkFreeMemory(painter->vk_data->device,
-                           painter->texture_memory,
-                           NULL /* allocator */);
-        fv_vk.vkDestroyImageView(painter->vk_data->device,
-                                 painter->texture_view,
-                                 NULL /* allocator */);
-        fv_vk.vkDestroyImage(painter->vk_data->device,
-                              painter->texture_image,
-                              NULL /* allocator */);
+        if (painter->descriptor_set) {
+                fv_vk.vkFreeDescriptorSets(painter->vk_data->device,
+                                           painter->vk_data->descriptor_pool,
+                                           1, /* descriptorSetCount */
+                                           &painter->descriptor_set);
+        }
+        if (painter->texture_memory) {
+                fv_vk.vkFreeMemory(painter->vk_data->device,
+                                   painter->texture_memory,
+                                   NULL /* allocator */);
+        }
+        if (painter->texture_view) {
+                fv_vk.vkDestroyImageView(painter->vk_data->device,
+                                         painter->texture_view,
+                                         NULL /* allocator */);
+        }
+        if (painter->texture_image) {
+                fv_vk.vkDestroyImage(painter->vk_data->device,
+                                     painter->texture_image,
+                                     NULL /* allocator */);
+        }
         destroy_models(painter);
 
         fv_free(painter);
