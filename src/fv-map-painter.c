@@ -53,6 +53,8 @@
 #define FV_MAP_PAINTER_NORMAL_SOUTH 90
 #define FV_MAP_PAINTER_NORMAL_WEST 3
 
+#define FV_MAP_PAINTER_MAX_INDIRECT_DRAWS FV_MAP_TILE_HEIGHT
+
 struct fv_map_painter_model {
         const char *filename;
         enum fv_image_data_image texture;
@@ -106,6 +108,11 @@ struct fv_map_painter {
         VkImageView texture_view;
         VkDescriptorSet descriptor_set;
         VkPipeline color_pipeline;
+
+        VkBuffer draw_indirect_buffer;
+        VkDeviceMemory draw_indirect_memory;
+        int draw_indirect_memory_type_index;
+        VkDrawIndexedIndirectCommand *draw_indirect_map;
 
         struct fv_list instance_buffers;
         struct fv_list in_use_instance_buffers;
@@ -589,6 +596,52 @@ error:
         return false;
 }
 
+static void
+create_draw_indirect_buffer(struct fv_map_painter *painter)
+{
+        VkResult res;
+        int *memory_type_index = &painter->draw_indirect_memory_type_index;
+
+        VkBufferCreateInfo buffer_create_info = {
+                .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                .size = (FV_MAP_PAINTER_MAX_INDIRECT_DRAWS *
+                         sizeof (VkDrawIndexedIndirectCommand)),
+                .usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
+                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        };
+        res = fv_vk.vkCreateBuffer(painter->vk_data->device,
+                                   &buffer_create_info,
+                                   NULL, /* allocator */
+                                   &painter->draw_indirect_buffer);
+        if (res != VK_SUCCESS) {
+                painter->draw_indirect_buffer = NULL;
+                return;
+        }
+
+        res = fv_allocate_store_buffer(painter->vk_data,
+                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                       1, /* n_buffers */
+                                       &painter->draw_indirect_buffer,
+                                       &painter->draw_indirect_memory,
+                                       memory_type_index,
+                                       NULL /* offsets */);
+        if (res != VK_SUCCESS) {
+                painter->draw_indirect_memory = NULL;
+                return;
+        }
+
+        res = fv_vk.vkMapMemory(painter->vk_data->device,
+                                painter->draw_indirect_memory,
+                                0, /* offset */
+                                VK_WHOLE_SIZE,
+                                0, /* flags */
+                                (void **) &painter->draw_indirect_map);
+        if (res != VK_SUCCESS) {
+                painter->draw_indirect_map = NULL;
+                return;
+        }
+}
+
 struct fv_map_painter *
 fv_map_painter_new(const struct fv_map *map,
                    const struct fv_vk_data *vk_data,
@@ -624,6 +677,9 @@ fv_map_painter_new(const struct fv_map *map,
 
         if (!create_map_objects(painter, &painter->map_objects))
                 goto error;
+
+        if (vk_data->features.multiDrawIndirect)
+                create_draw_indirect_buffer(painter);
 
         return painter;
 
@@ -870,9 +926,11 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         int x_min, x_max, y_min, y_max;
         const struct fv_map_tile *map_tile;
         const struct fv_map_painter_tile *tile = NULL;
+        VkDrawIndexedIndirectCommand *indirect_command;
         int count;
         int y, x, i;
         float normal_transform[12];
+        int n_draws;
 
         x_min = floorf((paint_state->center_x - paint_state->visible_w / 2.0f) /
                        FV_MAP_TILE_WIDTH);
@@ -957,6 +1015,8 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                                    0, /* offset */
                                    VK_INDEX_TYPE_UINT16);
 
+        indirect_command = painter->draw_indirect_map;
+
         for (y = y_min; y < y_max; y++) {
                 count = 0;
 
@@ -966,12 +1026,35 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                         count += tile->count;
                 }
 
-                fv_vk.vkCmdDrawIndexed(command_buffer,
-                                       count,
-                                       1, /* instanceCount */
-                                       tile->offset,
-                                       0, /* vertexOffset */
-                                       0 /* firstInstance */);
+                if (indirect_command) {
+                        indirect_command->indexCount = count;
+                        indirect_command->instanceCount = 1;
+                        indirect_command->firstIndex = tile->offset;
+                        indirect_command->vertexOffset = 0;
+                        indirect_command->firstInstance = 0;
+                        indirect_command++;
+                } else {
+                        fv_vk.vkCmdDrawIndexed(command_buffer,
+                                               count,
+                                               1, /* instanceCount */
+                                               tile->offset,
+                                               0, /* vertexOffset */
+                                               0 /* firstInstance */);
+                }
+        }
+
+        if (indirect_command) {
+                n_draws = indirect_command - painter->draw_indirect_map;
+
+                fv_flush_memory(painter->vk_data,
+                                painter->draw_indirect_memory_type_index,
+                                painter->draw_indirect_memory,
+                                n_draws * sizeof indirect_command[0]);
+                fv_vk.vkCmdDrawIndexedIndirect(command_buffer,
+                                               painter->draw_indirect_buffer,
+                                               0, /* offset */
+                                               n_draws,
+                                               sizeof indirect_command[0]);
         }
 }
 
@@ -1005,6 +1088,21 @@ fv_map_painter_free(struct fv_map_painter *painter)
         free_instance_buffers(painter, &painter->in_use_instance_buffers);
 
         destroy_map_objects(painter, &painter->map_objects);
+
+        if (painter->draw_indirect_map) {
+                fv_vk.vkUnmapMemory(painter->vk_data->device,
+                                    painter->draw_indirect_memory);
+        }
+        if (painter->draw_indirect_buffer) {
+                fv_vk.vkDestroyBuffer(painter->vk_data->device,
+                                      painter->draw_indirect_buffer,
+                                      NULL /* allocator */);
+        }
+        if (painter->draw_indirect_memory) {
+                fv_vk.vkFreeMemory(painter->vk_data->device,
+                                   painter->draw_indirect_memory,
+                                   NULL /* allocator */);
+        }
 
         if (painter->descriptor_set) {
                 fv_vk.vkFreeDescriptorSets(painter->vk_data->device,

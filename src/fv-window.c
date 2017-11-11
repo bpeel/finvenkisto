@@ -1177,8 +1177,9 @@ init_vk(struct fv_window *window)
 
         window->vk_depth_format = get_depth_format(window);
 
-        VkPhysicalDeviceFeatures features;
-        memset(&features, 0, sizeof features);
+        VkPhysicalDeviceFeatures features = {
+                .multiDrawIndirect = vk_data->features.multiDrawIndirect
+        };
 
         VkDeviceCreateInfo device_create_info = {
                 .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
