@@ -53,7 +53,8 @@
 #define FV_MAP_PAINTER_NORMAL_SOUTH 90
 #define FV_MAP_PAINTER_NORMAL_WEST 3
 
-#define FV_MAP_PAINTER_MAX_INDIRECT_DRAWS FV_MAP_TILE_HEIGHT
+#define FV_MAP_PAINTER_MAX_INDIRECT_DRAWS (FV_MAP_TILE_HEIGHT * \
+                                           FV_LOGIC_MAX_PLAYERS)
 
 struct fv_map_painter_model {
         const char *filename;
@@ -93,6 +94,11 @@ struct map_objects {
         VkDeviceMemory memory;
 };
 
+struct paint_range {
+        int x_min, x_max, y_min, y_max;
+        struct fv_paint_state *paint_state;
+};
+
 struct fv_map_painter {
         struct fv_map_painter_tile tiles[FV_MAP_TILES_X *
                                          FV_MAP_TILES_Y];
@@ -113,6 +119,7 @@ struct fv_map_painter {
         VkDeviceMemory draw_indirect_memory;
         int draw_indirect_memory_type_index;
         VkDrawIndexedIndirectCommand *draw_indirect_map;
+        int n_indirect_draws;
 
         struct fv_list instance_buffers;
         struct fv_list in_use_instance_buffers;
@@ -909,55 +916,17 @@ paint_special(struct fv_map_painter *painter,
         painter->n_instances++;
 }
 
-void
-fv_map_painter_begin_frame(struct fv_map_painter *painter)
+static void
+paint_specials(struct fv_map_painter *painter,
+               VkCommandBuffer command_buffer,
+               struct paint_range *paint_range)
 {
-        painter->instance_buffer_offset = 0;
-        fv_list_insert_list(&painter->instance_buffers,
-                            &painter->in_use_instance_buffers);
-        fv_list_init(&painter->in_use_instance_buffers);
-}
-
-void
-fv_map_painter_paint(struct fv_map_painter *painter,
-                     VkCommandBuffer command_buffer,
-                     struct fv_paint_state *paint_state)
-{
-        int x_min, x_max, y_min, y_max;
+        struct fv_paint_state *paint_state = paint_range->paint_state;
         const struct fv_map_tile *map_tile;
-        const struct fv_map_painter_tile *tile = NULL;
-        VkDrawIndexedIndirectCommand *indirect_command;
-        struct fv_vertex_map_push_constants push_constants;
-        int count;
         int y, x, i;
-        int n_draws;
 
-        x_min = floorf((paint_state->center_x - paint_state->visible_w / 2.0f) /
-                       FV_MAP_TILE_WIDTH);
-        x_max = ceilf((paint_state->center_x + paint_state->visible_w / 2.0f) /
-                      FV_MAP_TILE_WIDTH);
-        y_min = floorf((paint_state->center_y - paint_state->visible_h / 2.0f) /
-                       FV_MAP_TILE_HEIGHT);
-        y_max = ceilf((paint_state->center_y + paint_state->visible_h / 2.0f) /
-                      FV_MAP_TILE_HEIGHT);
-
-        if (x_min < 0)
-                x_min = 0;
-        if (x_max > FV_MAP_TILES_X)
-                x_max = FV_MAP_TILES_X;
-        if (y_min < 0)
-                y_min = 0;
-        if (y_max > FV_MAP_TILES_Y)
-                y_max = FV_MAP_TILES_Y;
-
-        if (y_min >= y_max || x_min >= x_max)
-                return;
-
-        painter->n_instances = 0;
-        painter->current_special = 0;
-
-        for (y = y_min; y < y_max; y++) {
-                for (x = x_max - 1; x >= x_min; x--) {
+        for (y = paint_range->y_min; y < paint_range->y_max; y++) {
+                for (x = paint_range->x_max - 1; x >= paint_range->x_min; x--) {
                         map_tile = painter->map->tiles + y * FV_MAP_TILES_X + x;
                         for (i = 0; i < map_tile->n_specials; i++) {
                                 paint_special(painter,
@@ -969,6 +938,20 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         }
 
         flush_specials(painter, command_buffer);
+}
+
+static void
+paint_map(struct fv_map_painter *painter,
+          VkCommandBuffer command_buffer,
+          struct paint_range *paint_range)
+{
+        struct fv_paint_state *paint_state = paint_range->paint_state;
+        struct fv_vertex_map_push_constants push_constants;
+        VkDrawIndexedIndirectCommand *indirect_command;
+        const struct fv_map_painter_tile *tile = NULL;
+        int n_draws;
+        int y, x, i;
+        int count;
 
         fv_transform_ensure_mvp(&paint_state->transform);
         fv_transform_ensure_normal_transform(&paint_state->transform);
@@ -984,39 +967,20 @@ fv_map_painter_paint(struct fv_map_painter *painter,
                 push_constants.normal_transform[i * 4 + 3] = 0.0f;
         }
 
-        fv_vk.vkCmdBindPipeline(command_buffer,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                painter->map_pipeline);
-        fv_vk.vkCmdBindDescriptorSets(command_buffer,
-                                      VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                      painter->map_layout,
-                                      0, /* firstSet */
-                                      1, /* descriptorSetCount */
-                                      &painter->descriptor_set,
-                                      0, /* dynamicOffsetCount */
-                                      NULL /* pDynamicOffsets */);
         fv_vk.vkCmdPushConstants(command_buffer,
                                  painter->map_layout,
                                  VK_SHADER_STAGE_VERTEX_BIT,
                                  0, /* offset */
                                  sizeof push_constants,
                                  &push_constants);
-        fv_vk.vkCmdBindVertexBuffers(command_buffer,
-                                     0, /* firstBinding */
-                                     1, /* bindingCount */
-                                     &painter->map_objects.buffer,
-                                     &painter->vertices_offset);
-        fv_vk.vkCmdBindIndexBuffer(command_buffer,
-                                   painter->map_objects.buffer,
-                                   0, /* offset */
-                                   VK_INDEX_TYPE_UINT16);
 
-        indirect_command = painter->draw_indirect_map;
+        indirect_command = (painter->draw_indirect_map +
+                            painter->n_indirect_draws);
 
-        for (y = y_min; y < y_max; y++) {
+        for (y = paint_range->y_min; y < paint_range->y_max; y++) {
                 count = 0;
 
-                for (x = x_max - 1; x >= x_min; x--) {
+                for (x = paint_range->x_max - 1; x >= paint_range->x_min; x--) {
                         tile = painter->tiles +
                                 y * FV_MAP_TILES_X + x;
                         count += tile->count;
@@ -1042,22 +1006,141 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         if (indirect_command) {
                 n_draws = indirect_command - painter->draw_indirect_map;
 
-                fv_flush_memory(painter->vk_data,
-                                painter->draw_indirect_memory_type_index,
-                                painter->draw_indirect_memory,
-                                n_draws * sizeof indirect_command[0]);
                 fv_vk.vkCmdDrawIndexedIndirect(command_buffer,
                                                painter->draw_indirect_buffer,
-                                               0, /* offset */
+                                               painter->n_indirect_draws *
+                                               sizeof indirect_command[0],
                                                n_draws,
                                                sizeof indirect_command[0]);
+
+                painter->n_indirect_draws += n_draws;
         }
 }
 
-void
-fv_map_painter_end_frame(struct fv_map_painter *painter)
+static void
+set_viewport(VkCommandBuffer command_buffer,
+             const struct fv_paint_state *paint_state)
 {
+        VkViewport viewport = {
+                .x = paint_state->viewport_x,
+                .y = paint_state->viewport_y,
+                .width = paint_state->viewport_width,
+                .height = paint_state->viewport_height,
+                .minDepth = 0.0f,
+                .maxDepth = 1.0f
+        };
+        fv_vk.vkCmdSetViewport(command_buffer,
+                               0, /* firstViewport */
+                               1, /* viewportCount */
+                               &viewport);
+}
+
+void
+fv_map_painter_paint(struct fv_map_painter *painter,
+                     VkCommandBuffer command_buffer,
+                     int n_paint_states,
+                     struct fv_paint_state *paint_states)
+{
+        struct paint_range paint_ranges[FV_LOGIC_MAX_PLAYERS];
+        struct paint_range *paint_range;
+        struct fv_paint_state *paint_state;
+        int n_paint_ranges = 0;
+        int i;
+
+        painter->instance_buffer_offset = 0;
+        fv_list_insert_list(&painter->instance_buffers,
+                            &painter->in_use_instance_buffers);
+        fv_list_init(&painter->in_use_instance_buffers);
+
+        for (i = 0; i < n_paint_states; i++) {
+                paint_range = paint_ranges + n_paint_ranges;
+                paint_state = paint_states + i;
+
+                paint_range->x_min = floorf((paint_state->center_x -
+                                             paint_state->visible_w / 2.0f) /
+                                            FV_MAP_TILE_WIDTH);
+                paint_range->x_max = ceilf((paint_state->center_x +
+                                            paint_state->visible_w / 2.0f) /
+                                           FV_MAP_TILE_WIDTH);
+                paint_range->y_min = floorf((paint_state->center_y -
+                                             paint_state->visible_h / 2.0f) /
+                                            FV_MAP_TILE_HEIGHT);
+                paint_range->y_max = ceilf((paint_state->center_y +
+                                            paint_state->visible_h / 2.0f) /
+                                           FV_MAP_TILE_HEIGHT);
+
+                if (paint_range->x_min < 0)
+                        paint_range->x_min = 0;
+                if (paint_range->x_max > FV_MAP_TILES_X)
+                        paint_range->x_max = FV_MAP_TILES_X;
+                if (paint_range->y_min < 0)
+                        paint_range->y_min = 0;
+                if (paint_range->y_max > FV_MAP_TILES_Y)
+                        paint_range->y_max = FV_MAP_TILES_Y;
+
+                if (paint_range->y_min >= paint_range->y_max ||
+                    paint_range->x_min >= paint_range->x_max)
+                        continue;
+
+                paint_range->paint_state = paint_state;
+                n_paint_ranges++;
+        }
+
+        for (i = 0; i < n_paint_ranges; i++) {
+                paint_range = paint_ranges + i;
+                paint_state = paint_range->paint_state;
+
+                painter->n_instances = 0;
+                painter->current_special = 0;
+
+                if (n_paint_states != 1)
+                        set_viewport(command_buffer, paint_state);
+
+                paint_specials(painter, command_buffer, paint_range);
+        }
+
         unmap_instance_buffer(painter);
+
+        painter->n_indirect_draws = 0;
+
+        fv_vk.vkCmdBindPipeline(command_buffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                painter->map_pipeline);
+        fv_vk.vkCmdBindDescriptorSets(command_buffer,
+                                      VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                      painter->map_layout,
+                                      0, /* firstSet */
+                                      1, /* descriptorSetCount */
+                                      &painter->descriptor_set,
+                                      0, /* dynamicOffsetCount */
+                                      NULL /* pDynamicOffsets */);
+        fv_vk.vkCmdBindVertexBuffers(command_buffer,
+                                     0, /* firstBinding */
+                                     1, /* bindingCount */
+                                     &painter->map_objects.buffer,
+                                     &painter->vertices_offset);
+        fv_vk.vkCmdBindIndexBuffer(command_buffer,
+                                   painter->map_objects.buffer,
+                                   0, /* offset */
+                                   VK_INDEX_TYPE_UINT16);
+
+        for (i = 0; i < n_paint_ranges; i++) {
+                paint_range = paint_ranges + i;
+                paint_state = paint_range->paint_state;
+
+                if (n_paint_states != 1)
+                        set_viewport(command_buffer, paint_state);
+
+                paint_map(painter, command_buffer, paint_range);
+        }
+
+        if (painter->n_indirect_draws) {
+                fv_flush_memory(painter->vk_data,
+                                painter->draw_indirect_memory_type_index,
+                                painter->draw_indirect_memory,
+                                painter->n_indirect_draws *
+                                sizeof painter->draw_indirect_map[0]);
+        }
 }
 
 static void

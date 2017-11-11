@@ -1041,17 +1041,16 @@ paint(struct data *data)
 
         fv_transform_dirty(&paint_state.transform);
 
-        fv_map_painter_begin_frame(data->map_painter);
         fv_highlight_painter_begin_frame(data->highlight_painter);
 
         fv_map_painter_paint(data->map_painter,
                              data->vk_data->command_buffer,
+                             1, /* n_paint_states */
                              &paint_state);
 
         draw_highlights(data, &paint_state);
 
         fv_highlight_painter_end_frame(data->highlight_painter);
-        fv_map_painter_end_frame(data->map_painter);
 
         if (!fv_window_end_paint(data->window))
                 data->quit = true;

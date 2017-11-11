@@ -335,16 +335,15 @@ fv_game_paint(struct fv_game *game,
 
         update_centers(game, logic);
 
-        fv_map_painter_begin_frame(game->map_painter);
-        fv_person_painter_begin_frame(game->person_painter);
-        fv_shout_painter_begin_frame(game->shout_painter);
+        for (i = 0; i < game->last_n_players; i++)
+                update_modelview(game, logic, game->paint_states + i);
 
-        for (i = 0; i < game->last_n_players; i++) {
+        if (game->last_n_players == 1) {
                 VkViewport viewport = {
-                        .x = game->paint_states[i].viewport_x,
-                        .y = game->paint_states[i].viewport_y,
-                        .width = game->paint_states[i].viewport_width,
-                        .height = game->paint_states[i].viewport_height,
+                        .x = game->paint_states[0].viewport_x,
+                        .y = game->paint_states[0].viewport_y,
+                        .width = game->paint_states[0].viewport_width,
+                        .height = game->paint_states[0].viewport_height,
                         .minDepth = 0.0f,
                         .maxDepth = 1.0f
                 };
@@ -352,14 +351,34 @@ fv_game_paint(struct fv_game *game,
                                        0, /* firstViewport */
                                        1, /* viewportCount */
                                        &viewport);
+        }
+
+        fv_map_painter_paint(game->map_painter,
+                             command_buffer,
+                             game->last_n_players,
+                             game->paint_states);
+
+        fv_person_painter_begin_frame(game->person_painter);
+        fv_shout_painter_begin_frame(game->shout_painter);
+
+        for (i = 0; i < game->last_n_players; i++) {
+                if (game->last_n_players != 1) {
+                        VkViewport viewport = {
+                                .x = game->paint_states[i].viewport_x,
+                                .y = game->paint_states[i].viewport_y,
+                                .width = game->paint_states[i].viewport_width,
+                                .height = game->paint_states[i].viewport_height,
+                                .minDepth = 0.0f,
+                                .maxDepth = 1.0f
+                        };
+                        fv_vk.vkCmdSetViewport(command_buffer,
+                                               0, /* firstViewport */
+                                               1, /* viewportCount */
+                                               &viewport);
+                }
 
                 paint_state = game->paint_states + i;
 
-                update_modelview(game, logic, paint_state);
-
-                fv_map_painter_paint(game->map_painter,
-                                     command_buffer,
-                                     paint_state);
                 fv_person_painter_paint(game->person_painter,
                                         logic,
                                         command_buffer,
@@ -370,7 +389,6 @@ fv_game_paint(struct fv_game *game,
                                        paint_state);
         }
 
-        fv_map_painter_end_frame(game->map_painter);
         fv_person_painter_end_frame(game->person_painter);
         fv_shout_painter_end_frame(game->shout_painter);
 }

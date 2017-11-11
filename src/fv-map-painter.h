@@ -34,18 +34,13 @@ fv_map_painter_new(const struct fv_map *map,
                    const struct fv_image_data *image_data);
 
 void
-fv_map_painter_begin_frame(struct fv_map_painter *painter);
-
-void
 fv_map_painter_paint(struct fv_map_painter *painter,
                      VkCommandBuffer command_buffer,
-                     struct fv_paint_state *paint_state);
+                     int n_paint_states,
+                     struct fv_paint_state *paint_states);
 
 bool
 fv_map_painter_map_changed(struct fv_map_painter *painter);
-
-void
-fv_map_painter_end_frame(struct fv_map_painter *painter);
 
 void
 fv_map_painter_free(struct fv_map_painter *painter);
