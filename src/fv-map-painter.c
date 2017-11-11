@@ -927,9 +927,9 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         const struct fv_map_tile *map_tile;
         const struct fv_map_painter_tile *tile = NULL;
         VkDrawIndexedIndirectCommand *indirect_command;
+        struct fv_vertex_map_push_constants push_constants;
         int count;
         int y, x, i;
-        float normal_transform[12];
         int n_draws;
 
         x_min = floorf((paint_state->center_x - paint_state->visible_w / 2.0f) /
@@ -973,11 +973,15 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         fv_transform_ensure_mvp(&paint_state->transform);
         fv_transform_ensure_normal_transform(&paint_state->transform);
 
+        memcpy(push_constants.transform,
+               &paint_state->transform.mvp.xx,
+               sizeof push_constants.transform);
+
         for (i = 0; i < 3; i++) {
-                memcpy(normal_transform + i * 4,
+                memcpy(push_constants.normal_transform + i * 4,
                        paint_state->transform.normal_transform + i * 3,
                        sizeof (float) * 3);
-                normal_transform[i * 4 + 3] = 0.0f;
+                push_constants.normal_transform[i * 4 + 3] = 0.0f;
         }
 
         fv_vk.vkCmdBindPipeline(command_buffer,
@@ -994,17 +998,9 @@ fv_map_painter_paint(struct fv_map_painter *painter,
         fv_vk.vkCmdPushConstants(command_buffer,
                                  painter->map_layout,
                                  VK_SHADER_STAGE_VERTEX_BIT,
-                                 offsetof(struct fv_vertex_map_push_constants,
-                                          transform),
-                                 sizeof (float) * 16,
-                                 &paint_state->transform.mvp.xx);
-        fv_vk.vkCmdPushConstants(command_buffer,
-                                 painter->map_layout,
-                                 VK_SHADER_STAGE_VERTEX_BIT,
-                                 offsetof(struct fv_vertex_map_push_constants,
-                                          normal_transform),
-                                 sizeof (float) * 12,
-                                 normal_transform);
+                                 0, /* offset */
+                                 sizeof push_constants,
+                                 &push_constants);
         fv_vk.vkCmdBindVertexBuffers(command_buffer,
                                      0, /* firstBinding */
                                      1, /* bindingCount */
