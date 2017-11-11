@@ -23,6 +23,8 @@
 #include "fv-transform.h"
 
 struct fv_paint_state {
+        int viewport_x, viewport_y;
+        int viewport_width, viewport_height;
         struct fv_transform transform;
         float center_x, center_y;
         float visible_w, visible_h;

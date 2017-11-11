@@ -39,12 +39,6 @@
 #include "fv-input.h"
 #include "fv-window.h"
 
-struct viewport {
-        int x, y;
-        int width, height;
-        float center_x, center_y;
-};
-
 struct data {
         struct fv_window *window;
         struct fv_vk_data *vk_data;
@@ -60,15 +54,9 @@ struct data {
 
         bool quit;
 
-        bool viewports_dirty;
-        int n_viewports;
-
         Uint32 start_time;
 
         struct fv_input *input;
-
-        int last_fb_width, last_fb_height;
-        struct viewport viewports[FV_LOGIC_MAX_PLAYERS];
 
         bool fullscreen_opt;
 };
@@ -89,8 +77,6 @@ static void
 reset_menu_state(struct data *data)
 {
         reset_start_time(data);
-        data->viewports_dirty = true;
-        data->n_viewports = 1;
 
         fv_input_reset(data->input);
         fv_logic_reset(data->logic, 0);
@@ -136,8 +122,6 @@ input_state_changed_cb(void *user_data)
                 fv_logic_reset(data->logic,
                                fv_input_get_n_players(data->input));
         }
-
-        data->viewports_dirty = true;
 }
 
 static void
@@ -297,93 +281,29 @@ paint_hud(struct data *data,
         }
 }
 
-static void
-update_viewports(struct data *data)
-{
-        int viewport_width, viewport_height;
-        int i;
-
-        if (!data->viewports_dirty)
-                return;
-
-        if (fv_input_get_state(data->input) ==
-            FV_INPUT_STATE_CHOOSING_N_PLAYERS)
-                data->n_viewports = 1;
-        else
-                data->n_viewports = fv_input_get_n_players(data->input);
-
-        viewport_width = data->last_fb_width;
-        viewport_height = data->last_fb_height;
-
-        if (data->n_viewports > 1) {
-                viewport_width /= 2;
-                if (data->n_viewports > 2)
-                        viewport_height /= 2;
-        }
-
-        for (i = 0; i < data->n_viewports; i++) {
-                data->viewports[i].x = i % 2 * viewport_width;
-                data->viewports[i].y = i / 2 * viewport_height;
-                data->viewports[i].width = viewport_width;
-                data->viewports[i].height = viewport_height;
-        }
-
-        data->viewports_dirty = false;
-}
-
-static void
-update_centers(struct data *data)
-{
-        int i;
-
-        if (fv_input_get_state(data->input) == FV_INPUT_STATE_PLAYING) {
-                for (i = 0; i < data->n_viewports; i++) {
-                        fv_logic_get_center(data->logic,
-                                            i,
-                                            &data->viewports[i].center_x,
-                                            &data->viewports[i].center_y);
-                }
-        } else {
-                for (i = 0; i < data->n_viewports; i++) {
-                        data->viewports[i].center_x = FV_MAP_START_X;
-                        data->viewports[i].center_y = FV_MAP_START_Y;
-                }
-        }
-}
-
 static bool
-need_clear(struct data *data)
+need_clear(struct data *data,
+           const VkExtent2D *extent)
 {
-        const struct viewport *viewport;
-        int i;
+        int n_players = fv_input_get_n_players(data->input);
 
         /* If there are only 3 divisions then one of the panels will
          * be blank so we always need to clear */
-        if (data->n_viewports == 3)
+        if (n_players == 3)
                 return true;
 
         /* If the window is an odd size then the divisions might not
          * cover the entire window */
-        if (data->n_viewports >= 2) {
-                if (data->last_fb_width & 1)
+        if (n_players >= 2) {
+                if (extent->width & 1)
                         return true;
-                if (data->n_viewports >= 3 && (data->last_fb_height & 1))
+                if (n_players >= 3 && (extent->height & 1))
                         return true;
         }
 
         /* Otherwise check if all of the divisions currently cover
          * their visible area */
-        for (i = 0; i < data->n_viewports; i++) {
-                viewport = data->viewports + i;
-                if (!fv_game_covers_framebuffer(data->graphics.game,
-                                                viewport->center_x,
-                                                viewport->center_y,
-                                                viewport->width,
-                                                viewport->height))
-                        return true;
-        }
-
-        return false;
+        return !fv_game_covers_framebuffer(data->graphics.game);
 }
 
 static void
@@ -418,57 +338,37 @@ static void
 paint(struct data *data)
 {
         VkExtent2D extent;
-        int i;
+        int n_viewports;
 
         if (!fv_window_begin_paint(data->window)) {
                 data->quit = true;
                 return;
         }
 
-        fv_window_get_extent(data->window, &extent);
-
-        if (extent.width != data->last_fb_width ||
-            extent.height != data->last_fb_height) {
-                data->last_fb_width = extent.width;
-                data->last_fb_height = extent.height;
-                data->viewports_dirty = true;
+        if (fv_input_get_state(data->input) ==
+            FV_INPUT_STATE_CHOOSING_N_PLAYERS) {
+                n_viewports = 1;
+        } else {
+                n_viewports = fv_input_get_n_players(data->input);
         }
 
-        if (need_clear(data))
-                clear_window(data, &extent);
+        fv_window_get_extent(data->window, &extent);
 
         fv_logic_update(data->logic, get_ticks(data));
 
-        update_viewports(data);
-        update_centers(data);
+        fv_game_update_fb_size(data->graphics.game,
+                               extent.width,
+                               extent.height,
+                               n_viewports);
 
-        fv_game_begin_frame(data->graphics.game);
+        if (need_clear(data, &extent))
+                clear_window(data, &extent);
 
-        for (i = 0; i < data->n_viewports; i++) {
-                VkViewport viewport = {
-                        .x = data->viewports[i].x,
-                        .y = data->viewports[i].y,
-                        .width = data->viewports[i].width,
-                        .height = data->viewports[i].height,
-                        .minDepth = 0.0f,
-                        .maxDepth = 1.0f
-                };
-                fv_vk.vkCmdSetViewport(data->vk_data->command_buffer,
-                                       0, /* firstViewport */
-                                       1, /* viewportCount */
-                                       &viewport);
-                fv_game_paint(data->graphics.game,
-                              data->viewports[i].center_x,
-                              data->viewports[i].center_y,
-                              data->viewports[i].width,
-                              data->viewports[i].height,
-                              data->logic,
-                              data->vk_data->command_buffer);
-        }
+        fv_game_paint(data->graphics.game,
+                      data->logic,
+                      data->vk_data->command_buffer);
 
-        fv_game_end_frame(data->graphics.game);
-
-        if (data->n_viewports != 1) {
+        if (n_viewports != 1) {
                 VkViewport viewport = {
                         .x = 0,
                         .y = 0,
