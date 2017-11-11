@@ -246,17 +246,6 @@ flush_people(struct paint_closure *data)
                                           struct instance_buffer,
                                           link);
 
-        fv_vk.vkCmdBindPipeline(data->command_buffer,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                painter->pipeline);
-        fv_vk.vkCmdBindDescriptorSets(data->command_buffer,
-                                      VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                      painter->layout,
-                                      0, /* firstSet */
-                                      1, /* descriptorSetCount */
-                                      &painter->descriptor_set,
-                                      0, /* dynamicOffsetCount */
-                                      NULL /* pDynamicOffsets */);
         fv_vk.vkCmdBindVertexBuffers(data->command_buffer,
                                      0, /* firstBinding */
                                      2, /* bindingCount */
@@ -269,10 +258,6 @@ flush_people(struct paint_closure *data)
                                              painter->buffer_offset *
                                              sizeof (struct fv_instance_person),
                                      });
-        fv_vk.vkCmdBindIndexBuffer(data->command_buffer,
-                                   painter->model.buffer,
-                                   painter->model.indices_offset,
-                                   VK_INDEX_TYPE_UINT16);
         fv_vk.vkCmdDrawIndexed(data->command_buffer,
                                painter->model.n_indices,
                                data->n_instances,
@@ -460,6 +445,22 @@ fv_person_painter_paint(struct fv_person_painter *painter,
         fv_list_insert_list(&painter->instance_buffers,
                             &painter->in_use_instance_buffers);
         fv_list_init(&painter->in_use_instance_buffers);
+
+        fv_vk.vkCmdBindPipeline(command_buffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                painter->pipeline);
+        fv_vk.vkCmdBindDescriptorSets(command_buffer,
+                                      VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                      painter->layout,
+                                      0, /* firstSet */
+                                      1, /* descriptorSetCount */
+                                      &painter->descriptor_set,
+                                      0, /* dynamicOffsetCount */
+                                      NULL /* pDynamicOffsets */);
+        fv_vk.vkCmdBindIndexBuffer(command_buffer,
+                                   painter->model.buffer,
+                                   painter->model.indices_offset,
+                                   VK_INDEX_TYPE_UINT16);
 
         data.painter = painter;
         data.command_buffer = command_buffer;
