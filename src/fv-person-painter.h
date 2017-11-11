@@ -32,16 +32,11 @@ fv_person_painter_new(const struct fv_vk_data *vk_data,
                       const struct fv_image_data *image_data);
 
 void
-fv_person_painter_begin_frame(struct fv_person_painter *painter);
-
-void
 fv_person_painter_paint(struct fv_person_painter *painter,
                         struct fv_logic *logic,
                         VkCommandBuffer command_buffer,
-                        const struct fv_paint_state *paint_state);
-
-void
-fv_person_painter_end_frame(struct fv_person_painter *painter);
+                        int n_paint_states,
+                        const struct fv_paint_state *paint_states);
 
 void
 fv_person_painter_free(struct fv_person_painter *painter);

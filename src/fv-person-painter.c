@@ -429,36 +429,55 @@ paint_person_cb(const struct fv_logic_person *person,
         data->n_instances++;
 }
 
-void
-fv_person_painter_begin_frame(struct fv_person_painter *painter)
+static void
+set_viewport(VkCommandBuffer command_buffer,
+             const struct fv_paint_state *paint_state)
 {
-        fv_list_insert_list(&painter->instance_buffers,
-                            &painter->in_use_instance_buffers);
-        fv_list_init(&painter->in_use_instance_buffers);
+        VkViewport viewport = {
+                .x = paint_state->viewport_x,
+                .y = paint_state->viewport_y,
+                .width = paint_state->viewport_width,
+                .height = paint_state->viewport_height,
+                .minDepth = 0.0f,
+                .maxDepth = 1.0f
+        };
+        fv_vk.vkCmdSetViewport(command_buffer,
+                               0, /* firstViewport */
+                               1, /* viewportCount */
+                               &viewport);
 }
 
 void
 fv_person_painter_paint(struct fv_person_painter *painter,
                         struct fv_logic *logic,
                         VkCommandBuffer command_buffer,
-                        const struct fv_paint_state *paint_state)
+                        int n_paint_states,
+                        const struct fv_paint_state *paint_states)
 {
         struct paint_closure data;
+        int i;
+
+        fv_list_insert_list(&painter->instance_buffers,
+                            &painter->in_use_instance_buffers);
+        fv_list_init(&painter->in_use_instance_buffers);
 
         data.painter = painter;
-        data.paint_state = paint_state;
-        data.transform.projection = paint_state->transform.projection;
-        data.n_instances = 0;
         data.command_buffer = command_buffer;
+        data.n_instances = 0;
 
-        fv_logic_for_each_person(logic, paint_person_cb, &data);
+        for (i = 0; i < n_paint_states; i++) {
+                data.paint_state = paint_states + i;
+                data.transform.projection =
+                        data.paint_state->transform.projection;
 
-        flush_people(&data);
-}
+                if (n_paint_states != 1)
+                        set_viewport(command_buffer, data.paint_state);
 
-void
-fv_person_painter_end_frame(struct fv_person_painter *painter)
-{
+                fv_logic_for_each_person(logic, paint_person_cb, &data);
+
+                flush_people(&data);
+        }
+
         unmap_buffer(painter);
 }
 
