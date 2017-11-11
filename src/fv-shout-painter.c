@@ -286,32 +286,29 @@ paint_cb(const struct fv_logic_shout *shout,
         data->n_shouts++;
 }
 
-void
-fv_shout_painter_begin_frame(struct fv_shout_painter *painter)
+static void
+set_viewport(VkCommandBuffer command_buffer,
+             const struct fv_paint_state *paint_state)
 {
-        painter->buffer_offset = 0;
-        painter->vertex_memory_watermark = 0;
+        VkViewport viewport = {
+                .x = paint_state->viewport_x,
+                .y = paint_state->viewport_y,
+                .width = paint_state->viewport_width,
+                .height = paint_state->viewport_height,
+                .minDepth = 0.0f,
+                .maxDepth = 1.0f
+        };
+        fv_vk.vkCmdSetViewport(command_buffer,
+                               0, /* firstViewport */
+                               1, /* viewportCount */
+                               &viewport);
 }
 
-void
-fv_shout_painter_paint(struct fv_shout_painter *painter,
-                       struct fv_logic *logic,
-                       VkCommandBuffer command_buffer,
-                       struct fv_paint_state *paint_state)
+static void
+bind_objects(struct fv_shout_painter *painter,
+             VkCommandBuffer command_buffer)
 {
-        struct paint_closure data;
-        VkDeviceSize vertices_offset =
-                painter->buffer_offset * sizeof (struct fv_vertex_shout) * 3;
-
-        data.painter = painter;
-        data.n_shouts = 0;
-
-        fv_logic_for_each_shout(logic, paint_cb, &data);
-
-        if (data.n_shouts <= 0)
-                return;
-
-        fv_transform_ensure_mvp(&paint_state->transform);
+        VkDeviceSize zero = 0;
 
         fv_vk.vkCmdBindPipeline(command_buffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -324,33 +321,76 @@ fv_shout_painter_paint(struct fv_shout_painter *painter,
                                       &painter->descriptor_set,
                                       0, /* dynamicOffsetCount */
                                       NULL /* pDynamicOffsets */);
+        fv_vk.vkCmdBindVertexBuffers(command_buffer,
+                                     0, /* firstBinding */
+                                     1, /* bindingCount */
+                                     &painter->vertex_buffer,
+                                     &zero);
+}
+
+static void
+set_transform(struct fv_shout_painter *painter,
+              VkCommandBuffer command_buffer,
+              struct fv_transform *transform)
+{
+        fv_transform_ensure_mvp(transform);
+
         fv_vk.vkCmdPushConstants(command_buffer,
                                  painter->layout,
                                  VK_SHADER_STAGE_VERTEX_BIT,
                                  offsetof(struct fv_vertex_shout_push_constants,
                                           transform),
                                  sizeof (float) * 16,
-                                 &paint_state->transform.mvp.xx);
-        fv_vk.vkCmdBindVertexBuffers(command_buffer,
-                                     0, /* firstBinding */
-                                     1, /* bindingCount */
-                                     &painter->vertex_buffer,
-                                     &vertices_offset);
-        fv_vk.vkCmdDraw(command_buffer,
-                        data.n_shouts * 3,
-                        1, /* instanceCount */
-                        0, /* firstVertex */
-                        0 /* firstInstance */);
-
-        painter->buffer_offset += data.n_shouts;
-        painter->vertex_memory_watermark =
-                (painter->buffer_offset + data.n_shouts) *
-                sizeof (struct fv_vertex_shout) * 3;
+                                 &transform->mvp.xx);
 }
 
 void
-fv_shout_painter_end_frame(struct fv_shout_painter *painter)
+fv_shout_painter_paint(struct fv_shout_painter *painter,
+                       struct fv_logic *logic,
+                       VkCommandBuffer command_buffer,
+                       int n_paint_states,
+                       struct fv_paint_state *paint_states)
 {
+        struct paint_closure data;
+        struct fv_paint_state *paint_state;
+        int i;
+
+        painter->buffer_offset = 0;
+        painter->vertex_memory_watermark = 0;
+
+        data.painter = painter;
+
+        for (i = 0; i < n_paint_states; i++) {
+                data.n_shouts = 0;
+
+                fv_logic_for_each_shout(logic, paint_cb, &data);
+
+                if (i == 0) {
+                        if (data.n_shouts <= 0)
+                                return;
+
+                        bind_objects(painter, command_buffer);
+                }
+
+                paint_state = paint_states + i;
+
+                if (n_paint_states != 1)
+                        set_viewport(command_buffer, paint_state);
+
+                set_transform(painter, command_buffer, &paint_state->transform);
+
+                fv_vk.vkCmdDraw(command_buffer,
+                                data.n_shouts * 3, /* vertexCount */
+                                1, /* instanceCount */
+                                painter->buffer_offset * 3, /* firstVertex */
+                                0 /* firstInstance */);
+
+                painter->buffer_offset += data.n_shouts;
+                painter->vertex_memory_watermark =
+                        (painter->buffer_offset + data.n_shouts) *
+                        sizeof (struct fv_vertex_shout) * 3;
+        }
+
         fv_flush_memory(painter->vk_data,
                         painter->vertex_memory_type_index,
                         painter->vertex_memory,

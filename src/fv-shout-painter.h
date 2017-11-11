@@ -32,16 +32,11 @@ fv_shout_painter_new(const struct fv_vk_data *vk_data,
                      const struct fv_image_data *image_data);
 
 void
-fv_shout_painter_begin_frame(struct fv_shout_painter *painter);
-
-void
 fv_shout_painter_paint(struct fv_shout_painter *painter,
                        struct fv_logic *logic,
                        VkCommandBuffer command_buffer,
+                       int n_paint_states,
                        struct fv_paint_state *paint_state);
-
-void
-fv_shout_painter_end_frame(struct fv_shout_painter *painter);
 
 void
 fv_shout_painter_free(struct fv_shout_painter *painter);

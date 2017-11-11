@@ -362,34 +362,11 @@ fv_game_paint(struct fv_game *game,
                                 command_buffer,
                                 game->last_n_players,
                                 game->paint_states);
-
-        fv_shout_painter_begin_frame(game->shout_painter);
-
-        for (i = 0; i < game->last_n_players; i++) {
-                if (game->last_n_players != 1) {
-                        VkViewport viewport = {
-                                .x = game->paint_states[i].viewport_x,
-                                .y = game->paint_states[i].viewport_y,
-                                .width = game->paint_states[i].viewport_width,
-                                .height = game->paint_states[i].viewport_height,
-                                .minDepth = 0.0f,
-                                .maxDepth = 1.0f
-                        };
-                        fv_vk.vkCmdSetViewport(command_buffer,
-                                               0, /* firstViewport */
-                                               1, /* viewportCount */
-                                               &viewport);
-                }
-
-                paint_state = game->paint_states + i;
-
-                fv_shout_painter_paint(game->shout_painter,
-                                       logic,
-                                       command_buffer,
-                                       paint_state);
-        }
-
-        fv_shout_painter_end_frame(game->shout_painter);
+        fv_shout_painter_paint(game->shout_painter,
+                               logic,
+                               command_buffer,
+                               game->last_n_players,
+                               game->paint_states);
 }
 
 void
