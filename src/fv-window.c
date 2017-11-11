@@ -1172,6 +1172,8 @@ init_vk(struct fv_window *window)
                                             &vk_data->device_properties);
         fv_vk.vkGetPhysicalDeviceMemoryProperties(vk_data->physical_device,
                                                   memory_properties);
+        fv_vk.vkGetPhysicalDeviceFeatures(vk_data->physical_device,
+                                          &vk_data->features);
 
         window->vk_depth_format = get_depth_format(window);
 

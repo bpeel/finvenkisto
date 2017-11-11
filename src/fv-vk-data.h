@@ -27,6 +27,7 @@ struct fv_vk_data {
         VkPhysicalDevice physical_device;
         VkPhysicalDeviceMemoryProperties memory_properties;
         VkPhysicalDeviceProperties device_properties;
+        VkPhysicalDeviceFeatures features;
         VkDescriptorPool descriptor_pool;
         VkCommandPool command_pool;
         VkCommandBuffer command_buffer;
