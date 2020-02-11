@@ -22,6 +22,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 
 #include "fv-shout-painter.h"
 #include "fv-logic.h"

@@ -21,6 +21,7 @@
 
 #include <assert.h>
 #include <stdarg.h>
+#include <stddef.h>
 
 #include "fv-hud.h"
 #include "fv-shader-data.h"
