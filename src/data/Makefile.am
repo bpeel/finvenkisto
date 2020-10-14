@@ -142,7 +142,7 @@ EXTRA_DIST = \
 
 .svg.png :
 	$(AM_V_GEN)mkdir -p `dirname $@`
-	$(AM_V_at)inkscape -e $@ $<
+	$(AM_V_at)inkscape --export-area-page --export-filename=$@ $<
 
 hud.png hud-layout.h : hud-stamp
 
