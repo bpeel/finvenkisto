@@ -161,7 +161,7 @@ EXTRA_DIST = \
 
 .svg.png :
 	$(AM_V_GEN)mkdir -p `dirname $@`
-	$(AM_V_at)inkscape -e $@ $<
+	$(AM_V_at)inkscape --export-area-page --export-filename=$@ $<
 
 .png.mipng : make-miping.py
 	$(AM_V_GEN)$(srcdir)/make-miping.py $< $@

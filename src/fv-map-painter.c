@@ -23,6 +23,7 @@
 #include <limits.h>
 #include <assert.h>
 #include <string.h>
+#include <stddef.h>
 
 #include "fv-map-painter.h"
 #include "fv-map.h"
