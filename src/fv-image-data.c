@@ -48,6 +48,7 @@ struct fv_image_data {
         VkBuffer buffers[FV_N_ELEMENTS(image_filenames)];
         int offsets[FV_N_ELEMENTS(image_filenames)];
         VkDeviceMemory memory;
+        bool supports_rgb;
 };
 
 static int
@@ -139,13 +140,14 @@ static uint8_t *
 load_image(const char *name,
            int expected_width,
            int expected_height,
-           VkFormat expected_format)
+           int expected_format)
 {
-        char *filename = fv_data_get_filename(name);
-        int components;
+        int actual_components;
         int width, height;
         VkFormat format;
         uint8_t *data;
+
+        char *filename = fv_data_get_filename(name);
 
         if (filename == NULL) {
                 fv_error_message("Failed to get filename for %s", name);
@@ -154,8 +156,8 @@ load_image(const char *name,
 
         data = stbi_load(filename,
                          &width, &height,
-                         &components,
-                         0 /* components */);
+                         &actual_components,
+                         format_to_components(expected_format));
 
         if (data == NULL) {
                 fv_error_message("%s: %s",
@@ -167,9 +169,7 @@ load_image(const char *name,
 
         fv_free(filename);
 
-        if (!components_to_format(components, &format) ||
-            format != expected_format ||
-            width != expected_width ||
+        if (width != expected_width ||
             height != expected_height) {
                 fv_free(data);
                 return NULL;
@@ -187,7 +187,7 @@ filename_is_mipng(const char *name)
 }
 
 static bool
-load_info(const struct fv_vk_data *vk_data,
+load_info(const struct fv_image_data *data,
           const char *name,
           struct image_details *image)
 {
@@ -213,6 +213,9 @@ load_info(const struct fv_vk_data *vk_data,
         }
 
         fv_free(filename);
+
+        if (components == 3 && !data->supports_rgb)
+                components = 4;
 
         if (is_mipng) {
                 /* Width must be an even number to hold the mipmaps */
@@ -341,6 +344,21 @@ copy_images(struct fv_image_data *data)
         return ret;
 }
 
+static bool
+check_supports_rgb(const struct fv_vk_data *vk_data)
+{
+        VkFormatProperties rgb_properties;
+        const VkFormatFeatureFlags required_properties =
+                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+
+        fv_vk.vkGetPhysicalDeviceFormatProperties(vk_data->physical_device,
+                                                  VK_FORMAT_R8G8B8_UNORM,
+                                                  &rgb_properties);
+
+        return ((rgb_properties.optimalTilingFeatures & required_properties) ==
+                required_properties);
+}
+
 struct fv_image_data *
 fv_image_data_new(const struct fv_vk_data *vk_data,
                   VkCommandBuffer command_buffer)
@@ -356,9 +374,11 @@ fv_image_data_new(const struct fv_vk_data *vk_data,
         data->vk_data = vk_data;
         data->command_buffer = command_buffer;
 
+        data->supports_rgb = check_supports_rgb(vk_data);
+
         /* Get the size of all the images */
         for (i = 0; i < FV_N_ELEMENTS(data->images); i++) {
-                res = load_info(vk_data, image_filenames[i], data->images + i);
+                res = load_info(data, image_filenames[i], data->images + i);
 
                 if (!res)
                         goto error_data;
