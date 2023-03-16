@@ -466,6 +466,7 @@ copy_image_from_buffer(const struct fv_image_data *data,
 
                 region->bufferOffset = offset;
                 region->bufferRowLength = 0;
+                region->bufferImageHeight = 0;
                 region->imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
                 region->imageSubresource.mipLevel = i;
                 region->imageSubresource.baseArrayLayer = array_layer;
