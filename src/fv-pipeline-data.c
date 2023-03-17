@@ -1253,7 +1253,7 @@ create_shout_pipeline(const struct fv_vk_data *vk_data,
         info.pStages = stages;
         info.pVertexInputState = &vertex_input_state;
         info.pInputAssemblyState = &input_assembly_state;
-        info.layout = data->layouts[FV_PIPELINE_DATA_LAYOUT_MAP];
+        info.layout = data->layouts[FV_PIPELINE_DATA_LAYOUT_SHOUT];
         info.renderPass = render_pass;
         info.pColorBlendState = &base_blend_enabled_state;
 
