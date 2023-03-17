@@ -513,9 +513,7 @@ acquire_image(struct fv_window *window)
                                                   VK_NULL_HANDLE, /* fence */
                                                   &window->
                                                   swapchain_image_index);
-                if (i == 0 &&
-                    (res == VK_ERROR_OUT_OF_DATE_KHR ||
-                     res == VK_SUBOPTIMAL_KHR)) {
+                if (i == 0 && res == VK_ERROR_OUT_OF_DATE_KHR) {
                         /* This will probably happen if the window is
                          * resized while we are waiting. Try
                          * recreating the resources with the right
