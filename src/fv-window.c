@@ -639,7 +639,13 @@ fv_window_end_paint(struct fv_window *window)
         };
         res = fv_vk.vkQueuePresentKHR(window->vk_data.queue,
                                       &present_info);
-        if (res != VK_SUCCESS) {
+        if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
+                /* This will probably happen if the window is resized.
+                 * Let’s just destroy the window resources so that it
+                 * will recreate them next paint.
+                 */
+                destroy_framebuffer_resources(window);
+        } else if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR) {
                 fv_error_message("Error presenting image");
                 return false;
         }
