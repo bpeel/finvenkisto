@@ -111,7 +111,7 @@ fv_image_data_new(uint32_t loaded_event)
                                 img.onload = load_cb;
                                 img.onerror = error_cb;
                                 img.src = "data/" +
-                                        Module.Pointer_stringify(image_name);
+                                        Module.UTF8ToString(image_name);
                                 Module.images.push(img);
                         }
                 }, fv_image_data_files, data);

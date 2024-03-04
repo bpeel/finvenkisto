@@ -44,7 +44,7 @@ fv_error_message(const char *format, ...)
         va_end(ap);
 
         EM_ASM_({
-                        console.error(Module.Pointer_stringify($0));
+                        console.error(Module.UTF8ToString($0));
                         var canvas = document.getElementById("canvas");
                         canvas.style.display = "none";
                         var errorMessage =

@@ -91,6 +91,8 @@ finvenkisto_html_LDFLAGS = \
 	--pre-js $(srcdir)/configure-emscripten.js \
 	--pre-js $(builddir)/data/finvenkisto-data.js \
 	--shell-file $(srcdir)/finvenkisto-shell.html \
+	-sFORCE_FILESYSTEM \
+	-s'EXPORTED_RUNTIME_METHODS=["UTF8ToString"]' \
 	$(NULL)
 finvenkisto_html_LDADD = \
 	$(ldadd) \
